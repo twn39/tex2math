@@ -642,7 +642,7 @@ fn test_texmath_invisible_fences() {
     let mut input = "\\left. \\frac{d}{dt} \\right|_{t=0}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // 这里只应该包含右侧的拉伸 |
     assert!(mathml.contains("<mo stretchy=\"true\">|</mo>"));
     // 不应该包含把 . 拉伸的标签
@@ -657,9 +657,11 @@ fn test_texmath_overbrace_with_label() {
     let mut input = "\\overbrace{a+b}^{\\text{term}}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // 第一个 mover：包含拉伸大括号
-    assert!(mathml.contains("<mover><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy=\"true\">⏞</mo></mover>"));
+    assert!(mathml.contains(
+        "<mover><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy=\"true\">⏞</mo></mover>"
+    ));
     // 第二个 mover：把 \text{term} 放在上面
     assert!(mathml.contains("<mover><mover><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy=\"true\">⏞</mo></mover><mtext>term</mtext></mover>"));
 }
@@ -670,8 +672,40 @@ fn test_texmath_max_with_subscript() {
     let mut input = "\\max_B X";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // 应该生成 <munder>，以 B 为下界
     assert!(mathml.contains("<munder><mi mathvariant=\"normal\">max</mi><mi>B</mi></munder>"));
 }
 
+// === 新增：隐形占位符与划线约分 ===
+
+#[test]
+fn test_parse_phantom() {
+    // phantom 用于生成与内部内容等大但不显示的占位符，常用于手动对齐
+    let mut input = "x + \\phantom{y + z} + a";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    assert!(mathml.contains("<mphantom><mrow><mi>y</mi><mo>+</mo><mi>z</mi></mrow></mphantom>"));
+}
+
+#[test]
+fn test_parse_cancel() {
+    // 分式推导中极其常用的删除线
+    let mut input = "\\frac{\\cancel{x} + y}{\\cancel{x}}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    assert!(mathml.contains("<menclose notation=\"updiagonalstrike\"><mi>x</mi></menclose>"));
+}
+
+#[test]
+fn test_parse_xcancel() {
+    // 交叉删除线 (大X)
+    let mut input = "\\xcancel{Math}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    // 必须包含 text 节点，并且包裹在双向 strike 里
+    assert!(mathml.contains("<menclose notation=\"updiagonalstrike downdiagonalstrike\">"));
+}

@@ -80,6 +80,13 @@ pub enum MathNode {
     },
     Boxed(Box<MathNode>), // 边框
 
+    // == 新增：隐形占位符与约分划线 ==
+    Phantom(Box<MathNode>),
+    Cancel {
+        mode: String, // 对应 notation 的属性值
+        content: Box<MathNode>,
+    },
+
     // == 新增：可拉伸跨度修饰符 ==
     StretchOp {
         op: String,
@@ -214,15 +221,21 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_left_right",
         (
-            preceded((literal("\\left"), space0), one_of(['(', '[', '{', '|', '.'])),
+            preceded(
+                (literal("\\left"), space0),
+                one_of(['(', '[', '{', '|', '.']),
+            ),
             delimited(space0, parse_row, space0),
-            preceded((literal("\\right"), space0), one_of([')', ']', '}', '|', '.'])),
+            preceded(
+                (literal("\\right"), space0),
+                one_of([')', ']', '}', '|', '.']),
+            ),
         )
-        .map(|(open, content, close)| MathNode::Fenced {
-            open: open.to_string(),
-            content: Box::new(content),
-            close: close.to_string(),
-        }),
+            .map(|(open, content, close)| MathNode::Fenced {
+                open: open.to_string(),
+                content: Box::new(content),
+                close: close.to_string(),
+            }),
     )
     .parse_next(input)
 }
@@ -274,6 +287,26 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             // \boxed{content}
             let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
             return Ok(MathNode::Boxed(Box::new(content)));
+        }
+
+        if cmd == "phantom" {
+            // \phantom{content}
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            return Ok(MathNode::Phantom(Box::new(content)));
+        }
+
+        let cancel_mode = match cmd {
+            "cancel" => Some("updiagonalstrike"),
+            "bcancel" => Some("downdiagonalstrike"),
+            "xcancel" => Some("updiagonalstrike downdiagonalstrike"),
+            _ => None,
+        };
+        if let Some(mode) = cancel_mode {
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            return Ok(MathNode::Cancel {
+                mode: mode.to_string(),
+                content: Box::new(content),
+            });
         }
 
         // == 新增：可拉伸的修饰符 ==
@@ -739,8 +772,16 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
             content,
             close,
         } => {
-            let mo_open = if open == "." { String::new() } else { format!("<mo stretchy=\"true\">{}</mo>", escape_xml(open)) };
-            let mo_close = if close == "." { String::new() } else { format!("<mo stretchy=\"true\">{}</mo>", escape_xml(close)) };
+            let mo_open = if open == "." {
+                String::new()
+            } else {
+                format!("<mo stretchy=\"true\">{}</mo>", escape_xml(open))
+            };
+            let mo_close = if close == "." {
+                String::new()
+            } else {
+                format!("<mo stretchy=\"true\">{}</mo>", escape_xml(close))
+            };
             format!(
                 "<mrow>{}{}{}</mrow>",
                 mo_open,
@@ -837,6 +878,19 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
         MathNode::Boxed(content) => {
             format!(
                 "<menclose notation=\"box\">{}</menclose>",
+                generate_mathml(content, mode)
+            )
+        }
+        MathNode::Phantom(content) => {
+            format!("<mphantom>{}</mphantom>", generate_mathml(content, mode))
+        }
+        MathNode::Cancel {
+            mode: notation_mode,
+            content,
+        } => {
+            format!(
+                "<menclose notation=\"{}\">{}</menclose>",
+                escape_xml(notation_mode),
                 generate_mathml(content, mode)
             )
         }
