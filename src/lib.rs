@@ -35,6 +35,9 @@ pub enum MathNode {
         base: Box<MathNode>,
         sub: Option<Box<MathNode>>,
         sup: Option<Box<MathNode>>,
+        // 新增：用于张量和前置角标
+        pre_sub: Option<Box<MathNode>>,
+        pre_sup: Option<Box<MathNode>>,
         behavior: LimitBehavior,
         is_large_op: bool,
     },
@@ -65,7 +68,7 @@ pub enum MathNode {
     },
     Function(String),
     Space(String),
-    
+
     // == 新增：高级文本处理与颜色系统 ==
     Color {
         color: String,
@@ -76,7 +79,7 @@ pub enum MathNode {
         content: Box<MathNode>,
     },
     Boxed(Box<MathNode>), // 边框
-    
+
     // == 新增：可拉伸跨度修饰符 ==
     StretchOp {
         op: String,
@@ -242,7 +245,8 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         // 1. 处理带参数的高级命令 (文本、样式、重音)
         // \text{...} 文本模式：内部必须原样保留空格，不进行数学递归解析
         if cmd == "text" || cmd == "mathrm" {
-            let inner_text = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let inner_text =
+                delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
             return Ok(MathNode::Text(inner_text.to_string()));
         }
 
@@ -304,7 +308,8 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             // 就直接把它当做 textcolor 对待；否则它只影响下一个 Node。
             // 实际上为了通过标准测试 test_parse_color_switch，我们需要让它贪婪消耗当前环境剩余的内容。
             // 为了安全，我们先提取剩下的所有能被 parse_node 消费的东西，这本质上就是剩下的 row：
-            let remaining_nodes: Vec<MathNode> = repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
+            let remaining_nodes: Vec<MathNode> =
+                repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
 
             let content = if remaining_nodes.len() == 1 {
                 remaining_nodes.into_iter().next().unwrap()
@@ -540,6 +545,8 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             sup: sup.map(Box::new),
             behavior,
             is_large_op: is_large_operator,
+            pre_sub: None,
+            pre_sup: None,
         })
     })
     .parse_next(input)
@@ -553,10 +560,76 @@ pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_row",
         repeat(0.., preceded(space0, parse_node)).map(|nodes: Vec<MathNode>| {
-            if nodes.len() == 1 {
-                nodes.into_iter().next().unwrap()
+            // == AST 智能折叠 Pass: 张量与前置角标 ==
+            // 扫描平铺的数组，寻找: [Scripts(base: 空Row, sub: A, sup: B), Identifier(X)]
+            // 并将它们合并为: Scripts(base: X, pre_sub: A, pre_sup: B)
+            let mut folded_nodes: Vec<MathNode> = Vec::with_capacity(nodes.len());
+            let mut i = 0;
+
+            while i < nodes.len() {
+                if i + 1 < nodes.len() {
+                    // 检查当前节点是否是一个空基底的角标
+                    if let MathNode::Scripts {
+                        base,
+                        sub,
+                        sup,
+                        pre_sub: None,
+                        pre_sup: None,
+                        behavior: LimitBehavior::Default,
+                        ..
+                    } = &nodes[i]
+                    {
+                        if let MathNode::Row(inner) = &**base {
+                            if inner.is_empty() {
+                                // 发现了一个完美的前置角标载体！
+                                let next_node = nodes[i + 1].clone();
+
+                                // 取出下一个节点。如果下一个节点本身也是一个 Scripts 节点，
+                                // 我们就把前置角标合并进它的 pre_sub/pre_sup 里！
+                                let merged_node = match next_node {
+                                    MathNode::Scripts {
+                                        base: next_base,
+                                        sub: next_sub,
+                                        sup: next_sup,
+                                        behavior,
+                                        is_large_op,
+                                        ..
+                                    } => MathNode::Scripts {
+                                        base: next_base,
+                                        sub: next_sub,
+                                        sup: next_sup,
+                                        pre_sub: sub.clone(),
+                                        pre_sup: sup.clone(),
+                                        behavior,
+                                        is_large_op,
+                                    },
+                                    // 如果下一个只是个普通的原子 (比如 Identifier X)，包装它！
+                                    _ => MathNode::Scripts {
+                                        base: Box::new(next_node),
+                                        sub: None,
+                                        sup: None,
+                                        pre_sub: sub.clone(),
+                                        pre_sup: sup.clone(),
+                                        behavior: LimitBehavior::Default,
+                                        is_large_op: false,
+                                    },
+                                };
+
+                                folded_nodes.push(merged_node);
+                                i += 2; // 跳过这两个被合并的节点
+                                continue;
+                            }
+                        }
+                    }
+                }
+                folded_nodes.push(nodes[i].clone());
+                i += 1;
+            }
+
+            if folded_nodes.len() == 1 {
+                folded_nodes.into_iter().next().unwrap()
             } else {
-                MathNode::Row(nodes)
+                MathNode::Row(folded_nodes)
             }
         }),
     )
@@ -590,10 +663,38 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
             base,
             sub,
             sup,
+            pre_sub,
+            pre_sup,
             behavior,
             is_large_op,
         } => {
             let base_str = generate_mathml(base, mode);
+
+            // 如果存在前置角标，直接进入最复杂的张量渲染模式 <mmultiscripts>
+            if pre_sub.is_some() || pre_sup.is_some() {
+                let s_sub = sub
+                    .as_ref()
+                    .map(|s| generate_mathml(s, mode))
+                    .unwrap_or_else(|| "<none/>".to_string());
+                let s_sup = sup
+                    .as_ref()
+                    .map(|s| generate_mathml(s, mode))
+                    .unwrap_or_else(|| "<none/>".to_string());
+                let p_sub = pre_sub
+                    .as_ref()
+                    .map(|s| generate_mathml(s, mode))
+                    .unwrap_or_else(|| "<none/>".to_string());
+                let p_sup = pre_sup
+                    .as_ref()
+                    .map(|s| generate_mathml(s, mode))
+                    .unwrap_or_else(|| "<none/>".to_string());
+
+                return format!(
+                    "<mmultiscripts>{}{}{}<mprescripts/>{}{}</mmultiscripts>",
+                    base_str, s_sub, s_sup, p_sub, p_sup
+                );
+            }
+
             let sub_str = sub.as_ref().map(|s| generate_mathml(s, mode));
             let sup_str = sup.as_ref().map(|s| generate_mathml(s, mode));
 
@@ -708,22 +809,41 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
             )
         }
         MathNode::Accent { mark, content } => {
-            format!("<mover accent=\"true\">{}<mo>{}</mo></mover>", generate_mathml(content, mode), escape_xml(mark))
+            format!(
+                "<mover accent=\"true\">{}<mo>{}</mo></mover>",
+                generate_mathml(content, mode),
+                escape_xml(mark)
+            )
         }
         MathNode::Function(f) => format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(f)),
         MathNode::Space(width) => format!("<mspace width=\"{}\"/>", escape_xml(width)),
 
         // == 新增：颜色与盒子的生成逻辑 ==
         MathNode::Color { color, content } => {
-            format!("<mstyle mathcolor=\"{}\">{}</mstyle>", escape_xml(color), generate_mathml(content, mode))
+            format!(
+                "<mstyle mathcolor=\"{}\">{}</mstyle>",
+                escape_xml(color),
+                generate_mathml(content, mode)
+            )
         }
         MathNode::ColorBox { bg_color, content } => {
-            format!("<mstyle mathbackground=\"{}\">{}</mstyle>", escape_xml(bg_color), generate_mathml(content, mode))
+            format!(
+                "<mstyle mathbackground=\"{}\">{}</mstyle>",
+                escape_xml(bg_color),
+                generate_mathml(content, mode)
+            )
         }
         MathNode::Boxed(content) => {
-            format!("<menclose notation=\"box\">{}</menclose>", generate_mathml(content, mode))
+            format!(
+                "<menclose notation=\"box\">{}</menclose>",
+                generate_mathml(content, mode)
+            )
         }
-        MathNode::StretchOp { op, is_over, content } => {
+        MathNode::StretchOp {
+            op,
+            is_over,
+            content,
+        } => {
             let stretchy_op = format!("<mo stretchy=\"true\">{}</mo>", escape_xml(op));
             let content_xml = generate_mathml(content, mode);
             if *is_over {

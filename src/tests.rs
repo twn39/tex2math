@@ -76,6 +76,8 @@ fn test_parse_superscript() {
         sup: Some(Box::new(MathNode::Number("2".to_string()))),
         behavior: LimitBehavior::Default,
         is_large_op: false,
+        pre_sub: None,
+        pre_sup: None,
     };
     assert_eq!(ast, expected);
 }
@@ -90,6 +92,8 @@ fn test_parse_subscript() {
         sup: None,
         behavior: LimitBehavior::Default,
         is_large_op: false,
+        pre_sub: None,
+        pre_sup: None,
     };
     assert_eq!(ast, expected);
 }
@@ -107,6 +111,8 @@ fn test_parse_subsup() {
         sup: Some(Box::new(MathNode::Number("2".to_string()))),
         behavior: LimitBehavior::Default,
         is_large_op: false,
+        pre_sub: None,
+        pre_sup: None,
     };
 
     assert_eq!(ast1, expected);
@@ -127,6 +133,8 @@ fn test_parse_group() {
         sup: Some(Box::new(MathNode::Number("2".to_string()))),
         behavior: LimitBehavior::Default,
         is_large_op: false,
+        pre_sub: None,
+        pre_sup: None,
     };
     assert_eq!(ast, expected);
 }
@@ -471,7 +479,7 @@ fn test_parse_textcolor() {
     let mut input = "x + \\textcolor{red}{y + z} = 1";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // 生成的 mathml 中，y + z 应该被包在带有 mathcolor="red" 的 mstyle 里
     assert!(mathml.contains("<mstyle mathcolor=\"red\">"));
     assert!(mathml.contains("<mi>y</mi><mo>+</mo><mi>z</mi>"));
@@ -484,9 +492,11 @@ fn test_parse_color_switch() {
     let mut input = "{a + \\color{blue} b + c} + d";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // b + c 被包在了 blue 里面，但 d 不应该被影响，a 也不应该被影响
-    assert!(mathml.contains("<mstyle mathcolor=\"blue\"><mrow><mi>b</mi><mo>+</mo><mi>c</mi></mrow></mstyle>"));
+    assert!(mathml.contains(
+        "<mstyle mathcolor=\"blue\"><mrow><mi>b</mi><mo>+</mo><mi>c</mi></mrow></mstyle>"
+    ));
     assert!(mathml.contains("<mo>+</mo><mi>d</mi>"));
 }
 
@@ -495,13 +505,12 @@ fn test_parse_colorbox_and_boxed() {
     let mut input = "\\boxed{\\colorbox{#FF0000}{x}}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // boxed 会生成 menclose notation="box"
     // colorbox 会生成 mstyle mathbackground="#FF0000"
     let expected = "<menclose notation=\"box\"><mstyle mathbackground=\"#FF0000\"><mi>x</mi></mstyle></menclose>";
     assert_eq!(mathml, expected);
 }
-
 
 // ==========================================
 // 组合金字塔测试：检验所有高级特性的交叉兼容性
@@ -510,10 +519,11 @@ fn test_parse_colorbox_and_boxed() {
 #[test]
 fn test_complex_cases_environment() {
     // 带有不等式、分数、文本模式的复杂分段函数
-    let mut input = "\\begin{cases} \\frac{1}{2} & -1 \\le x < 0 \\\\ 1 - x^2 & \\text{otherwise} \\end{cases}";
+    let mut input =
+        "\\begin{cases} \\frac{1}{2} & -1 \\le x < 0 \\\\ 1 - x^2 & \\text{otherwise} \\end{cases}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // 验证 cases 左对齐
     assert!(mathml.contains("columnalign=\"left\""));
     // 验证第一行的分式和不等式
@@ -526,16 +536,19 @@ fn test_complex_cases_environment() {
 #[test]
 fn test_complex_align_with_colors() {
     // 带有颜色切换和作用域染色的复杂多行方程
-    let mut input = "\\begin{align} x &= \\color{red} y + 1 \\\\ \\textcolor{blue}{x - 1} &= y \\end{align}";
+    let mut input =
+        "\\begin{align} x &= \\color{red} y + 1 \\\\ \\textcolor{blue}{x - 1} &= y \\end{align}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // 验证列对齐：只有 2 列，所以是 right left
     assert!(mathml.contains("columnalign=\"right left\">"));
-    
+
     // 验证第一行的贪婪颜色：y + 1 都必须是红色的
-    assert!(mathml.contains("<mstyle mathcolor=\"red\"><mrow><mi>y</mi><mo>+</mo><mn>1</mn></mrow></mstyle>"));
-    
+    assert!(mathml.contains(
+        "<mstyle mathcolor=\"red\"><mrow><mi>y</mi><mo>+</mo><mn>1</mn></mrow></mstyle>"
+    ));
+
     // 验证第二行的块级颜色：只有 x - 1 是蓝色的
     assert!(mathml.contains("<mstyle mathcolor=\"blue\"><mrow><mi>x</mi><mo>-</mo><mn>1</mn></mrow></mstyle></mtd><mtd><mrow><mo>=</mo><mi>y</mi></mrow>"));
 }
@@ -546,9 +559,11 @@ fn test_mixed_scripts_and_functions() {
     let mut input = "\\sum_{i=1}^{\\infty} \\sin(x_i) \\quad \\text{and} \\quad \\lim_{n \\to \\infty} \\frac{1}{n}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // sum 应该是 munderover
-    assert!(mathml.contains("<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>∞</mi></munderover>"));
+    assert!(mathml.contains(
+        "<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>∞</mi></munderover>"
+    ));
     // sin 应该是 normal mi
     assert!(mathml.contains("<mi mathvariant=\"normal\">sin</mi>"));
     // lim 也应该是 munderover
@@ -556,7 +571,6 @@ fn test_mixed_scripts_and_functions() {
     // 空格和文本
     assert!(mathml.contains("<mspace width=\"1em\"/><mtext>and</mtext><mspace width=\"1em\"/>"));
 }
-
 
 // === 新增：可拉伸的顶部/底部修饰 (Stretch Operators) ===
 
@@ -566,10 +580,10 @@ fn test_underbrace_with_subscript() {
     let mut input = "\\underbrace{a + b + c}_{= X}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // 1. a + b + c 应该在一个 munder 里面，底下的括号应该是 U+23DF 且带有 stretchy="true"
     // 2. 外层还应该有一个 munder 或 msub，把 = X 挂在这个大括号的下面
-    
+
     // 由于它是作为大运算符界限行为的延续，在 Display 模式下下界会生成为 munder。
     // 在我们的结构中，underbrace 本身会生成 munder，外部附着的 _ 会让它升级为 munder。
     assert!(mathml.contains("<mo stretchy=\"true\">⏟</mo>")); // 内部拉伸括号
@@ -583,8 +597,38 @@ fn test_overbrace_no_label() {
     let mut input = "\\overbrace{x^2 + y^2}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // 应该只有一个 mover 包含拉伸括号
     assert!(mathml.contains("<mover><mrow><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><msup><mi>y</mi><mn>2</mn></msup></mrow><mo stretchy=\"true\">⏞</mo></mover>"));
 }
 
+// === 新增：张量与前置角标 (Prescripts) ===
+
+#[test]
+fn test_prescripts_tensor_folding() {
+    // 经典的核同位素或者张量写法
+    let mut input = "{}_1^2 X";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    // 在我们进行 AST 后处理折叠后，它应该生成一个完美的 mmultiscripts
+    // 其中基底是 X，右侧全为空 <none/>，左侧有 1 和 2
+    assert!(mathml.contains("<mmultiscripts>"));
+    assert!(mathml.contains("<mi>X</mi>"));
+    assert!(mathml.contains("<mprescripts/>"));
+    assert!(mathml.contains("<mn>1</mn><mn>2</mn>"));
+}
+
+#[test]
+fn test_prescripts_with_postscripts() {
+    // 四角双全的张量
+    let mut input = "{}_a^b X_c^d";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    assert!(mathml.contains("<mmultiscripts>"));
+    // 右侧有 c 和 d
+    assert!(mathml.contains("<mi>X</mi><mi>c</mi><mi>d</mi>"));
+    // 左侧有 a 和 b
+    assert!(mathml.contains("<mprescripts/><mi>a</mi><mi>b</mi></mmultiscripts>"));
+}
