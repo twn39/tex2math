@@ -65,6 +65,18 @@ pub enum MathNode {
     },
     Function(String),
     Space(String),
+    
+    // == 新增：高级文本处理与颜色系统 ==
+    Color {
+        color: String,
+        content: Box<MathNode>,
+    },
+    ColorBox {
+        bg_color: String,
+        content: Box<MathNode>,
+    },
+    Boxed(Box<MathNode>), // 边框
+    
     Error(String),
 }
 // 2. Winnow 解析器 (Parser)
@@ -223,9 +235,63 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         // 1. 处理带参数的高级命令 (文本、样式、重音)
         // \text{...} 文本模式：内部必须原样保留空格，不进行数学递归解析
         if cmd == "text" || cmd == "mathrm" {
-            let inner_text =
-                delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let inner_text = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
             return Ok(MathNode::Text(inner_text.to_string()));
+        }
+
+        // == 新增：颜色与高亮盒子 ==
+        if cmd == "textcolor" {
+            // \textcolor{red}{content}
+            let color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            return Ok(MathNode::Color {
+                color: color.to_string(),
+                content: Box::new(content),
+            });
+        }
+
+        if cmd == "colorbox" {
+            // \colorbox{#FF0000}{content}
+            let bg_color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            return Ok(MathNode::ColorBox {
+                bg_color: bg_color.to_string(),
+                content: Box::new(content),
+            });
+        }
+
+        if cmd == "boxed" {
+            // \boxed{content}
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            return Ok(MathNode::Boxed(Box::new(content)));
+        }
+
+        if cmd == "color" {
+            // \color{red} ... 从此处开始吃掉当前级别的剩余所有元素
+            let color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+
+            // 巧妙的贪婪：读取从这里到作用域结束（如 } 或者 EOF）的所有后续节点
+            // 由于 parse_row 是由当前层级调用的，为了不污染外层的 '}' 终止符，
+            // 我们不能直接用 parse_row 吃到文件末尾。在真正的 PEG 中，
+            // 这是极其依赖上下文状态的（Stateful）。
+            // 作为一个轻量级实现，我们可以让它只解析接下来的一个 Atom 或 Group 块：
+            // （如果用户写 \color{red} x + y，在我们的极简版里可能需要写成 \color{red}{x + y} 或隔离在括号中）
+            // 我们采取折衷：在 tex2math 中，遇到 \color{red} 时，如果它紧跟着括号，
+            // 就直接把它当做 textcolor 对待；否则它只影响下一个 Node。
+            // 实际上为了通过标准测试 test_parse_color_switch，我们需要让它贪婪消耗当前环境剩余的内容。
+            // 为了安全，我们先提取剩下的所有能被 parse_node 消费的东西，这本质上就是剩下的 row：
+            let remaining_nodes: Vec<MathNode> = repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
+
+            let content = if remaining_nodes.len() == 1 {
+                remaining_nodes.into_iter().next().unwrap()
+            } else {
+                MathNode::Row(remaining_nodes)
+            };
+
+            return Ok(MathNode::Color {
+                color: color.to_string(),
+                content: Box::new(content),
+            });
         }
 
         // 字体样式命令：其内部是一个标准的数学表达式 (Row)
@@ -617,14 +683,22 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
             )
         }
         MathNode::Accent { mark, content } => {
-            format!(
-                "<mover accent=\"true\">{}<mo>{}</mo></mover>",
-                generate_mathml(content, mode),
-                escape_xml(mark)
-            )
+            format!("<mover accent=\"true\">{}<mo>{}</mo></mover>", generate_mathml(content, mode), escape_xml(mark))
         }
         MathNode::Function(f) => format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(f)),
         MathNode::Space(width) => format!("<mspace width=\"{}\"/>", escape_xml(width)),
+
+        // == 新增：颜色与盒子的生成逻辑 ==
+        MathNode::Color { color, content } => {
+            format!("<mstyle mathcolor=\"{}\">{}</mstyle>", escape_xml(color), generate_mathml(content, mode))
+        }
+        MathNode::ColorBox { bg_color, content } => {
+            format!("<mstyle mathbackground=\"{}\">{}</mstyle>", escape_xml(bg_color), generate_mathml(content, mode))
+        }
+        MathNode::Boxed(content) => {
+            format!("<menclose notation=\"box\">{}</menclose>", generate_mathml(content, mode))
+        }
+
         MathNode::Error(err_msg) => {
             format!(
                 "<merror><mtext mathcolor=\"red\">Syntax Error: {}</mtext></merror>",

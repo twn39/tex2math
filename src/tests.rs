@@ -462,3 +462,43 @@ fn test_environment_cases_alignment() {
     assert!(mathml.contains("<mrow><mo stretchy=\"true\">{</mo>"));
     assert!(mathml.contains("<mtable columnalign=\"left\">"));
 }
+
+// === 新增：高级文本处理与颜色系统 ===
+
+#[test]
+fn test_parse_textcolor() {
+    // 块级着色：只有括号里的被染色
+    let mut input = "x + \\textcolor{red}{y + z} = 1";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // 生成的 mathml 中，y + z 应该被包在带有 mathcolor="red" 的 mstyle 里
+    assert!(mathml.contains("<mstyle mathcolor=\"red\">"));
+    assert!(mathml.contains("<mi>y</mi><mo>+</mo><mi>z</mi>"));
+    assert!(mathml.contains("</mstyle><mo>=</mo><mn>1</mn>"));
+}
+
+#[test]
+fn test_parse_color_switch() {
+    // 状态切换着色：从 \color 命令开始，直到当前作用域（Row）结束
+    let mut input = "{a + \\color{blue} b + c} + d";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // b + c 被包在了 blue 里面，但 d 不应该被影响，a 也不应该被影响
+    assert!(mathml.contains("<mstyle mathcolor=\"blue\"><mrow><mi>b</mi><mo>+</mo><mi>c</mi></mrow></mstyle>"));
+    assert!(mathml.contains("<mo>+</mo><mi>d</mi>"));
+}
+
+#[test]
+fn test_parse_colorbox_and_boxed() {
+    let mut input = "\\boxed{\\colorbox{#FF0000}{x}}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // boxed 会生成 menclose notation="box"
+    // colorbox 会生成 mstyle mathbackground="#FF0000"
+    let expected = "<menclose notation=\"box\"><mstyle mathbackground=\"#FF0000\"><mi>x</mi></mstyle></menclose>";
+    assert_eq!(mathml, expected);
+}
+
