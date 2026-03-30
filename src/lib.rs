@@ -60,7 +60,8 @@ pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 pub fn parse_ident<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_ident",
-        alpha1.map(|s: &str| MathNode::Identifier(s.to_string())),
+        winnow::token::one_of(|c: char| c.is_ascii_alphabetic())
+            .map(|c: char| MathNode::Identifier(c.to_string())),
     )
     .parse_next(input)
 }
@@ -364,7 +365,7 @@ pub fn parse_node<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_row",
-        repeat(1.., preceded(space0, parse_node)).map(|nodes: Vec<MathNode>| {
+        repeat(0.., preceded(space0, parse_node)).map(|nodes: Vec<MathNode>| {
             if nodes.len() == 1 {
                 nodes.into_iter().next().unwrap()
             } else {

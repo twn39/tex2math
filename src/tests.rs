@@ -11,8 +11,10 @@ fn test_parse_number() {
 #[test]
 fn test_parse_ident() {
     let mut input = "abc";
+    // 现在 parse_ident 每次只消费一个字母，这是为了防止 4ac 被当成一个变量
     let result = parse_ident.parse_next(&mut input).unwrap();
-    assert_eq!(result, MathNode::Identifier("abc".to_string()));
+    assert_eq!(result, MathNode::Identifier("a".to_string()));
+    assert_eq!(input, "bc"); // 剩余部分
 }
 
 #[test]
@@ -164,7 +166,6 @@ fn test_mathml_left_right_sqrt() {
 
 #[test]
 fn test_parse_symbols() {
-    // 这里的 \sum_{i=1} 现在会变成 <munder> 而不是 <msub>
     let mut input = "\\alpha + \\infty \\le \\sum_{i=1}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast);
@@ -195,15 +196,52 @@ fn test_mathml_pmatrix() {
     assert_eq!(mathml, expected);
 }
 
-// === 新增测试：大运算符界限 ===
-
 #[test]
 fn test_mathml_large_operator_limits() {
     let mut input = "\\sum_{i=1}^n";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast);
-    
-    // 它应该生成 munderover，并且上界是 n，下界是 i=1 这个 Group(Row)
     let expected = "<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>";
     assert_eq!(mathml, expected);
+}
+
+// === 新增：从 texmath 借鉴的高级边界测试 ===
+
+#[test]
+fn test_texmath_quadratic_formula() {
+    // 求根公式：测试分式的嵌套、前置减号、带有加减的根号
+    let mut input = "x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    let expected = "<mrow><mi>x</mi><mo>=</mo><mfrac><mrow><mo>-</mo><mi>b</mi><mo>±</mo><msqrt><mrow><msup><mi>b</mi><mn>2</mn></msup><mo>-</mo><mn>4</mn><mi>a</mi><mi>c</mi></mrow></msqrt></mrow><mrow><mn>2</mn><mi>a</mi></mrow></mfrac></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_texmath_nested_fences() {
+    // 测试复杂的定界符嵌套：\left( 内部有 \frac，\frac 内部又有 \left(
+    let mut input = "2 = \\left( \\frac{\\left(3-x\\right) \\times 2}{3-x} \\right)";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    let expected = "<mrow><mn>2</mn><mo>=</mo><mrow><mo stretchy=\"true\">(</mo><mfrac><mrow><mrow><mo stretchy=\"true\">(</mo><mrow><mn>3</mn><mo>-</mo><mi>x</mi></mrow><mo stretchy=\"true\">)</mo></mrow><mo>×</mo><mn>2</mn></mrow><mrow><mn>3</mn><mo>-</mo><mi>x</mi></mrow></mfrac><mo stretchy=\"true\">)</mo></mrow></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_nested_scripts_with_braces() {
+    // 测试标准的上标嵌套 a^{b^c}
+    let mut input = "a^{b^c}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    let expected = "<msup><mi>a</mi><msup><mi>b</mi><mi>c</mi></msup></msup>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_empty_group() {
+    // 测试空花括号和空分式，这在排版中是合法的占位符，不应该导致整个解析失败
+    let mut input = "\\frac{}{} {}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    // 预期空组返回空 Row，或者能被容忍
+    // 我们暂时只用 assert 确保解析不会抛出 Unwrap Error。
 }
