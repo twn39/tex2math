@@ -556,7 +556,24 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
             )
         }
         MathNode::Environment { name, rows } => {
-            let mut table_xml = String::from("<mtable>");
+            // 根据环境名称决定表格的对齐属性
+            let table_attr = match name.as_str() {
+                "align" | "align*" | "eqnarray" | "eqnarray*" => {
+                    let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+                    let aligns: Vec<&str> = (0..max_cols)
+                        .map(|i| if i % 2 == 0 { "right" } else { "left" })
+                        .collect();
+                    if aligns.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" columnalign=\"{}\"", aligns.join(" "))
+                    }
+                }
+                "cases" => " columnalign=\"left\"".to_string(),
+                _ => "".to_string(), // 默认居中 (matrix 等)
+            };
+
+            let mut table_xml = format!("<mtable{}>", table_attr);
             for row in rows {
                 table_xml.push_str("<mtr>");
                 for cell in row {

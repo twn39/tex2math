@@ -435,3 +435,30 @@ fn test_explicit_nolimits_override() {
     let mathml = generate_mathml(&ast, RenderMode::Display);
     assert!(mathml.contains("<msubsup>"));
 }
+
+// === 新增：高级环境与特殊对齐规则 ===
+
+#[test]
+fn test_environment_align_alignment() {
+    // align 环境：用于多行等式对齐。奇数列右对齐，偶数列左对齐。
+    let mut input = "\\begin{align} x &= 1 \\\\ y &= 2 \\end{align}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    // 生成的 mtable 应该带有一个极其关键的属性：columnalign="right left"
+    // 以保证在第一列和第二列之间实现紧密的等号对齐
+    let expected = "<mtable columnalign=\"right left\"><mtr><mtd><mi>x</mi></mtd><mtd><mrow><mo>=</mo><mn>1</mn></mrow></mtd></mtr><mtr><mtd><mi>y</mi></mtd><mtd><mrow><mo>=</mo><mn>2</mn></mrow></mtd></mtr></mtable>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_environment_cases_alignment() {
+    // cases 环境：用于分段函数。所有的列都应该是左对齐的！
+    let mut input = "\\begin{cases} 0 & x < 0 \\\\ 1 & x \\ge 0 \\end{cases}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    // cases 会有左边的大括号，且内部的 mtable 应该被标记为 columnalign="left"
+    assert!(mathml.contains("<mrow><mo stretchy=\"true\">{</mo>"));
+    assert!(mathml.contains("<mtable columnalign=\"left\">"));
+}
