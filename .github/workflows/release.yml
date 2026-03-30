@@ -65,7 +65,7 @@ jobs:
         run: sudo apt-get install -y musl-tools
 
       - name: Build binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }} --features cli
 
       - name: Build archive
         shell: bash

@@ -3,15 +3,41 @@ name = "tex2math"
 version = "1.0.0"
 edition = "2021"
 description = "A blazing fast, zero-copy LaTeX to MathML conversion library and CLI."
+authors = ["twn39 <twn39@163.com>"]
 license = "MIT"
 repository = "https://github.com/twn39/tex2math"
-keywords = ["latex", "mathml", "math", "parser"]
-categories = ["parsing", "text-processing"]
+readme = "README.md"
+keywords = ["latex", "mathml", "math", "parser", "winnow"]
+categories = ["parsing", "text-processing", "science"]
+exclude = [
+    ".github/",
+    "third_party/",
+    "GEMINI.md",
+    "*.py",
+    "*.txt",
+    ".idea/"
+]
+
+[lib]
+name = "tex2math"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tex2math"
+path = "src/main.rs"
+required-features = ["cli"]
 
 [dependencies]
-clap = { version = "4.6.0", features = ["derive"] }
-winnow = "0.6"
+winnow = "0.6.26"
+
+[dependencies.clap]
+version = "4.6.0"
+features = ["derive"]
+optional = true
 
 [features]
-default = ["debug-trace"]
+# The default configuration provides the pure, lightweight library.
+# The user must opt-in to build the CLI wrapper or enable parser tracing.
+default = []
+cli = ["clap"]
 debug-trace = ["winnow/debug"]
