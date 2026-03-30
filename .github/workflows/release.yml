@@ -5,6 +5,10 @@ on:
     tags:
       - "v*.*.*"
 
+# 显式声明需要写权限来创建 Release 并在其中上传附件
+permissions:
+  contents: write
+
 jobs:
   create-release:
     name: create-release
