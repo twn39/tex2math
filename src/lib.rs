@@ -214,19 +214,18 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_left_right",
         (
-            preceded((literal("\\left"), space0), one_of(['(', '[', '{', '|'])),
+            preceded((literal("\\left"), space0), one_of(['(', '[', '{', '|', '.'])),
             delimited(space0, parse_row, space0),
-            preceded((literal("\\right"), space0), one_of([')', ']', '}', '|'])),
+            preceded((literal("\\right"), space0), one_of([')', ']', '}', '|', '.'])),
         )
-            .map(|(open, content, close)| MathNode::Fenced {
-                open: open.to_string(),
-                content: Box::new(content),
-                close: close.to_string(),
-            }),
+        .map(|(open, content, close)| MathNode::Fenced {
+            open: open.to_string(),
+            content: Box::new(content),
+            close: close.to_string(),
+        }),
     )
     .parse_next(input)
 }
-
 // == 新增：命令符号字典映射 ==
 // 参考了 KaTeX 和 texmath 的底层字典，将 LaTeX 命令映射为等价的 Unicode 字符
 pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
@@ -740,11 +739,13 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
             content,
             close,
         } => {
+            let mo_open = if open == "." { String::new() } else { format!("<mo stretchy=\"true\">{}</mo>", escape_xml(open)) };
+            let mo_close = if close == "." { String::new() } else { format!("<mo stretchy=\"true\">{}</mo>", escape_xml(close)) };
             format!(
-                "<mrow><mo stretchy=\"true\">{}</mo>{}<mo stretchy=\"true\">{}</mo></mrow>",
-                open,
+                "<mrow>{}{}{}</mrow>",
+                mo_open,
                 generate_mathml(content, mode),
-                close
+                mo_close
             )
         }
         MathNode::Environment { name, rows } => {

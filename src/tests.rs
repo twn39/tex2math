@@ -632,3 +632,46 @@ fn test_prescripts_with_postscripts() {
     // 左侧有 a 和 b
     assert!(mathml.contains("<mprescripts/><mi>a</mi><mi>b</mi></mmultiscripts>"));
 }
+
+// === 最新添加：深度边角排版测试 (Based on texmath/KaTeX cases) ===
+
+#[test]
+fn test_texmath_invisible_fences() {
+    // 典型的微积分赋值边界：\left. 和 \right|_{t=0}
+    // \left. 是一个极其常用的隐式定界符，不应该生成 <mo stretchy="true">.</mo>，而应为空或占位符
+    let mut input = "\\left. \\frac{d}{dt} \\right|_{t=0}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // 这里只应该包含右侧的拉伸 |
+    assert!(mathml.contains("<mo stretchy=\"true\">|</mo>"));
+    // 不应该包含把 . 拉伸的标签
+    assert!(!mathml.contains("<mo stretchy=\"true\">.</mo>"));
+}
+
+#[test]
+fn test_texmath_overbrace_with_label() {
+    // 带有上标的 overbrace
+    // \overbrace 本身是 StretchOp(is_over: true)，会被 is_large_operator 捕获
+    // 其后紧跟的 ^{term} 应该被当作上限 <mover>，从而形成嵌套的 mover
+    let mut input = "\\overbrace{a+b}^{\\text{term}}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // 第一个 mover：包含拉伸大括号
+    assert!(mathml.contains("<mover><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy=\"true\">⏞</mo></mover>"));
+    // 第二个 mover：把 \text{term} 放在上面
+    assert!(mathml.contains("<mover><mover><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo stretchy=\"true\">⏞</mo></mover><mtext>term</mtext></mover>"));
+}
+
+#[test]
+fn test_texmath_max_with_subscript() {
+    // \max 是一个大型数学函数，其 subscript 应该渲染为 under
+    let mut input = "\\max_B X";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // 应该生成 <munder>，以 B 为下界
+    assert!(mathml.contains("<munder><mi mathvariant=\"normal\">max</mi><mi>B</mi></munder>"));
+}
+
