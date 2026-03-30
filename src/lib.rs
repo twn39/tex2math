@@ -253,8 +253,10 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             alt((
                 alpha1,
                 // 支持 \%, \$, \{ 等特殊单字符命令
-                one_of([',', ';', ':', '!', '%', '$', '#', '&', '_', ' ', '{', '}', '|'])
-                    .map(|c: char| c.to_string().leak() as &str),
+                one_of([
+                    ',', ';', ':', '!', '%', '$', '#', '&', '_', ' ', '{', '}', '|',
+                ])
+                .map(|c: char| c.to_string().leak() as &str),
             )),
         )
         .parse_next(input)?;
