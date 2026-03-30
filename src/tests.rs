@@ -502,3 +502,58 @@ fn test_parse_colorbox_and_boxed() {
     assert_eq!(mathml, expected);
 }
 
+
+// ==========================================
+// 组合金字塔测试：检验所有高级特性的交叉兼容性
+// ==========================================
+
+#[test]
+fn test_complex_cases_environment() {
+    // 带有不等式、分数、文本模式的复杂分段函数
+    let mut input = "\\begin{cases} \\frac{1}{2} & -1 \\le x < 0 \\\\ 1 - x^2 & \\text{otherwise} \\end{cases}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // 验证 cases 左对齐
+    assert!(mathml.contains("columnalign=\"left\""));
+    // 验证第一行的分式和不等式
+    assert!(mathml.contains("<mfrac><mn>1</mn><mn>2</mn></mfrac>"));
+    assert!(mathml.contains("<mo>≤</mo><mi>x</mi><mo>&lt;</mo><mn>0</mn>"));
+    // 验证第二行的文本模式
+    assert!(mathml.contains("<mtext>otherwise</mtext>"));
+}
+
+#[test]
+fn test_complex_align_with_colors() {
+    // 带有颜色切换和作用域染色的复杂多行方程
+    let mut input = "\\begin{align} x &= \\color{red} y + 1 \\\\ \\textcolor{blue}{x - 1} &= y \\end{align}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // 验证列对齐：只有 2 列，所以是 right left
+    assert!(mathml.contains("columnalign=\"right left\">"));
+    
+    // 验证第一行的贪婪颜色：y + 1 都必须是红色的
+    assert!(mathml.contains("<mstyle mathcolor=\"red\"><mrow><mi>y</mi><mo>+</mo><mn>1</mn></mrow></mstyle>"));
+    
+    // 验证第二行的块级颜色：只有 x - 1 是蓝色的
+    assert!(mathml.contains("<mstyle mathcolor=\"blue\"><mrow><mi>x</mi><mo>-</mo><mn>1</mn></mrow></mstyle></mtd><mtd><mrow><mo>=</mo><mi>y</mi></mrow>"));
+}
+
+#[test]
+fn test_mixed_scripts_and_functions() {
+    // 大运算符、上下标、函数和显式间距的大乱炖
+    let mut input = "\\sum_{i=1}^{\\infty} \\sin(x_i) \\quad \\text{and} \\quad \\lim_{n \\to \\infty} \\frac{1}{n}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // sum 应该是 munderover
+    assert!(mathml.contains("<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>∞</mi></munderover>"));
+    // sin 应该是 normal mi
+    assert!(mathml.contains("<mi mathvariant=\"normal\">sin</mi>"));
+    // lim 也应该是 munderover
+    assert!(mathml.contains("<munder><mi mathvariant=\"normal\">lim</mi><mrow><mi>n</mi><mo>→</mo><mi>∞</mi></mrow></munder>"));
+    // 空格和文本
+    assert!(mathml.contains("<mspace width=\"1em\"/><mtext>and</mtext><mspace width=\"1em\"/>"));
+}
+
