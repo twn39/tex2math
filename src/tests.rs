@@ -1,6 +1,6 @@
 use super::*;
 
-// ... (省略之前的测试用例，完整保留) ...
+// ... (省略之前的测试用例) ...
 #[test]
 fn test_parse_number() {
     let mut input = "123";
@@ -162,17 +162,48 @@ fn test_mathml_left_right_sqrt() {
     assert_eq!(mathml, expected);
 }
 
-// === 新增测试：命令符号字典 ===
-
 #[test]
 fn test_parse_symbols() {
+    // 这里的 \sum_{i=1} 现在会变成 <munder> 而不是 <msub>
     let mut input = "\\alpha + \\infty \\le \\sum_{i=1}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast);
-    // \alpha 映射为 <mi>α</mi>
-    // \infty 映射为 <mi>∞</mi>
-    // \le 映射为 <mo>≤</mo>
-    // \sum 映射为 <mo>∑</mo>，并且带有下标
-    let expected = "<mrow><mi>α</mi><mo>+</mo><mi>∞</mi><mo>≤</mo><msub><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow></msub></mrow>";
+    let expected = "<mrow><mi>α</mi><mo>+</mo><mi>∞</mi><mo>≤</mo><munder><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow></munder></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_parse_matrix_environment() {
+    let mut input = "\\begin{matrix} a & b \\\\ c & d \\end{matrix}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let expected = MathNode::Environment {
+        name: "matrix".to_string(),
+        rows: vec![
+            vec![MathNode::Identifier("a".to_string()), MathNode::Identifier("b".to_string())],
+            vec![MathNode::Identifier("c".to_string()), MathNode::Identifier("d".to_string())],
+        ]
+    };
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_mathml_pmatrix() {
+    let mut input = "\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    let expected = "<mrow><mo stretchy=\"true\">(</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mn>1</mn></mtd></mtr></mtable><mo stretchy=\"true\">)</mo></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+// === 新增测试：大运算符界限 ===
+
+#[test]
+fn test_mathml_large_operator_limits() {
+    let mut input = "\\sum_{i=1}^n";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    
+    // 它应该生成 munderover，并且上界是 n，下界是 i=1 这个 Group(Row)
+    let expected = "<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>";
     assert_eq!(mathml, expected);
 }
