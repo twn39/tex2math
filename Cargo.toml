@@ -2,6 +2,11 @@
 name = "tex2math"
 version = "1.0.0"
 edition = "2021"
+description = "A blazing fast, zero-copy LaTeX to MathML conversion library and CLI."
+license = "MIT"
+repository = "https://github.com/twn39/tex2math"
+keywords = ["latex", "mathml", "math", "parser"]
+categories = ["parsing", "text-processing"]
 
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
