@@ -42,6 +42,16 @@ pub enum MathNode {
         name: String,
         rows: Vec<Vec<MathNode>>, // 一个二维数组：多行，每行包含多个单元格的节点
     },
+    // == 新增：高级排版特性 ==
+    Text(String),                          // 对应 <mtext> (保留空格)
+    Style {                                // 对应带有 mathvariant 的 <mrow>
+        variant: String,
+        content: Box<MathNode>,
+    },
+    Accent {                               // 对应带有 accent="true" 的 <mover>
+        mark: String,
+        content: Box<MathNode>,
+    },
 }
 
 // ==========================================
@@ -150,6 +160,56 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_command", |input: &mut &'s str| {
         let cmd = preceded('\\', alpha1).parse_next(input)?;
+        
+        // 1. 处理带参数的高级命令 (文本、样式、重音)
+        // \text{...} 文本模式：内部必须原样保留空格，不进行数学递归解析
+        if cmd == "text" || cmd == "mathrm" {
+            let inner_text = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            return Ok(MathNode::Text(inner_text.to_string()));
+        }
+
+        // 字体样式命令：其内部是一个标准的数学表达式 (Row)
+        let style_variant = match cmd {
+            "mathbf" => Some("bold"),
+            "mathit" => Some("italic"),
+            "mathbb" => Some("double-struck"),
+            "mathcal" => Some("script"),
+            "mathfrak" => Some("fraktur"),
+            _ => None,
+        };
+        if let Some(variant) = style_variant {
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            return Ok(MathNode::Style {
+                variant: variant.to_string(),
+                content: Box::new(content),
+            });
+        }
+
+        // 数学重音修饰符 (Accents)
+        let accent_mark = match cmd {
+            "hat" | "widehat" => Some("^"),
+            "vec" => Some("→"),
+            "bar" | "overline" => Some("¯"),
+            "dot" => Some("˙"),
+            "ddot" => Some("¨"),
+            "tilde" | "widetilde" => Some("~"),
+            _ => None,
+        };
+        if let Some(mark) = accent_mark {
+            // 重音的参数可以是一个字符，也可以是大括号包裹的表达式
+            let content = alt((
+                delimited((space0, '{'), parse_row, (space0, '}')),
+                // 允许 \hat x (不带括号)
+                parse_ident,
+            )).parse_next(input)?;
+            
+            return Ok(MathNode::Accent {
+                mark: mark.to_string(),
+                content: Box::new(content),
+            });
+        }
+
+        // 2. 处理无参数的纯静态字典映射
         match cmd {
             // 希腊字母 (映射为 Identifier)
             "alpha" => Ok(MathNode::Identifier("α".to_string())),
@@ -379,11 +439,19 @@ pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 // ==========================================
 // 3. 代码生成器 (AST -> MathML)
 // ==========================================
+
+fn escape_xml(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 pub fn generate_mathml(node: &MathNode) -> String {
     match node {
-        MathNode::Number(n) => format!("<mn>{}</mn>", n),
-        MathNode::Identifier(i) => format!("<mi>{}</mi>", i),
-        MathNode::Operator(o) => format!("<mo>{}</mo>", o),
+        MathNode::Number(n) => format!("<mn>{}</mn>", escape_xml(n)),
+        MathNode::Identifier(i) => format!("<mi>{}</mi>", escape_xml(i)),
+        MathNode::Operator(o) => format!("<mo>{}</mo>", escape_xml(o)),
         MathNode::Fraction(num, den) => {
             format!("<mfrac>{}{}</mfrac>", generate_mathml(num), generate_mathml(den))
         }
@@ -451,6 +519,15 @@ pub fn generate_mathml(node: &MathNode) -> String {
                 "cases" => format!("<mrow><mo stretchy=\"true\">{{</mo>{}</mrow>", table_xml), // cases 只有左括号
                 _ => table_xml, // 默认如 "matrix" 或者 "align" 不带边框
             }
+        }
+        MathNode::Text(t) => {
+            format!("<mtext>{}</mtext>", escape_xml(t))
+        }
+        MathNode::Style { variant, content } => {
+            format!("<mrow mathvariant=\"{}\">{}</mrow>", escape_xml(variant), generate_mathml(content))
+        }
+        MathNode::Accent { mark, content } => {
+            format!("<mover accent=\"true\">{}<mo>{}</mo></mover>", generate_mathml(content), escape_xml(mark))
         }
     }
 }

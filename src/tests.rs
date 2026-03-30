@@ -245,3 +245,41 @@ fn test_empty_group() {
     // 预期空组返回空 Row，或者能被容忍
     // 我们暂时只用 assert 确保解析不会抛出 Unwrap Error。
 }
+// === 新增：字体样式与文本模式 ===
+
+#[test]
+fn test_parse_font_styles() {
+    let mut input = "\\mathbf{X} + \\mathbb{R}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    
+    // mathbf 应该生成带有 mathvariant="bold" 的 <mrow>，或者作用于内部的 <mi>
+    // mathbb 对应 double-struck
+    let expected = "<mrow><mrow mathvariant=\"bold\"><mi>X</mi></mrow><mo>+</mo><mrow mathvariant=\"double-struck\"><mi>R</mi></mrow></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_parse_text_mode() {
+    // 文本模式中，空格是被保留的，并且字母连在一起！
+    let mut input = "x = 1 \\text{ if } y > 0";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    
+    let expected = "<mrow><mi>x</mi><mo>=</mo><mn>1</mn><mtext> if </mtext><mi>y</mi><mo>&gt;</mo><mn>0</mn></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+// === 新增：数学重音与装饰 ===
+
+#[test]
+fn test_parse_accents() {
+    let mut input = "\\hat{y} + \\vec{v} + \\bar{x} + \\dot{x}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    
+    // 重音符号在 MathML 中应该渲染为 <mover accent="true">
+    let expected = "<mrow><mover accent=\"true\"><mi>y</mi><mo>^</mo></mover><mo>+</mo><mover accent=\"true\"><mi>v</mi><mo>→</mo></mover><mo>+</mo><mover accent=\"true\"><mi>x</mi><mo>¯</mo></mover><mo>+</mo><mover accent=\"true\"><mi>x</mi><mo>˙</mo></mover></mrow>";
+    assert_eq!(mathml, expected);
+}
+
