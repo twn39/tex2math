@@ -4,4 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winnow = { version = "0.6", features = ["debug"] }
+winnow = "0.6"
+
+[features]
+default = ["debug-trace"]
+debug-trace = ["winnow/debug"]
