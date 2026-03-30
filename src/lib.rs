@@ -55,7 +55,8 @@ pub enum MathNode {
     },
     Environment {
         name: String,
-        rows: Vec<Vec<MathNode>>,
+        format: Option<String>,
+        rows: Vec<(Vec<MathNode>, Option<String>)>,
     },
     Text(String),
     Style {
@@ -434,60 +435,85 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 // == 新增：解析 LaTeX Environment (\begin...\end) ==
 pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_environment", |input: &mut &'s str| {
-        // 1. 匹配 \begin{name} 并获取 name
         let begin_tag = preceded((literal("\\begin"), space0, '{'), alpha1).parse_next(input)?;
         let name = begin_tag.to_string();
         let _ = literal("}").parse_next(input)?;
 
-        // 2. 构造动态的 \end{name} 字符串用于寻找边界
-        let end_pattern = format!("\\end{{{}}}", name);
+        let mut format = None;
+        if name == "array" {
+            // 使用 opt 来利用上下文进行推导，这样编译器就能知道 Error 是 winnow::error::ContextError
+            let fmt_opt: Option<&str> = opt(delimited((space0, '{'), take_until(0.., "}"), '}')).parse_next(input)?;
+            if let Some(fmt_str) = fmt_opt {
+                format = Some(fmt_str.to_string());
+            }
+        }
 
-        // 3. 截取直到 \end{name} 或者遇到字符串结尾 (容错)
+        let end_pattern = format!("\\end{{{}}}", name);
         let inner_str_result: ModalResult<&str> =
             take_until(0.., end_pattern.as_str()).parse_next(input);
 
-        let (inner_str, is_closed) = match inner_str_result {
+        let (mut inner_str, is_closed) = match inner_str_result {
             Ok(s) => {
-                // 正常闭合，消费掉 \end{name}
                 let _ = literal(end_pattern.as_str()).parse_next(input)?;
                 (s, true)
             }
             Err(_) => {
-                // 没找到 \end，吞掉剩下的所有字符作为容错环境的内容
                 let s = winnow::token::rest.parse_next(input)?;
                 (s, false)
             }
         };
 
-        // 4. 对内部的字符串进行二维解析
-        let mut parse_cells_in_row = |row_input: &mut &str| -> ModalResult<MathNode> {
+        let mut parse_cells_in_row = |row_input: &mut &str| -> ModalResult<Vec<MathNode>> {
             separated(
-                1..,
+                0..,
                 delimited(space0, parse_row, space0),
                 (space0, '&', space0),
             )
-            .map(|cells: Vec<MathNode>| MathNode::Row(cells))
             .parse_next(row_input)
         };
 
-        let mut rows: Vec<Vec<MathNode>> = Vec::new();
-        let line_strings = inner_str.split("\\\\");
-        for line in line_strings {
-            let mut line_cursor = line;
-            if line_cursor.trim().is_empty() {
-                continue;
+        // 指定类型为 ModalResult<Option<&str>>
+        let mut parse_newline_opt = |input: &mut &'s str| -> ModalResult<Option<&str>> {
+            preceded(
+                literal("\\\\"),
+                opt(delimited((space0, '['), take_until(0.., "]"), ']')),
+            )
+            .parse_next(input)
+        };
+
+        let mut rows: Vec<(Vec<MathNode>, Option<String>)> = Vec::new();
+
+        loop {
+            let row_content_res: ModalResult<&str> = take_until(0.., "\\\\").parse_next(&mut inner_str);
+            let mut row_content: &str = if let Ok(content) = row_content_res {
+                content
+            } else {
+                winnow::token::rest.parse_next(&mut inner_str)?
+            };
+
+            if let Ok(cells) = parse_cells_in_row.parse_next(&mut row_content) {
+                let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str) {
+                    opt_spacing.map(|s: &str| s.to_string())
+                } else {
+                    None
+                };
+
+                if !cells.is_empty() || spacing.is_some() || rows.is_empty() {
+                    rows.push((cells, spacing));
+                }
             }
-            if let Ok(MathNode::Row(cells)) = parse_cells_in_row.parse_next(&mut line_cursor) {
-                rows.push(cells);
+
+            if inner_str.is_empty() {
+                break;
             }
         }
 
         let env_node = MathNode::Environment {
             name: name.clone(),
+            format,
             rows,
         };
 
-        // 如果环境未闭合，将其与一个 Error 节点组合返回
         if !is_closed {
             Ok(MathNode::Row(vec![
                 env_node,
@@ -789,11 +815,39 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
                 mo_close
             )
         }
-        MathNode::Environment { name, rows } => {
-            // 根据环境名称决定表格的对齐属性
+        MathNode::Environment { name, format, rows } => {
+            let mut custom_aligns = Vec::new();
+            let mut custom_lines = Vec::new();
+
+            if let Some(fmt_str) = format {
+                let mut chars = fmt_str.chars().peekable();
+                while let Some(c) = chars.next() {
+                    match c {
+                        'l' => {
+                            custom_aligns.push("left");
+                            custom_lines.push("none");
+                        }
+                        'c' => {
+                            custom_aligns.push("center");
+                            custom_lines.push("none");
+                        }
+                        'r' => {
+                            custom_aligns.push("right");
+                            custom_lines.push("none");
+                        }
+                        '|' => {
+                            if let Some(last) = custom_lines.last_mut() {
+                                *last = "solid";
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
             let table_attr = match name.as_str() {
                 "align" | "align*" | "eqnarray" | "eqnarray*" => {
-                    let max_cols = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+                    let max_cols = rows.iter().map(|(r, _)| r.len()).max().unwrap_or(0);
                     let aligns: Vec<&str> = (0..max_cols)
                         .map(|i| if i % 2 == 0 { "right" } else { "left" })
                         .collect();
@@ -804,12 +858,28 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
                     }
                 }
                 "cases" => " columnalign=\"left\"".to_string(),
-                _ => "".to_string(), // 默认居中 (matrix 等)
+                "array" => {
+                    let mut attr = String::new();
+                    if !custom_aligns.is_empty() {
+                        attr.push_str(&format!(" columnalign=\"{}\"", custom_aligns.join(" ")));
+                    }
+                    if custom_lines.iter().any(|&s| s == "solid") {
+                        attr.push_str(&format!(" columnlines=\"{}\"", custom_lines.join(" ")));
+                    }
+                    attr
+                }
+                _ => "".to_string(),
             };
 
             let mut table_xml = format!("<mtable{}>", table_attr);
-            for row in rows {
-                table_xml.push_str("<mtr>");
+            for (row, spacing) in rows {
+                let tr_attr = if let Some(space) = spacing {
+                    format!(" style=\"margin-bottom: {};\"", escape_xml(&space))
+                } else {
+                    "".to_string()
+                };
+
+                table_xml.push_str(&format!("<mtr{}>", tr_attr));
                 for cell in row {
                     table_xml.push_str(&format!("<mtd>{}</mtd>", generate_mathml(cell, mode)));
                 }

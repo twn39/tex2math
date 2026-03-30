@@ -203,15 +203,16 @@ fn test_parse_matrix_environment() {
     let ast = parse_row.parse_next(&mut input).unwrap();
     let expected = MathNode::Environment {
         name: "matrix".to_string(),
+        format: None,
         rows: vec![
-            vec![
+            (vec![
                 MathNode::Identifier("a".to_string()),
                 MathNode::Identifier("b".to_string()),
-            ],
-            vec![
+            ], None),
+            (vec![
                 MathNode::Identifier("c".to_string()),
                 MathNode::Identifier("d".to_string()),
-            ],
+            ], None),
         ],
     };
     assert_eq!(ast, expected);
@@ -708,4 +709,31 @@ fn test_parse_xcancel() {
 
     // 必须包含 text 节点，并且包裹在双向 strike 里
     assert!(mathml.contains("<menclose notation=\"updiagonalstrike downdiagonalstrike\">"));
+}
+
+// === 新增：终极数组格式与带参换行控制 ===
+
+#[test]
+fn test_environment_array_with_format() {
+    // array 环境的精髓：它必须带有一个格式字符串，比如 r|cc
+    let mut input = "\\begin{array}{r|cc} x & y & z \\end{array}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    // 生成的 mtable 应该包含极其精确的属性映射
+    assert!(mathml.contains("columnalign=\"right center center\""));
+    // 竖线应该变成 columnlines，第一个参数后面是 solid，其余是 none
+    assert!(mathml.contains("columnlines=\"solid none none\""));
+}
+
+#[test]
+fn test_environment_row_spacing() {
+    // 测试带参数的换行符 \\[1em]
+    let mut input = "\\begin{matrix} a \\\\ b \\\\[2em] c \\end{matrix}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    // 在 b 和 c 之间，或者是包含 b 的那一行的 mtr 上，应该带有间距注入
+    // 我们预期它将间距转换为 mpadded 或者直接加在 mtr 的 style 上
+    assert!(mathml.contains("<mtr style=\"margin-bottom: 2em;\">") || mathml.contains("<mpadded"));
 }
