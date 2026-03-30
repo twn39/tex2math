@@ -252,8 +252,9 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             '\\',
             alt((
                 alpha1,
-                // 支持 \, \; \! 等特殊单字符命令
-                one_of([',', ';', '!']).map(|c: char| c.to_string().leak() as &str),
+                // 支持 \%, \$, \{ 等特殊单字符命令
+                one_of([',', ';', ':', '!', '%', '$', '#', '&', '_', ' ', '{', '}', '|'])
+                    .map(|c: char| c.to_string().leak() as &str),
             )),
         )
         .parse_next(input)?;
@@ -406,9 +407,11 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             // == 显式排版空格 ==
             "quad" => return Ok(MathNode::Space("1em".to_string())),
             "qquad" => return Ok(MathNode::Space("2em".to_string())),
-            "," => return Ok(MathNode::Space("0.1667em".to_string())),
-            ";" => return Ok(MathNode::Space("0.2778em".to_string())),
-            "!" => return Ok(MathNode::Space("-0.1667em".to_string())),
+            "enspace" | "enskip" => return Ok(MathNode::Space("0.5em".to_string())),
+            "," | "thinspace" => return Ok(MathNode::Space("0.1667em".to_string())),
+            ":" | "medspace" => return Ok(MathNode::Space("0.2222em".to_string())),
+            ";" | "thickspace" => return Ok(MathNode::Space("0.2778em".to_string())),
+            "!" | "negthinspace" => return Ok(MathNode::Space("-0.1667em".to_string())),
 
             // == 标准数学函数 ==
             "sin" | "cos" | "tan" | "csc" | "sec" | "cot" | "arcsin" | "arccos" | "arctan"

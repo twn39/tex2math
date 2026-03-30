@@ -198,6 +198,35 @@ fn test_parse_symbols() {
 }
 
 #[test]
+fn test_parse_macro_aliases() {
+    let mut input = "\\ne \\implies \\iff \\coloncolonequals \\sube \\dArr \\Rarr";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    // \ne -> ≠, \implies -> ⟹, \iff -> ⟺, \sube -> ⊆, \dArr -> ⇓, \Rarr -> ⇒
+    let expected = "<mrow><mo>≠</mo><mo>⟹</mo><mo>⟺</mo><mi>\\coloncolonequals</mi><mo>⊆</mo><mo>⇓</mo><mo>⇒</mo></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_parse_spacing_macros() {
+    let mut input = "a \\, b \\: c \\; d \\! e \\enspace f \\enskip g \\quad h \\qquad i";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    let expected = "<mrow><mi>a</mi><mspace width=\"0.1667em\"/><mi>b</mi><mspace width=\"0.2222em\"/><mi>c</mi><mspace width=\"0.2778em\"/><mi>d</mi><mspace width=\"-0.1667em\"/><mi>e</mi><mspace width=\"0.5em\"/><mi>f</mi><mspace width=\"0.5em\"/><mi>g</mi><mspace width=\"1em\"/><mi>h</mi><mspace width=\"2em\"/><mi>i</mi></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_parse_escaped_symbols() {
+    let mut input = "\\% \\$ \\{ \\} \\_ \\& \\#";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    let expected =
+        "<mrow><mi>%</mi><mi>$</mi><mo>{</mo><mo>}</mo><mi>_</mi><mi>&amp;</mi><mi>#</mi></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
 fn test_parse_matrix_environment() {
     let mut input = "\\begin{matrix} a & b \\\\ c & d \\end{matrix}";
     let ast = parse_row.parse_next(&mut input).unwrap();
