@@ -14,7 +14,7 @@ struct Cli {
     /// Render the math formula in display mode (forces <math display="block"> and large operators to use over/under limits).
     #[arg(short, long, default_value_t = false)]
     display: bool,
-    
+
     /// Do not wrap the output in <math> tags, only return the inner MathML nodes.
     #[arg(long, default_value_t = false)]
     no_wrap: bool,
@@ -51,23 +51,33 @@ fn main() {
     // 4. 执行解析
     // 由于 winnow 的解析器要求一个可变引用（游标）
     let mut cursor = latex_input.as_str();
-    
+
     match parse_row.parse_next(&mut cursor) {
         Ok(ast) => {
             // 5. 生成 MathML
             let mathml = generate_mathml(&ast, mode);
-            
+
             // 6. 输出结果
             if cli.no_wrap {
                 println!("{}", mathml);
             } else {
-                let display_attr = if cli.display { " display=\"block\"" } else { "" };
-                println!("<math xmlns=\"http://www.w3.org/1998/Math/MathML\"{}>{}</math>", display_attr, mathml);
+                let display_attr = if cli.display {
+                    " display=\"block\""
+                } else {
+                    ""
+                };
+                println!(
+                    "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"{}>{}</math>",
+                    display_attr, mathml
+                );
             }
-            
+
             // 检查是否有未解析完的垃圾尾缀
             if !cursor.trim().is_empty() {
-                eprintln!("Warning: Some trailing characters were not parsed: '{}'", cursor);
+                eprintln!(
+                    "Warning: Some trailing characters were not parsed: '{}'",
+                    cursor
+                );
             }
         }
         Err(e) => {

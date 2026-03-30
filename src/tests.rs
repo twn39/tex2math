@@ -205,14 +205,20 @@ fn test_parse_matrix_environment() {
         name: "matrix".to_string(),
         format: None,
         rows: vec![
-            (vec![
-                MathNode::Identifier("a".to_string()),
-                MathNode::Identifier("b".to_string()),
-            ], None),
-            (vec![
-                MathNode::Identifier("c".to_string()),
-                MathNode::Identifier("d".to_string()),
-            ], None),
+            (
+                vec![
+                    MathNode::Identifier("a".to_string()),
+                    MathNode::Identifier("b".to_string()),
+                ],
+                None,
+            ),
+            (
+                vec![
+                    MathNode::Identifier("c".to_string()),
+                    MathNode::Identifier("d".to_string()),
+                ],
+                None,
+            ),
         ],
     };
     assert_eq!(ast, expected);
