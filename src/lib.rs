@@ -442,7 +442,8 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         let mut format = None;
         if name == "array" {
             // 使用 opt 来利用上下文进行推导，这样编译器就能知道 Error 是 winnow::error::ContextError
-            let fmt_opt: Option<&str> = opt(delimited((space0, '{'), take_until(0.., "}"), '}')).parse_next(input)?;
+            let fmt_opt: Option<&str> =
+                opt(delimited((space0, '{'), take_until(0.., "}"), '}')).parse_next(input)?;
             if let Some(fmt_str) = fmt_opt {
                 format = Some(fmt_str.to_string());
             }
@@ -484,7 +485,8 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         let mut rows: Vec<(Vec<MathNode>, Option<String>)> = Vec::new();
 
         loop {
-            let row_content_res: ModalResult<&str> = take_until(0.., "\\\\").parse_next(&mut inner_str);
+            let row_content_res: ModalResult<&str> =
+                take_until(0.., "\\\\").parse_next(&mut inner_str);
             let mut row_content: &str = if let Ok(content) = row_content_res {
                 content
             } else {
@@ -492,7 +494,8 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             };
 
             if let Ok(cells) = parse_cells_in_row.parse_next(&mut row_content) {
-                let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str) {
+                let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str)
+                {
                     opt_spacing.map(|s: &str| s.to_string())
                 } else {
                     None
@@ -705,283 +708,304 @@ fn escape_xml(input: &str) -> String {
         .replace('>', "&gt;")
 }
 
-pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
-    match node {
-        MathNode::Number(n) => format!("<mn>{}</mn>", escape_xml(n)),
-        MathNode::Identifier(i) => format!("<mi>{}</mi>", escape_xml(i)),
-        MathNode::Operator(o) => format!("<mo>{}</mo>", escape_xml(o)),
-        MathNode::Fraction(num, den) => {
-            format!(
-                "<mfrac>{}{}</mfrac>",
-                generate_mathml(num, mode),
-                generate_mathml(den, mode)
-            )
-        }
-        MathNode::Scripts {
-            base,
-            sub,
-            sup,
-            pre_sub,
-            pre_sup,
-            behavior,
-            is_large_op,
-        } => {
-            let base_str = generate_mathml(base, mode);
+// ==========================================
+// 3. 抽象渲染后端 (Pluggable Backends)
+// ==========================================
 
-            // 如果存在前置角标，直接进入最复杂的张量渲染模式 <mmultiscripts>
-            if pre_sub.is_some() || pre_sup.is_some() {
-                let s_sub = sub
-                    .as_ref()
-                    .map(|s| generate_mathml(s, mode))
-                    .unwrap_or_else(|| "<none/>".to_string());
-                let s_sup = sup
-                    .as_ref()
-                    .map(|s| generate_mathml(s, mode))
-                    .unwrap_or_else(|| "<none/>".to_string());
-                let p_sub = pre_sub
-                    .as_ref()
-                    .map(|s| generate_mathml(s, mode))
-                    .unwrap_or_else(|| "<none/>".to_string());
-                let p_sup = pre_sup
-                    .as_ref()
-                    .map(|s| generate_mathml(s, mode))
-                    .unwrap_or_else(|| "<none/>".to_string());
+/// 所有后端渲染器必须实现的抽象接口
+pub trait MathRenderer {
+    fn render(&self, node: &MathNode, mode: RenderMode) -> String;
+}
 
-                return format!(
-                    "<mmultiscripts>{}{}{}<mprescripts/>{}{}</mmultiscripts>",
-                    base_str, s_sub, s_sup, p_sub, p_sup
-                );
+// ==========================================
+// 4. 标准 MathML 渲染器实现
+// ==========================================
+
+/// tex2math 官方提供的标准 MathML 渲染后端
+pub struct MathMLRenderer;
+
+impl MathMLRenderer {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl MathRenderer for MathMLRenderer {
+    fn render(&self, node: &MathNode, mode: RenderMode) -> String {
+        match node {
+            MathNode::Number(n) => format!("<mn>{}</mn>", escape_xml(n)),
+            MathNode::Identifier(i) => format!("<mi>{}</mi>", escape_xml(i)),
+            MathNode::Operator(o) => format!("<mo>{}</mo>", escape_xml(o)),
+            MathNode::Fraction(num, den) => {
+                format!(
+                    "<mfrac>{}{}</mfrac>",
+                    self.render(num, mode),
+                    self.render(den, mode)
+                )
             }
+            MathNode::Scripts {
+                base,
+                sub,
+                sup,
+                pre_sub,
+                pre_sup,
+                behavior,
+                is_large_op,
+            } => {
+                let base_str = self.render(base, mode);
 
-            let sub_str = sub.as_ref().map(|s| generate_mathml(s, mode));
-            let sup_str = sup.as_ref().map(|s| generate_mathml(s, mode));
+                if pre_sub.is_some() || pre_sup.is_some() {
+                    let s_sub = sub
+                        .as_ref()
+                        .map(|s| self.render(s, mode))
+                        .unwrap_or_else(|| "<none/>".to_string());
+                    let s_sup = sup
+                        .as_ref()
+                        .map(|s| self.render(s, mode))
+                        .unwrap_or_else(|| "<none/>".to_string());
+                    let p_sub = pre_sub
+                        .as_ref()
+                        .map(|s| self.render(s, mode))
+                        .unwrap_or_else(|| "<none/>".to_string());
+                    let p_sup = pre_sup
+                        .as_ref()
+                        .map(|s| self.render(s, mode))
+                        .unwrap_or_else(|| "<none/>".to_string());
 
-            // 核心逻辑：判断是否应该排版为 limits
-            let render_as_limits = match behavior {
-                LimitBehavior::Limits => true,
-                LimitBehavior::NoLimits => false,
-                LimitBehavior::Default => *is_large_op && mode == RenderMode::Display,
-            };
-
-            match (render_as_limits, sub_str, sup_str) {
-                (true, Some(sub), Some(sup)) => {
-                    format!("<munderover>{}{}{}</munderover>", base_str, sub, sup)
+                    return format!(
+                        "<mmultiscripts>{}{}{}<mprescripts/>{}{}</mmultiscripts>",
+                        base_str, s_sub, s_sup, p_sub, p_sup
+                    );
                 }
-                (true, Some(sub), None) => format!("<munder>{}{}</munder>", base_str, sub),
-                (true, None, Some(sup)) => format!("<mover>{}{}</mover>", base_str, sup),
 
-                (false, Some(sub), Some(sup)) => {
-                    format!("<msubsup>{}{}{}</msubsup>", base_str, sub, sup)
-                }
-                (false, Some(sub), None) => format!("<msub>{}{}</msub>", base_str, sub),
-                (false, None, Some(sup)) => format!("<msup>{}{}</msup>", base_str, sup),
+                let sub_str = sub.as_ref().map(|s| self.render(s, mode));
+                let sup_str = sup.as_ref().map(|s| self.render(s, mode));
 
-                (_, None, None) => base_str, // 理论上不会走到这里，但以防万一
-            }
-        }
-        MathNode::Row(nodes) => {
-            let inner: String = nodes.iter().map(|n| generate_mathml(n, mode)).collect();
-            format!("<mrow>{}</mrow>", inner)
-        }
-        MathNode::Sqrt(content) => {
-            format!("<msqrt>{}</msqrt>", generate_mathml(content, mode))
-        }
-        MathNode::Root { index, content } => {
-            format!(
-                "<mroot>{}{}</mroot>",
-                generate_mathml(content, mode),
-                generate_mathml(index, mode)
-            )
-        }
-        MathNode::Fenced {
-            open,
-            content,
-            close,
-        } => {
-            let mo_open = if open == "." {
-                String::new()
-            } else {
-                format!("<mo stretchy=\"true\">{}</mo>", escape_xml(open))
-            };
-            let mo_close = if close == "." {
-                String::new()
-            } else {
-                format!("<mo stretchy=\"true\">{}</mo>", escape_xml(close))
-            };
-            format!(
-                "<mrow>{}{}{}</mrow>",
-                mo_open,
-                generate_mathml(content, mode),
-                mo_close
-            )
-        }
-        MathNode::Environment { name, format, rows } => {
-            let mut custom_aligns = Vec::new();
-            let mut custom_lines = Vec::new();
-
-            if let Some(fmt_str) = format {
-                let mut chars = fmt_str.chars().peekable();
-                while let Some(c) = chars.next() {
-                    match c {
-                        'l' => {
-                            custom_aligns.push("left");
-                            custom_lines.push("none");
-                        }
-                        'c' => {
-                            custom_aligns.push("center");
-                            custom_lines.push("none");
-                        }
-                        'r' => {
-                            custom_aligns.push("right");
-                            custom_lines.push("none");
-                        }
-                        '|' => {
-                            if let Some(last) = custom_lines.last_mut() {
-                                *last = "solid";
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            let table_attr = match name.as_str() {
-                "align" | "align*" | "eqnarray" | "eqnarray*" => {
-                    let max_cols = rows.iter().map(|(r, _)| r.len()).max().unwrap_or(0);
-                    let aligns: Vec<&str> = (0..max_cols)
-                        .map(|i| if i % 2 == 0 { "right" } else { "left" })
-                        .collect();
-                    if aligns.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" columnalign=\"{}\"", aligns.join(" "))
-                    }
-                }
-                "cases" => " columnalign=\"left\"".to_string(),
-                "array" => {
-                    let mut attr = String::new();
-                    if !custom_aligns.is_empty() {
-                        attr.push_str(&format!(" columnalign=\"{}\"", custom_aligns.join(" ")));
-                    }
-                    if custom_lines.iter().any(|&s| s == "solid") {
-                        attr.push_str(&format!(" columnlines=\"{}\"", custom_lines.join(" ")));
-                    }
-                    attr
-                }
-                _ => "".to_string(),
-            };
-
-            let mut table_xml = format!("<mtable{}>", table_attr);
-            for (row, spacing) in rows {
-                let tr_attr = if let Some(space) = spacing {
-                    format!(" style=\"margin-bottom: {};\"", escape_xml(&space))
-                } else {
-                    "".to_string()
+                let render_as_limits = match behavior {
+                    LimitBehavior::Limits => true,
+                    LimitBehavior::NoLimits => false,
+                    LimitBehavior::Default => *is_large_op && mode == RenderMode::Display,
                 };
 
-                table_xml.push_str(&format!("<mtr{}>", tr_attr));
-                for cell in row {
-                    table_xml.push_str(&format!("<mtd>{}</mtd>", generate_mathml(cell, mode)));
+                match (render_as_limits, sub_str, sup_str) {
+                    (true, Some(sub), Some(sup)) => {
+                        format!("<munderover>{}{}{}</munderover>", base_str, sub, sup)
+                    }
+                    (true, Some(sub), None) => format!("<munder>{}{}</munder>", base_str, sub),
+                    (true, None, Some(sup)) => format!("<mover>{}{}</mover>", base_str, sup),
+
+                    (false, Some(sub), Some(sup)) => {
+                        format!("<msubsup>{}{}{}</msubsup>", base_str, sub, sup)
+                    }
+                    (false, Some(sub), None) => format!("<msub>{}{}</msub>", base_str, sub),
+                    (false, None, Some(sup)) => format!("<msup>{}{}</msup>", base_str, sup),
+
+                    (_, None, None) => base_str,
                 }
-                table_xml.push_str("</mtr>");
             }
-            table_xml.push_str("</mtable>");
+            MathNode::Row(nodes) => {
+                let inner: String = nodes.iter().map(|n| self.render(n, mode)).collect();
+                format!("<mrow>{}</mrow>", inner)
+            }
+            MathNode::Sqrt(content) => {
+                format!("<msqrt>{}</msqrt>", self.render(content, mode))
+            }
+            MathNode::Root { index, content } => {
+                format!(
+                    "<mroot>{}{}</mroot>",
+                    self.render(content, mode),
+                    self.render(index, mode)
+                )
+            }
+            MathNode::Fenced {
+                open,
+                content,
+                close,
+            } => {
+                let mo_open = if open == "." {
+                    String::new()
+                } else {
+                    format!("<mo stretchy=\"true\">{}</mo>", escape_xml(open))
+                };
+                let mo_close = if close == "." {
+                    String::new()
+                } else {
+                    format!("<mo stretchy=\"true\">{}</mo>", escape_xml(close))
+                };
+                format!(
+                    "<mrow>{}{}{}</mrow>",
+                    mo_open,
+                    self.render(content, mode),
+                    mo_close
+                )
+            }
+            MathNode::Environment { name, format, rows } => {
+                let mut custom_aligns = Vec::new();
+                let mut custom_lines = Vec::new();
 
-            match name.as_str() {
-                "pmatrix" => format!(
-                    "<mrow><mo stretchy=\"true\">(</mo>{}<mo stretchy=\"true\">)</mo></mrow>",
-                    table_xml
-                ),
-                "bmatrix" => format!(
-                    "<mrow><mo stretchy=\"true\">[</mo>{}<mo stretchy=\"true\">]</mo></mrow>",
-                    table_xml
-                ),
-                "Bmatrix" => format!(
-                    "<mrow><mo stretchy=\"true\">{{</mo>{}<mo stretchy=\"true\">}}</mo></mrow>",
-                    table_xml
-                ),
-                "vmatrix" => format!(
-                    "<mrow><mo stretchy=\"true\">|</mo>{}<mo stretchy=\"true\">|</mo></mrow>",
-                    table_xml
-                ),
-                "Vmatrix" => format!(
-                    "<mrow><mo stretchy=\"true\">‖</mo>{}<mo stretchy=\"true\">‖</mo></mrow>",
-                    table_xml
-                ),
-                "cases" => format!("<mrow><mo stretchy=\"true\">{{</mo>{}</mrow>", table_xml),
-                _ => table_xml,
-            }
-        }
-        MathNode::Text(t) => format!("<mtext>{}</mtext>", escape_xml(t)),
-        MathNode::Style { variant, content } => {
-            format!(
-                "<mrow mathvariant=\"{}\">{}</mrow>",
-                escape_xml(variant),
-                generate_mathml(content, mode)
-            )
-        }
-        MathNode::Accent { mark, content } => {
-            format!(
-                "<mover accent=\"true\">{}<mo>{}</mo></mover>",
-                generate_mathml(content, mode),
-                escape_xml(mark)
-            )
-        }
-        MathNode::Function(f) => format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(f)),
-        MathNode::Space(width) => format!("<mspace width=\"{}\"/>", escape_xml(width)),
+                if let Some(fmt_str) = format {
+                    let mut chars = fmt_str.chars().peekable();
+                    while let Some(c) = chars.next() {
+                        match c {
+                            'l' => {
+                                custom_aligns.push("left");
+                                custom_lines.push("none");
+                            }
+                            'c' => {
+                                custom_aligns.push("center");
+                                custom_lines.push("none");
+                            }
+                            'r' => {
+                                custom_aligns.push("right");
+                                custom_lines.push("none");
+                            }
+                            '|' => {
+                                if let Some(last) = custom_lines.last_mut() {
+                                    *last = "solid";
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
 
-        // == 新增：颜色与盒子的生成逻辑 ==
-        MathNode::Color { color, content } => {
-            format!(
-                "<mstyle mathcolor=\"{}\">{}</mstyle>",
-                escape_xml(color),
-                generate_mathml(content, mode)
-            )
-        }
-        MathNode::ColorBox { bg_color, content } => {
-            format!(
-                "<mstyle mathbackground=\"{}\">{}</mstyle>",
-                escape_xml(bg_color),
-                generate_mathml(content, mode)
-            )
-        }
-        MathNode::Boxed(content) => {
-            format!(
-                "<menclose notation=\"box\">{}</menclose>",
-                generate_mathml(content, mode)
-            )
-        }
-        MathNode::Phantom(content) => {
-            format!("<mphantom>{}</mphantom>", generate_mathml(content, mode))
-        }
-        MathNode::Cancel {
-            mode: notation_mode,
-            content,
-        } => {
-            format!(
-                "<menclose notation=\"{}\">{}</menclose>",
-                escape_xml(notation_mode),
-                generate_mathml(content, mode)
-            )
-        }
-        MathNode::StretchOp {
-            op,
-            is_over,
-            content,
-        } => {
-            let stretchy_op = format!("<mo stretchy=\"true\">{}</mo>", escape_xml(op));
-            let content_xml = generate_mathml(content, mode);
-            if *is_over {
-                format!("<mover>{}{}</mover>", content_xml, stretchy_op)
-            } else {
-                format!("<munder>{}{}</munder>", content_xml, stretchy_op)
+                let table_attr = match name.as_str() {
+                    "align" | "align*" | "eqnarray" | "eqnarray*" => {
+                        let max_cols = rows.iter().map(|(r, _)| r.len()).max().unwrap_or(0);
+                        let aligns: Vec<&str> = (0..max_cols)
+                            .map(|i| if i % 2 == 0 { "right" } else { "left" })
+                            .collect();
+                        if aligns.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" columnalign=\"{}\"", aligns.join(" "))
+                        }
+                    }
+                    "cases" => " columnalign=\"left\"".to_string(),
+                    "array" => {
+                        let mut attr = String::new();
+                        if !custom_aligns.is_empty() {
+                            attr.push_str(&format!(" columnalign=\"{}\"", custom_aligns.join(" ")));
+                        }
+                        if custom_lines.iter().any(|&s| s == "solid") {
+                            attr.push_str(&format!(" columnlines=\"{}\"", custom_lines.join(" ")));
+                        }
+                        attr
+                    }
+                    _ => "".to_string(), // 默认居中 (matrix 等)
+                };
+
+                let mut table_xml = format!("<mtable{}>", table_attr);
+                for (row, spacing) in rows {
+                    let tr_attr = if let Some(space) = spacing {
+                        format!(" style=\"margin-bottom: {};\"", escape_xml(space))
+                    } else {
+                        "".to_string()
+                    };
+
+                    table_xml.push_str(&format!("<mtr{}>", tr_attr));
+                    for cell in row {
+                        table_xml.push_str(&format!("<mtd>{}</mtd>", self.render(cell, mode)));
+                    }
+                    table_xml.push_str("</mtr>");
+                }
+                table_xml.push_str("</mtable>");
+
+                match name.as_str() {
+                    "pmatrix" => format!(
+                        "<mrow><mo stretchy=\"true\">(</mo>{}<mo stretchy=\"true\">)</mo></mrow>",
+                        table_xml
+                    ),
+                    "bmatrix" => format!(
+                        "<mrow><mo stretchy=\"true\">[</mo>{}<mo stretchy=\"true\">]</mo></mrow>",
+                        table_xml
+                    ),
+                    "Bmatrix" => format!(
+                        "<mrow><mo stretchy=\"true\">{{</mo>{}<mo stretchy=\"true\">}}</mo></mrow>",
+                        table_xml
+                    ),
+                    "vmatrix" => format!(
+                        "<mrow><mo stretchy=\"true\">|</mo>{}<mo stretchy=\"true\">|</mo></mrow>",
+                        table_xml
+                    ),
+                    "Vmatrix" => format!(
+                        "<mrow><mo stretchy=\"true\">‖</mo>{}<mo stretchy=\"true\">‖</mo></mrow>",
+                        table_xml
+                    ),
+                    "cases" => format!("<mrow><mo stretchy=\"true\">{{</mo>{}</mrow>", table_xml),
+                    _ => table_xml,
+                }
             }
-        }
-        MathNode::Error(err_msg) => {
-            format!(
-                "<merror><mtext mathcolor=\"red\">Syntax Error: {}</mtext></merror>",
-                escape_xml(err_msg)
-            )
+            MathNode::Text(t) => format!("<mtext>{}</mtext>", escape_xml(t)),
+            MathNode::Style { variant, content } => {
+                format!(
+                    "<mrow mathvariant=\"{}\">{}</mrow>",
+                    escape_xml(variant),
+                    self.render(content, mode)
+                )
+            }
+            MathNode::Accent { mark, content } => {
+                format!(
+                    "<mover accent=\"true\">{}<mo>{}</mo></mover>",
+                    self.render(content, mode),
+                    escape_xml(mark)
+                )
+            }
+            MathNode::Function(f) => format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(f)),
+            MathNode::Space(width) => format!("<mspace width=\"{}\"/>", escape_xml(width)),
+
+            MathNode::Color { color, content } => {
+                format!(
+                    "<mstyle mathcolor=\"{}\">{}</mstyle>",
+                    escape_xml(color),
+                    self.render(content, mode)
+                )
+            }
+            MathNode::ColorBox { bg_color, content } => {
+                format!(
+                    "<mstyle mathbackground=\"{}\">{}</mstyle>",
+                    escape_xml(bg_color),
+                    self.render(content, mode)
+                )
+            }
+            MathNode::Boxed(content) => {
+                format!(
+                    "<menclose notation=\"box\">{}</menclose>",
+                    self.render(content, mode)
+                )
+            }
+            MathNode::Phantom(content) => {
+                format!("<mphantom>{}</mphantom>", self.render(content, mode))
+            }
+            MathNode::Cancel {
+                mode: notation_mode,
+                content,
+            } => {
+                format!(
+                    "<menclose notation=\"{}\">{}</menclose>",
+                    escape_xml(notation_mode),
+                    self.render(content, mode)
+                )
+            }
+            MathNode::StretchOp {
+                op,
+                is_over,
+                content,
+            } => {
+                let stretchy_op = format!("<mo stretchy=\"true\">{}</mo>", escape_xml(op));
+                let content_xml = self.render(content, mode);
+                if *is_over {
+                    format!("<mover>{}{}</mover>", content_xml, stretchy_op)
+                } else {
+                    format!("<munder>{}{}</munder>", content_xml, stretchy_op)
+                }
+            }
+            MathNode::Error(err_msg) => {
+                format!(
+                    "<merror><mtext mathcolor=\"red\">Syntax Error: {}</mtext></merror>",
+                    escape_xml(err_msg)
+                )
+            }
         }
     }
 }
@@ -990,3 +1014,9 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
 
 #[cfg(test)]
 mod tests;
+
+/// 为了保持向后兼容性和提供一个极其简单易用的接口，
+/// 这里提供一个标准的单次调用函数来使用 MathML 渲染器。
+pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
+    MathMLRenderer::new().render(node, mode)
+}
