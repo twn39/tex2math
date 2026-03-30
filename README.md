@@ -1,3 +1,5 @@
+<div align="center">
+
 # Tex2math 🚀
 
 [![CI](https://github.com/twn39/tex2math/actions/workflows/ci.yml/badge.svg)](https://github.com/twn39/tex2math/actions/workflows/ci.yml)
@@ -7,6 +9,8 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 > A blazing fast, zero-copy Rust library and CLI tool designed to parse LaTeX mathematical formulas and compile them into perfectly structured MathML XML.
+
+</div>
 
 Inspired by the robust AST designs of **texmath** and the rich symbol dictionaries of **KaTeX**, `tex2math` is built to be a lightweight, JavaScript-free alternative for generating native MathML directly on the backend (or via WebAssembly).
 
