@@ -3,6 +3,8 @@ use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated, trace
 use winnow::prelude::*;
 use winnow::token::{literal, one_of, take_till, take_until};
 
+mod symbols;
+
 // ==========================================
 // 1. AST (抽象语法树) 定义
 // ==========================================
@@ -221,97 +223,34 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // 2. 处理无参数的纯静态字典映射
         match cmd {
-            // == 新增：显式排版空格 ==
-            "quad" => Ok(MathNode::Space("1em".to_string())),
-            "qquad" => Ok(MathNode::Space("2em".to_string())),
-            "," => Ok(MathNode::Space("0.1667em".to_string())), // \, (thin space)
-            ";" => Ok(MathNode::Space("0.2778em".to_string())), // \; (thick space)
-            "!" => Ok(MathNode::Space("-0.1667em".to_string())), // \! (negative space)
+            // == 显式排版空格 ==
+            "quad" => return Ok(MathNode::Space("1em".to_string())),
+            "qquad" => return Ok(MathNode::Space("2em".to_string())),
+            "," => return Ok(MathNode::Space("0.1667em".to_string())),
+            ";" => return Ok(MathNode::Space("0.2778em".to_string())),
+            "!" => return Ok(MathNode::Space("-0.1667em".to_string())),
             
-            // == 新增：标准数学函数 ==
+            // == 标准数学函数 ==
             "sin" | "cos" | "tan" | "csc" | "sec" | "cot" | 
             "arcsin" | "arccos" | "arctan" | "sinh" | "cosh" | "tanh" |
             "exp" | "log" | "ln" | "lg" | 
             "lim" | "limsup" | "liminf" | "max" | "min" | "sup" | "inf" | "det" | "arg" | "dim" 
-            => Ok(MathNode::Function(cmd.to_string())),
-
-            // 希腊字母 (映射为 Identifier)
-            "alpha" => Ok(MathNode::Identifier("α".to_string())),
-            "beta" => Ok(MathNode::Identifier("β".to_string())),
-            "gamma" => Ok(MathNode::Identifier("γ".to_string())),
-            "delta" => Ok(MathNode::Identifier("δ".to_string())),
-            "epsilon" => Ok(MathNode::Identifier("ε".to_string())),
-            "theta" => Ok(MathNode::Identifier("θ".to_string())),
-            "lambda" => Ok(MathNode::Identifier("λ".to_string())),
-            "mu" => Ok(MathNode::Identifier("μ".to_string())),
-            "pi" => Ok(MathNode::Identifier("π".to_string())),
-            "sigma" => Ok(MathNode::Identifier("σ".to_string())),
-            "phi" => Ok(MathNode::Identifier("φ".to_string())),
-            "omega" => Ok(MathNode::Identifier("ω".to_string())),
-            "Gamma" => Ok(MathNode::Identifier("Γ".to_string())),
-            "Delta" => Ok(MathNode::Identifier("Δ".to_string())),
-            "Theta" => Ok(MathNode::Identifier("Θ".to_string())),
-            "Lambda" => Ok(MathNode::Identifier("Λ".to_string())),
-            "Pi" => Ok(MathNode::Identifier("Π".to_string())),
-            "Sigma" => Ok(MathNode::Identifier("Σ".to_string())),
-            "Phi" => Ok(MathNode::Identifier("Φ".to_string())),
-            "Omega" => Ok(MathNode::Identifier("Ω".to_string())),
-
-            // 常见数学符号 (作为 Identifier)
-            "infty" => Ok(MathNode::Identifier("∞".to_string())),
-            "partial" => Ok(MathNode::Identifier("∂".to_string())),
-            "nabla" => Ok(MathNode::Identifier("∇".to_string())),
-            "emptyset" => Ok(MathNode::Identifier("∅".to_string())),
-
-            // 操作符与关系符 (映射为 Operator)
-            "pm" => Ok(MathNode::Operator("±".to_string())),
-            "mp" => Ok(MathNode::Operator("∓".to_string())),
-            "times" => Ok(MathNode::Operator("×".to_string())),
-            "div" => Ok(MathNode::Operator("÷".to_string())),
-            "cdot" => Ok(MathNode::Operator("·".to_string())),
-            "ast" => Ok(MathNode::Operator("*".to_string())),
-            "star" => Ok(MathNode::Operator("⋆".to_string())),
-            "oplus" => Ok(MathNode::Operator("⊕".to_string())),
-            "otimes" => Ok(MathNode::Operator("⊗".to_string())),
-            
-            // 不等与等价
-            "leq" | "le" => Ok(MathNode::Operator("≤".to_string())),
-            "geq" | "ge" => Ok(MathNode::Operator("≥".to_string())),
-            "neq" | "ne" => Ok(MathNode::Operator("≠".to_string())),
-            "approx" => Ok(MathNode::Operator("≈".to_string())),
-            "equiv" => Ok(MathNode::Operator("≡".to_string())),
-            "sim" => Ok(MathNode::Operator("∼".to_string())),
-            "cong" => Ok(MathNode::Operator("≅".to_string())),
-            
-            // 逻辑与集合
-            "forall" => Ok(MathNode::Operator("∀".to_string())),
-            "exists" => Ok(MathNode::Operator("∃".to_string())),
-            "in" => Ok(MathNode::Operator("∈".to_string())),
-            "notin" => Ok(MathNode::Operator("∉".to_string())),
-            "subset" => Ok(MathNode::Operator("⊂".to_string())),
-            "subseteq" => Ok(MathNode::Operator("⊆".to_string())),
-            "cup" => Ok(MathNode::Operator("∪".to_string())),
-            "cap" => Ok(MathNode::Operator("∩".to_string())),
-
-            // 箭头
-            "leftarrow" | "gets" => Ok(MathNode::Operator("←".to_string())),
-            "rightarrow" | "to" => Ok(MathNode::Operator("→".to_string())),
-            "leftrightarrow" => Ok(MathNode::Operator("↔".to_string())),
-            
-            // 大运算符
-            "sum" => Ok(MathNode::Operator("∑".to_string())),
-            "prod" => Ok(MathNode::Operator("∏".to_string())),
-            "coprod" => Ok(MathNode::Operator("∐".to_string())),
-            "int" => Ok(MathNode::Operator("∫".to_string())),
-            "oint" => Ok(MathNode::Operator("∮".to_string())),
+            => return Ok(MathNode::Function(cmd.to_string())),
             
             // 排除专门的结构命令，让它们去各自的解析器里匹配
             "frac" | "sqrt" | "left" | "right" => {
-                winnow::combinator::fail.parse_next(input)
+                return winnow::combinator::fail.parse_next(input);
             }
-            // 如果不在字典中，原样保留为未识别命令 (Fallback)
-            _ => Ok(MathNode::Identifier(format!("\\{}", cmd))),
+            _ => {}
         }
+
+        // 3. 去外部超级大字典里查找 (希腊字母、特殊符号、箭头、大运算符)
+        if let Some(node) = symbols::lookup_symbol(cmd) {
+            return Ok(node);
+        }
+
+        // 如果哪里都不在，原样保留为未识别命令 (Fallback)
+        Ok(MathNode::Identifier(format!("\\{}", cmd)))
     })
     .parse_next(input)
 }
