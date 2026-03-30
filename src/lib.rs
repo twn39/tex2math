@@ -52,6 +52,8 @@ pub enum MathNode {
         mark: String,
         content: Box<MathNode>,
     },
+    Function(String),                      // 对应如 \sin, \log 这样的正体函数名
+    Space(String),                         // 对应显式空白 <mspace>
 }
 
 // ==========================================
@@ -159,7 +161,15 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 // 参考了 KaTeX 和 texmath 的底层字典，将 LaTeX 命令映射为等价的 Unicode 字符
 pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_command", |input: &mut &'s str| {
-        let cmd = preceded('\\', alpha1).parse_next(input)?;
+        // 提取命令名：可以是英文字母组成的词，也可以是特定的单字符标点符号
+        let cmd = preceded(
+            '\\', 
+            alt((
+                alpha1,
+                // 支持 \, \; \! 等特殊单字符命令
+                one_of([',', ';', '!']).map(|c: char| c.to_string().leak() as &str)
+            ))
+        ).parse_next(input)?;
         
         // 1. 处理带参数的高级命令 (文本、样式、重音)
         // \text{...} 文本模式：内部必须原样保留空格，不进行数学递归解析
@@ -211,6 +221,20 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // 2. 处理无参数的纯静态字典映射
         match cmd {
+            // == 新增：显式排版空格 ==
+            "quad" => Ok(MathNode::Space("1em".to_string())),
+            "qquad" => Ok(MathNode::Space("2em".to_string())),
+            "," => Ok(MathNode::Space("0.1667em".to_string())), // \, (thin space)
+            ";" => Ok(MathNode::Space("0.2778em".to_string())), // \; (thick space)
+            "!" => Ok(MathNode::Space("-0.1667em".to_string())), // \! (negative space)
+            
+            // == 新增：标准数学函数 ==
+            "sin" | "cos" | "tan" | "csc" | "sec" | "cot" | 
+            "arcsin" | "arccos" | "arctan" | "sinh" | "cosh" | "tanh" |
+            "exp" | "log" | "ln" | "lg" | 
+            "lim" | "limsup" | "liminf" | "max" | "min" | "sup" | "inf" | "det" | "arg" | "dim" 
+            => Ok(MathNode::Function(cmd.to_string())),
+
             // 希腊字母 (映射为 Identifier)
             "alpha" => Ok(MathNode::Identifier("α".to_string())),
             "beta" => Ok(MathNode::Identifier("β".to_string())),
@@ -377,11 +401,13 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             break;
         }
 
-        // 判断 base 是否是要求使用 limits 渲染的大运算符
+        // 判断 base 是否是要求使用 limits 渲染的大运算符或极限函数
         let is_large_operator = match &base {
             MathNode::Operator(op) => {
-                // 判断逻辑：我们前面把 sum, prod, int 映射为了这些 unicode
                 ["∑", "∏", "∐", "∫", "∮"].contains(&op.as_str())
+            },
+            MathNode::Function(f) => {
+                ["lim", "limsup", "liminf", "max", "min", "sup", "inf"].contains(&f.as_str())
             },
             _ => false,
         };
@@ -528,6 +554,13 @@ pub fn generate_mathml(node: &MathNode) -> String {
         }
         MathNode::Accent { mark, content } => {
             format!("<mover accent=\"true\">{}<mo>{}</mo></mover>", generate_mathml(content), escape_xml(mark))
+        }
+        MathNode::Function(f) => {
+            // 标准数学函数使用正体 (normal) 渲染，这可以通过 <mi mathvariant="normal"> 实现
+            format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(f))
+        }
+        MathNode::Space(width) => {
+            format!("<mspace width=\"{}\"/>", escape_xml(width))
         }
     }
 }

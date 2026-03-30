@@ -283,3 +283,41 @@ fn test_parse_accents() {
     assert_eq!(mathml, expected);
 }
 
+
+// === 新增：数学函数与显式空格 ===
+
+#[test]
+fn test_parse_math_functions() {
+    let mut input = "\\sin x + \\log y";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    
+    // sin 和 log 应该被解析为普通的 Operator 或带有特定样式的 mi，这里我们采用最普遍的 <mo> 或带属性的 <mi>
+    // 参考规范，我们将它们映射为 <mi mathvariant="normal">
+    let expected = "<mrow><mi mathvariant=\"normal\">sin</mi><mi>x</mi><mo>+</mo><mi mathvariant=\"normal\">log</mi><mi>y</mi></mrow>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_parse_lim_with_limits() {
+    // 像 lim, max, min 这种函数，不仅是非斜体的，它还能接受上下界！
+    let mut input = "\\lim_{x \\to 0}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    
+    // 必须生成 <munder>，而不是 <msub>
+    let expected = "<munder><mi mathvariant=\"normal\">lim</mi><mrow><mi>x</mi><mo>→</mo><mn>0</mn></mrow></munder>";
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_parse_explicit_spacing() {
+    let mut input = "a \\quad b \\, c";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast);
+    
+    // \quad 等价于 1em, \, 等价于 0.1667em
+    let expected = "<mrow><mi>a</mi><mspace width=\"1em\"/><mi>b</mi><mspace width=\"0.1667em\"/><mi>c</mi></mrow>";
+    assert_eq!(mathml, expected);
+}
+
