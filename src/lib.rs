@@ -21,9 +21,9 @@ pub enum MathNode {
         sub: Box<MathNode>,
         sup: Box<MathNode>,
     },
-    Under(Box<MathNode>, Box<MathNode>),       // 对应 <munder>
-    Over(Box<MathNode>, Box<MathNode>),        // 对应 <mover>
-    UnderOver {                                // 对应 <munderover>
+    Under(Box<MathNode>, Box<MathNode>),
+    Over(Box<MathNode>, Box<MathNode>),
+    UnderOver {
         base: Box<MathNode>,
         under: Box<MathNode>,
         over: Box<MathNode>,
@@ -39,29 +39,25 @@ pub enum MathNode {
         content: Box<MathNode>,
         close: String,
     },
-    // == 新增：环境与多维表格 ==
     Environment {
         name: String,
-        rows: Vec<Vec<MathNode>>, // 一个二维数组：多行，每行包含多个单元格的节点
+        rows: Vec<Vec<MathNode>>,
     },
-    // == 新增：高级排版特性 ==
-    Text(String),                          // 对应 <mtext> (保留空格)
-    Style {                                // 对应带有 mathvariant 的 <mrow>
+    Text(String),
+    Style {
         variant: String,
         content: Box<MathNode>,
     },
-    Accent {                               // 对应带有 accent="true" 的 <mover>
+    Accent {
         mark: String,
         content: Box<MathNode>,
     },
-    Function(String),                      // 对应如 \sin, \log 这样的正体函数名
-    Space(String),                         // 对应显式空白 <mspace>
+    Function(String),
+    Space(String),
+    Error(String),
 }
-
-// ==========================================
 // 2. Winnow 解析器 (Parser)
 // ==========================================
-
 
 pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
@@ -90,25 +86,68 @@ pub fn parse_operator<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 pub fn parse_fraction<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
-    trace(
-        "parse_fraction",
-        preceded(
-            literal("\\frac"),
-            (
-                delimited((space0, '{'), parse_row, (space0, '}')),
-                delimited((space0, '{'), parse_row, (space0, '}')),
-            ),
-        )
-        .map(|(num, den)| MathNode::Fraction(Box::new(num), Box::new(den))),
-    )
+    trace("parse_fraction", |input: &mut &'s str| {
+        let _ = literal("\\frac").parse_next(input)?;
+
+        // 辅助函数：解析一个 { ... } 块。如果没有右括号，不报错，而是吸收剩余所有字符并报错。
+        let mut parse_block = |inp: &mut &'s str| -> ModalResult<MathNode> {
+            let _ = preceded(space0, literal("{")).parse_next(inp)?;
+            let content = parse_row.parse_next(inp)?;
+
+            if opt(preceded(space0, literal("}")))
+                .parse_next(inp)?
+                .is_some()
+            {
+                Ok(content)
+            } else {
+                let remaining = winnow::token::rest.parse_next(inp)?;
+                Ok(MathNode::Row(vec![
+                    content,
+                    MathNode::Error(format!("Missing '}}' in fraction, found: '{}'", remaining)),
+                ]))
+            }
+        };
+
+        // 第一个块：分子 (若匹配不到左括号，直接失败，因为这不符合 \frac 的特征)
+        let num = parse_block.parse_next(input)?;
+
+        // 第二个块：分母 (如果连左括号都没有，那说明整个格式残缺，我们将分母作为一个空的错误)
+        let den = if let Ok(d) = parse_block.parse_next(input) {
+            d
+        } else {
+            MathNode::Error("Missing denominator block".to_string())
+        };
+
+        Ok(MathNode::Fraction(Box::new(num), Box::new(den)))
+    })
     .parse_next(input)
 }
 
 pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
-    trace(
-        "parse_group",
-        delimited((literal("{"), space0), parse_row, (space0, literal("}"))),
-    )
+    trace("parse_group", |input: &mut &'s str| {
+        // 匹配左大括号
+        let _ = preceded(space0, literal("{")).parse_next(input)?;
+
+        // 尝试正常解析一行内容
+        let content = parse_row.parse_next(input)?;
+
+        // 尝试匹配右大括号
+        if opt(preceded(space0, literal("}")))
+            .parse_next(input)?
+            .is_some()
+        {
+            Ok(content)
+        } else {
+            // == 错误恢复 ==
+            // 如果没找到右大括号，说明公式残缺。我们把剩下的内容视为错误节点。
+            // 但为了让外层能继续渲染已正确解析的部分，我们返回一个包含了 Error 的 Row。
+            let remaining = winnow::token::rest.parse_next(input)?;
+            Ok(MathNode::Row(vec![
+                content,
+                MathNode::Error(format!("Missing '}}', found: '{}'", remaining)),
+            ]))
+        }
+    })
     .parse_next(input)
 }
 
@@ -116,16 +155,12 @@ pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_sqrt", |input: &mut &'s str| {
         let _ = literal("\\sqrt").parse_next(input)?;
-        
+
         // 提取 [ 和 ] 之间的纯字符串（不让内部的 parse_row 贪婪吃掉外面的 ]）
-        let index_str_opt = opt(delimited(
-            (space0, '['),
-            take_till(0.., |c| c == ']'),
-            ']'
-        )).parse_next(input)?;
-            
-        let content = delimited((space0, '{'), parse_row, (space0, '}'))
-            .parse_next(input)?;
+        let index_str_opt =
+            opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')).parse_next(input)?;
+
+        let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
 
         if let Some(mut idx_str) = index_str_opt {
             // 对提取出来的字符串进行 AST 解析
@@ -150,11 +185,11 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             delimited(space0, parse_row, space0),
             preceded((literal("\\right"), space0), one_of([')', ']', '}', '|'])),
         )
-        .map(|(open, content, close)| MathNode::Fenced {
-            open: open.to_string(),
-            content: Box::new(content),
-            close: close.to_string(),
-        }),
+            .map(|(open, content, close)| MathNode::Fenced {
+                open: open.to_string(),
+                content: Box::new(content),
+                close: close.to_string(),
+            }),
     )
     .parse_next(input)
 }
@@ -165,18 +200,20 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_command", |input: &mut &'s str| {
         // 提取命令名：可以是英文字母组成的词，也可以是特定的单字符标点符号
         let cmd = preceded(
-            '\\', 
+            '\\',
             alt((
                 alpha1,
                 // 支持 \, \; \! 等特殊单字符命令
-                one_of([',', ';', '!']).map(|c: char| c.to_string().leak() as &str)
-            ))
-        ).parse_next(input)?;
-        
+                one_of([',', ';', '!']).map(|c: char| c.to_string().leak() as &str),
+            )),
+        )
+        .parse_next(input)?;
+
         // 1. 处理带参数的高级命令 (文本、样式、重音)
         // \text{...} 文本模式：内部必须原样保留空格，不进行数学递归解析
         if cmd == "text" || cmd == "mathrm" {
-            let inner_text = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let inner_text =
+                delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
             return Ok(MathNode::Text(inner_text.to_string()));
         }
 
@@ -213,8 +250,9 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                 delimited((space0, '{'), parse_row, (space0, '}')),
                 // 允许 \hat x (不带括号)
                 parse_ident,
-            )).parse_next(input)?;
-            
+            ))
+            .parse_next(input)?;
+
             return Ok(MathNode::Accent {
                 mark: mark.to_string(),
                 content: Box::new(content),
@@ -229,14 +267,14 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             "," => return Ok(MathNode::Space("0.1667em".to_string())),
             ";" => return Ok(MathNode::Space("0.2778em".to_string())),
             "!" => return Ok(MathNode::Space("-0.1667em".to_string())),
-            
+
             // == 标准数学函数 ==
-            "sin" | "cos" | "tan" | "csc" | "sec" | "cot" | 
-            "arcsin" | "arccos" | "arctan" | "sinh" | "cosh" | "tanh" |
-            "exp" | "log" | "ln" | "lg" | 
-            "lim" | "limsup" | "liminf" | "max" | "min" | "sup" | "inf" | "det" | "arg" | "dim" 
-            => return Ok(MathNode::Function(cmd.to_string())),
-            
+            "sin" | "cos" | "tan" | "csc" | "sec" | "cot" | "arcsin" | "arccos" | "arctan"
+            | "sinh" | "cosh" | "tanh" | "exp" | "log" | "ln" | "lg" | "lim" | "limsup"
+            | "liminf" | "max" | "min" | "sup" | "inf" | "det" | "arg" | "dim" => {
+                return Ok(MathNode::Function(cmd.to_string()))
+            }
+
             // 排除专门的结构命令，让它们去各自的解析器里匹配
             "frac" | "sqrt" | "left" | "right" => {
                 return winnow::combinator::fail.parse_next(input);
@@ -265,22 +303,33 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // 2. 构造动态的 \end{name} 字符串用于寻找边界
         let end_pattern = format!("\\end{{{}}}", name);
-        
-        // 3. 截取从现在开始到 \end{name} 出现之前的所有原始字符串
-        let inner_str = take_until(0.., end_pattern.as_str()).parse_next(input)?;
-        
-        // 4. 消费掉 \end{name} 标签
-        let _ = literal(end_pattern.as_str()).parse_next(input)?;
 
-        // 5. 对内部的字符串进行二维解析
+        // 3. 截取直到 \end{name} 或者遇到字符串结尾 (容错)
+        let inner_str_result: ModalResult<&str> =
+            take_until(0.., end_pattern.as_str()).parse_next(input);
+
+        let (inner_str, is_closed) = match inner_str_result {
+            Ok(s) => {
+                // 正常闭合，消费掉 \end{name}
+                let _ = literal(end_pattern.as_str()).parse_next(input)?;
+                (s, true)
+            }
+            Err(_) => {
+                // 没找到 \end，吞掉剩下的所有字符作为容错环境的内容
+                let s = winnow::token::rest.parse_next(input)?;
+                (s, false)
+            }
+        };
+
+        // 4. 对内部的字符串进行二维解析
         let mut parse_cells_in_row = |row_input: &mut &str| -> ModalResult<MathNode> {
             separated(
-                1.., 
-                delimited(space0, parse_row, space0), 
-                (space0, '&', space0)
-            ).map(|cells: Vec<MathNode>| {
-                MathNode::Row(cells)
-            }).parse_next(row_input)
+                1..,
+                delimited(space0, parse_row, space0),
+                (space0, '&', space0),
+            )
+            .map(|cells: Vec<MathNode>| MathNode::Row(cells))
+            .parse_next(row_input)
         };
 
         let mut rows: Vec<Vec<MathNode>> = Vec::new();
@@ -295,7 +344,20 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             }
         }
 
-        Ok(MathNode::Environment { name, rows })
+        let env_node = MathNode::Environment {
+            name: name.clone(),
+            rows,
+        };
+
+        // 如果环境未闭合，将其与一个 Error 节点组合返回
+        if !is_closed {
+            Ok(MathNode::Row(vec![
+                env_node,
+                MathNode::Error(format!("Missing \\end{{{}}}", name)),
+            ]))
+        } else {
+            Ok(env_node)
+        }
     })
     .parse_next(input)
 }
@@ -305,13 +367,13 @@ pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         "parse_atom",
         alt((
             parse_environment, // 环境优先级最高
-            parse_left_right, 
-            parse_fraction, 
-            parse_sqrt,       
-            parse_group, 
-            parse_command,    // 将通用命令解析器加入！
-            parse_ident, 
-            parse_number
+            parse_left_right,
+            parse_fraction,
+            parse_sqrt,
+            parse_group,
+            parse_command, // 将通用命令解析器加入！
+            parse_ident,
+            parse_number,
         )),
     )
     .parse_next(input)
@@ -326,13 +388,17 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         loop {
             if sup.is_none() {
-                if let Some(s) = opt(preceded((space0, '^', space0), parse_atom)).parse_next(input)? {
+                if let Some(s) =
+                    opt(preceded((space0, '^', space0), parse_atom)).parse_next(input)?
+                {
                     sup = Some(s);
                     continue;
                 }
             }
             if sub.is_none() {
-                if let Some(s) = opt(preceded((space0, '_', space0), parse_atom)).parse_next(input)? {
+                if let Some(s) =
+                    opt(preceded((space0, '_', space0), parse_atom)).parse_next(input)?
+                {
                     sub = Some(s);
                     continue;
                 }
@@ -342,12 +408,10 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // 判断 base 是否是要求使用 limits 渲染的大运算符或极限函数
         let is_large_operator = match &base {
-            MathNode::Operator(op) => {
-                ["∑", "∏", "∐", "∫", "∮"].contains(&op.as_str())
-            },
+            MathNode::Operator(op) => ["∑", "∏", "∐", "∫", "∮"].contains(&op.as_str()),
             MathNode::Function(f) => {
                 ["lim", "limsup", "liminf", "max", "min", "sup", "inf"].contains(&f.as_str())
-            },
+            }
             _ => false,
         };
 
@@ -380,11 +444,7 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 pub fn parse_node<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
-    trace(
-        "parse_node",
-        alt((parse_script, parse_operator)),
-    )
-    .parse_next(input)
+    trace("parse_node", alt((parse_script, parse_operator))).parse_next(input)
 }
 
 pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
@@ -418,31 +478,55 @@ pub fn generate_mathml(node: &MathNode) -> String {
         MathNode::Identifier(i) => format!("<mi>{}</mi>", escape_xml(i)),
         MathNode::Operator(o) => format!("<mo>{}</mo>", escape_xml(o)),
         MathNode::Fraction(num, den) => {
-            format!("<mfrac>{}{}</mfrac>", generate_mathml(num), generate_mathml(den))
+            format!(
+                "<mfrac>{}{}</mfrac>",
+                generate_mathml(num),
+                generate_mathml(den)
+            )
         }
         MathNode::Superscript(base, sup) => {
-            format!("<msup>{}{}</msup>", generate_mathml(base), generate_mathml(sup))
+            format!(
+                "<msup>{}{}</msup>",
+                generate_mathml(base),
+                generate_mathml(sup)
+            )
         }
         MathNode::Subscript(base, sub) => {
-            format!("<msub>{}{}</msub>", generate_mathml(base), generate_mathml(sub))
+            format!(
+                "<msub>{}{}</msub>",
+                generate_mathml(base),
+                generate_mathml(sub)
+            )
         }
         MathNode::SubSup { base, sub, sup } => {
             format!(
                 "<msubsup>{}{}{}</msubsup>",
-                generate_mathml(base), generate_mathml(sub), generate_mathml(sup)
+                generate_mathml(base),
+                generate_mathml(sub),
+                generate_mathml(sup)
             )
         }
         // == 新增的大运算符界限 ==
         MathNode::Under(base, under) => {
-            format!("<munder>{}{}</munder>", generate_mathml(base), generate_mathml(under))
+            format!(
+                "<munder>{}{}</munder>",
+                generate_mathml(base),
+                generate_mathml(under)
+            )
         }
         MathNode::Over(base, over) => {
-            format!("<mover>{}{}</mover>", generate_mathml(base), generate_mathml(over))
+            format!(
+                "<mover>{}{}</mover>",
+                generate_mathml(base),
+                generate_mathml(over)
+            )
         }
         MathNode::UnderOver { base, under, over } => {
             format!(
                 "<munderover>{}{}{}</munderover>",
-                generate_mathml(base), generate_mathml(under), generate_mathml(over)
+                generate_mathml(base),
+                generate_mathml(under),
+                generate_mathml(over)
             )
         }
         MathNode::Row(nodes) => {
@@ -455,12 +539,22 @@ pub fn generate_mathml(node: &MathNode) -> String {
         }
         MathNode::Root { index, content } => {
             // 注意 MathML <mroot> 的顺序是：先内容，后指数！
-            format!("<mroot>{}{}</mroot>", generate_mathml(content), generate_mathml(index))
+            format!(
+                "<mroot>{}{}</mroot>",
+                generate_mathml(content),
+                generate_mathml(index)
+            )
         }
-        MathNode::Fenced { open, content, close } => {
+        MathNode::Fenced {
+            open,
+            content,
+            close,
+        } => {
             format!(
                 "<mrow><mo stretchy=\"true\">{}</mo>{}<mo stretchy=\"true\">{}</mo></mrow>",
-                open, generate_mathml(content), close
+                open,
+                generate_mathml(content),
+                close
             )
         }
         MathNode::Environment { name, rows } => {
@@ -476,11 +570,26 @@ pub fn generate_mathml(node: &MathNode) -> String {
 
             // 根据不同的矩阵类型，添加相应的边框
             match name.as_str() {
-                "pmatrix" => format!("<mrow><mo stretchy=\"true\">(</mo>{}<mo stretchy=\"true\">)</mo></mrow>", table_xml),
-                "bmatrix" => format!("<mrow><mo stretchy=\"true\">[</mo>{}<mo stretchy=\"true\">]</mo></mrow>", table_xml),
-                "Bmatrix" => format!("<mrow><mo stretchy=\"true\">{{</mo>{}<mo stretchy=\"true\">}}</mo></mrow>", table_xml),
-                "vmatrix" => format!("<mrow><mo stretchy=\"true\">|</mo>{}<mo stretchy=\"true\">|</mo></mrow>", table_xml),
-                "Vmatrix" => format!("<mrow><mo stretchy=\"true\">‖</mo>{}<mo stretchy=\"true\">‖</mo></mrow>", table_xml),
+                "pmatrix" => format!(
+                    "<mrow><mo stretchy=\"true\">(</mo>{}<mo stretchy=\"true\">)</mo></mrow>",
+                    table_xml
+                ),
+                "bmatrix" => format!(
+                    "<mrow><mo stretchy=\"true\">[</mo>{}<mo stretchy=\"true\">]</mo></mrow>",
+                    table_xml
+                ),
+                "Bmatrix" => format!(
+                    "<mrow><mo stretchy=\"true\">{{</mo>{}<mo stretchy=\"true\">}}</mo></mrow>",
+                    table_xml
+                ),
+                "vmatrix" => format!(
+                    "<mrow><mo stretchy=\"true\">|</mo>{}<mo stretchy=\"true\">|</mo></mrow>",
+                    table_xml
+                ),
+                "Vmatrix" => format!(
+                    "<mrow><mo stretchy=\"true\">‖</mo>{}<mo stretchy=\"true\">‖</mo></mrow>",
+                    table_xml
+                ),
                 "cases" => format!("<mrow><mo stretchy=\"true\">{{</mo>{}</mrow>", table_xml), // cases 只有左括号
                 _ => table_xml, // 默认如 "matrix" 或者 "align" 不带边框
             }
@@ -489,10 +598,18 @@ pub fn generate_mathml(node: &MathNode) -> String {
             format!("<mtext>{}</mtext>", escape_xml(t))
         }
         MathNode::Style { variant, content } => {
-            format!("<mrow mathvariant=\"{}\">{}</mrow>", escape_xml(variant), generate_mathml(content))
+            format!(
+                "<mrow mathvariant=\"{}\">{}</mrow>",
+                escape_xml(variant),
+                generate_mathml(content)
+            )
         }
         MathNode::Accent { mark, content } => {
-            format!("<mover accent=\"true\">{}<mo>{}</mo></mover>", generate_mathml(content), escape_xml(mark))
+            format!(
+                "<mover accent=\"true\">{}<mo>{}</mo></mover>",
+                generate_mathml(content),
+                escape_xml(mark)
+            )
         }
         MathNode::Function(f) => {
             // 标准数学函数使用正体 (normal) 渲染，这可以通过 <mi mathvariant="normal"> 实现
@@ -500,6 +617,13 @@ pub fn generate_mathml(node: &MathNode) -> String {
         }
         MathNode::Space(width) => {
             format!("<mspace width=\"{}\"/>", escape_xml(width))
+        }
+        MathNode::Error(err_msg) => {
+            // 生成一个极度醒目的红色高亮框，并在内部显示未解析的原始文本
+            format!(
+                "<merror><mtext mathcolor=\"red\">Syntax Error: {}</mtext></merror>",
+                escape_xml(err_msg)
+            )
         }
     }
 }
