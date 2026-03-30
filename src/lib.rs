@@ -8,26 +8,37 @@ mod symbols;
 // ==========================================
 // 1. AST (抽象语法树) 定义
 // ==========================================
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RenderMode {
+    Inline,
+    Display,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LimitBehavior {
+    Default,
+    Limits,   // 强制 \limits (总是生成 munderover)
+    NoLimits, // 强制 \nolimits (总是生成 msubsup)
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum MathNode {
     Number(String),
     Identifier(String),
     Operator(String),
     Fraction(Box<MathNode>, Box<MathNode>),
-    Superscript(Box<MathNode>, Box<MathNode>),
-    Subscript(Box<MathNode>, Box<MathNode>),
-    SubSup {
+
+    // 我们将所有上下标和上下界合并成一个更智能、更通用的统一节点
+    // 之前我们分为 SubSup 和 UnderOver，现在我们在生成时动态决定它们！
+    Scripts {
         base: Box<MathNode>,
-        sub: Box<MathNode>,
-        sup: Box<MathNode>,
+        sub: Option<Box<MathNode>>,
+        sup: Option<Box<MathNode>>,
+        behavior: LimitBehavior,
+        is_large_op: bool,
     },
-    Under(Box<MathNode>, Box<MathNode>),
-    Over(Box<MathNode>, Box<MathNode>),
-    UnderOver {
-        base: Box<MathNode>,
-        under: Box<MathNode>,
-        over: Box<MathNode>,
-    },
+
     Row(Vec<MathNode>),
     Sqrt(Box<MathNode>),
     Root {
@@ -383,6 +394,19 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_script", |input: &mut &'s str| {
         let base = parse_atom.parse_next(input)?;
 
+        // 探测 base 之后是否紧跟 \limits 或 \nolimits (这些通常用于覆盖默认的上下标排版)
+        let behavior = if let Ok(_) =
+            literal::<&str, &str, winnow::error::ContextError>("\\limits").parse_next(input)
+        {
+            LimitBehavior::Limits
+        } else if let Ok(_) =
+            literal::<&str, &str, winnow::error::ContextError>("\\nolimits").parse_next(input)
+        {
+            LimitBehavior::NoLimits
+        } else {
+            LimitBehavior::Default
+        };
+
         let mut sub = None;
         let mut sup = None;
 
@@ -415,30 +439,17 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             _ => false,
         };
 
-        if is_large_operator {
-            match (sub, sup) {
-                (Some(sub), Some(sup)) => Ok(MathNode::UnderOver {
-                    base: Box::new(base),
-                    under: Box::new(sub),
-                    over: Box::new(sup),
-                }),
-                (Some(sub), None) => Ok(MathNode::Under(Box::new(base), Box::new(sub))),
-                (None, Some(sup)) => Ok(MathNode::Over(Box::new(base), Box::new(sup))),
-                (None, None) => Ok(base),
-            }
-        } else {
-            // 普通变量或公式，保留右上角、右下角
-            match (sub, sup) {
-                (Some(sub), Some(sup)) => Ok(MathNode::SubSup {
-                    base: Box::new(base),
-                    sub: Box::new(sub),
-                    sup: Box::new(sup),
-                }),
-                (Some(sub), None) => Ok(MathNode::Subscript(Box::new(base), Box::new(sub))),
-                (None, Some(sup)) => Ok(MathNode::Superscript(Box::new(base), Box::new(sup))),
-                (None, None) => Ok(base),
-            }
+        if sub.is_none() && sup.is_none() && behavior == LimitBehavior::Default {
+            return Ok(base);
         }
+
+        Ok(MathNode::Scripts {
+            base: Box::new(base),
+            sub: sub.map(Box::new),
+            sup: sup.map(Box::new),
+            behavior,
+            is_large_op: is_large_operator,
+        })
     })
     .parse_next(input)
 }
@@ -472,7 +483,7 @@ fn escape_xml(input: &str) -> String {
         .replace('>', "&gt;")
 }
 
-pub fn generate_mathml(node: &MathNode) -> String {
+pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
     match node {
         MathNode::Number(n) => format!("<mn>{}</mn>", escape_xml(n)),
         MathNode::Identifier(i) => format!("<mi>{}</mi>", escape_xml(i)),
@@ -480,69 +491,56 @@ pub fn generate_mathml(node: &MathNode) -> String {
         MathNode::Fraction(num, den) => {
             format!(
                 "<mfrac>{}{}</mfrac>",
-                generate_mathml(num),
-                generate_mathml(den)
+                generate_mathml(num, mode),
+                generate_mathml(den, mode)
             )
         }
-        MathNode::Superscript(base, sup) => {
-            format!(
-                "<msup>{}{}</msup>",
-                generate_mathml(base),
-                generate_mathml(sup)
-            )
-        }
-        MathNode::Subscript(base, sub) => {
-            format!(
-                "<msub>{}{}</msub>",
-                generate_mathml(base),
-                generate_mathml(sub)
-            )
-        }
-        MathNode::SubSup { base, sub, sup } => {
-            format!(
-                "<msubsup>{}{}{}</msubsup>",
-                generate_mathml(base),
-                generate_mathml(sub),
-                generate_mathml(sup)
-            )
-        }
-        // == 新增的大运算符界限 ==
-        MathNode::Under(base, under) => {
-            format!(
-                "<munder>{}{}</munder>",
-                generate_mathml(base),
-                generate_mathml(under)
-            )
-        }
-        MathNode::Over(base, over) => {
-            format!(
-                "<mover>{}{}</mover>",
-                generate_mathml(base),
-                generate_mathml(over)
-            )
-        }
-        MathNode::UnderOver { base, under, over } => {
-            format!(
-                "<munderover>{}{}{}</munderover>",
-                generate_mathml(base),
-                generate_mathml(under),
-                generate_mathml(over)
-            )
+        MathNode::Scripts {
+            base,
+            sub,
+            sup,
+            behavior,
+            is_large_op,
+        } => {
+            let base_str = generate_mathml(base, mode);
+            let sub_str = sub.as_ref().map(|s| generate_mathml(s, mode));
+            let sup_str = sup.as_ref().map(|s| generate_mathml(s, mode));
+
+            // 核心逻辑：判断是否应该排版为 limits
+            let render_as_limits = match behavior {
+                LimitBehavior::Limits => true,
+                LimitBehavior::NoLimits => false,
+                LimitBehavior::Default => *is_large_op && mode == RenderMode::Display,
+            };
+
+            match (render_as_limits, sub_str, sup_str) {
+                (true, Some(sub), Some(sup)) => {
+                    format!("<munderover>{}{}{}</munderover>", base_str, sub, sup)
+                }
+                (true, Some(sub), None) => format!("<munder>{}{}</munder>", base_str, sub),
+                (true, None, Some(sup)) => format!("<mover>{}{}</mover>", base_str, sup),
+
+                (false, Some(sub), Some(sup)) => {
+                    format!("<msubsup>{}{}{}</msubsup>", base_str, sub, sup)
+                }
+                (false, Some(sub), None) => format!("<msub>{}{}</msub>", base_str, sub),
+                (false, None, Some(sup)) => format!("<msup>{}{}</msup>", base_str, sup),
+
+                (_, None, None) => base_str, // 理论上不会走到这里，但以防万一
+            }
         }
         MathNode::Row(nodes) => {
-            let inner: String = nodes.iter().map(generate_mathml).collect();
+            let inner: String = nodes.iter().map(|n| generate_mathml(n, mode)).collect();
             format!("<mrow>{}</mrow>", inner)
         }
-        // == 新增的生成逻辑 ==
         MathNode::Sqrt(content) => {
-            format!("<msqrt>{}</msqrt>", generate_mathml(content))
+            format!("<msqrt>{}</msqrt>", generate_mathml(content, mode))
         }
         MathNode::Root { index, content } => {
-            // 注意 MathML <mroot> 的顺序是：先内容，后指数！
             format!(
                 "<mroot>{}{}</mroot>",
-                generate_mathml(content),
-                generate_mathml(index)
+                generate_mathml(content, mode),
+                generate_mathml(index, mode)
             )
         }
         MathNode::Fenced {
@@ -553,7 +551,7 @@ pub fn generate_mathml(node: &MathNode) -> String {
             format!(
                 "<mrow><mo stretchy=\"true\">{}</mo>{}<mo stretchy=\"true\">{}</mo></mrow>",
                 open,
-                generate_mathml(content),
+                generate_mathml(content, mode),
                 close
             )
         }
@@ -562,13 +560,12 @@ pub fn generate_mathml(node: &MathNode) -> String {
             for row in rows {
                 table_xml.push_str("<mtr>");
                 for cell in row {
-                    table_xml.push_str(&format!("<mtd>{}</mtd>", generate_mathml(cell)));
+                    table_xml.push_str(&format!("<mtd>{}</mtd>", generate_mathml(cell, mode)));
                 }
                 table_xml.push_str("</mtr>");
             }
             table_xml.push_str("</mtable>");
 
-            // 根据不同的矩阵类型，添加相应的边框
             match name.as_str() {
                 "pmatrix" => format!(
                     "<mrow><mo stretchy=\"true\">(</mo>{}<mo stretchy=\"true\">)</mo></mrow>",
@@ -590,36 +587,28 @@ pub fn generate_mathml(node: &MathNode) -> String {
                     "<mrow><mo stretchy=\"true\">‖</mo>{}<mo stretchy=\"true\">‖</mo></mrow>",
                     table_xml
                 ),
-                "cases" => format!("<mrow><mo stretchy=\"true\">{{</mo>{}</mrow>", table_xml), // cases 只有左括号
-                _ => table_xml, // 默认如 "matrix" 或者 "align" 不带边框
+                "cases" => format!("<mrow><mo stretchy=\"true\">{{</mo>{}</mrow>", table_xml),
+                _ => table_xml,
             }
         }
-        MathNode::Text(t) => {
-            format!("<mtext>{}</mtext>", escape_xml(t))
-        }
+        MathNode::Text(t) => format!("<mtext>{}</mtext>", escape_xml(t)),
         MathNode::Style { variant, content } => {
             format!(
                 "<mrow mathvariant=\"{}\">{}</mrow>",
                 escape_xml(variant),
-                generate_mathml(content)
+                generate_mathml(content, mode)
             )
         }
         MathNode::Accent { mark, content } => {
             format!(
                 "<mover accent=\"true\">{}<mo>{}</mo></mover>",
-                generate_mathml(content),
+                generate_mathml(content, mode),
                 escape_xml(mark)
             )
         }
-        MathNode::Function(f) => {
-            // 标准数学函数使用正体 (normal) 渲染，这可以通过 <mi mathvariant="normal"> 实现
-            format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(f))
-        }
-        MathNode::Space(width) => {
-            format!("<mspace width=\"{}\"/>", escape_xml(width))
-        }
+        MathNode::Function(f) => format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(f)),
+        MathNode::Space(width) => format!("<mspace width=\"{}\"/>", escape_xml(width)),
         MathNode::Error(err_msg) => {
-            // 生成一个极度醒目的红色高亮框，并在内部显示未解析的原始文本
             format!(
                 "<merror><mtext mathcolor=\"red\">Syntax Error: {}</mtext></merror>",
                 escape_xml(err_msg)
