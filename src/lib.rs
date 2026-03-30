@@ -1,3 +1,6 @@
+#![allow(clippy::needless_lifetimes)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::redundant_pattern_matching)]
 use winnow::ascii::{alpha1, digit1, space0};
 use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated, trace};
 use winnow::prelude::*;
@@ -844,8 +847,7 @@ impl MathRenderer for MathMLRenderer {
                 let mut custom_lines = Vec::new();
 
                 if let Some(fmt_str) = format {
-                    let mut chars = fmt_str.chars().peekable();
-                    while let Some(c) = chars.next() {
+                    for c in fmt_str.chars() {
                         match c {
                             'l' => {
                                 custom_aligns.push("left");
@@ -887,7 +889,7 @@ impl MathRenderer for MathMLRenderer {
                         if !custom_aligns.is_empty() {
                             attr.push_str(&format!(" columnalign=\"{}\"", custom_aligns.join(" ")));
                         }
-                        if custom_lines.iter().any(|&s| s == "solid") {
+                        if custom_lines.contains(&"solid") {
                             attr.push_str(&format!(" columnlines=\"{}\"", custom_lines.join(" ")));
                         }
                         attr
