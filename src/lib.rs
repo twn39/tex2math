@@ -77,6 +77,13 @@ pub enum MathNode {
     },
     Boxed(Box<MathNode>), // 边框
     
+    // == 新增：可拉伸跨度修饰符 ==
+    StretchOp {
+        op: String,
+        is_over: bool,
+        content: Box<MathNode>,
+    },
+
     Error(String),
 }
 // 2. Winnow 解析器 (Parser)
@@ -264,6 +271,23 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             // \boxed{content}
             let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
             return Ok(MathNode::Boxed(Box::new(content)));
+        }
+
+        // == 新增：可拉伸的修饰符 ==
+        let stretch_info = match cmd {
+            "underbrace" => Some(("⏟", false)),
+            "overbrace" => Some(("⏞", true)),
+            "underline" => Some(("_", false)),
+            "overline" => Some(("¯", true)),
+            _ => None,
+        };
+        if let Some((op_str, is_over)) = stretch_info {
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            return Ok(MathNode::StretchOp {
+                op: op_str.to_string(),
+                is_over,
+                content: Box::new(content),
+            });
         }
 
         if cmd == "color" {
@@ -502,6 +526,7 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             MathNode::Function(f) => {
                 ["lim", "limsup", "liminf", "max", "min", "sup", "inf"].contains(&f.as_str())
             }
+            MathNode::StretchOp { .. } => true, // 拉伸括号必须把它后面的附着物当成 limits
             _ => false,
         };
 
@@ -698,7 +723,15 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
         MathNode::Boxed(content) => {
             format!("<menclose notation=\"box\">{}</menclose>", generate_mathml(content, mode))
         }
-
+        MathNode::StretchOp { op, is_over, content } => {
+            let stretchy_op = format!("<mo stretchy=\"true\">{}</mo>", escape_xml(op));
+            let content_xml = generate_mathml(content, mode);
+            if *is_over {
+                format!("<mover>{}{}</mover>", content_xml, stretchy_op)
+            } else {
+                format!("<munder>{}{}</munder>", content_xml, stretchy_op)
+            }
+        }
         MathNode::Error(err_msg) => {
             format!(
                 "<merror><mtext mathcolor=\"red\">Syntax Error: {}</mtext></merror>",

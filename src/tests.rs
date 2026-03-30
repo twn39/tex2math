@@ -557,3 +557,34 @@ fn test_mixed_scripts_and_functions() {
     assert!(mathml.contains("<mspace width=\"1em\"/><mtext>and</mtext><mspace width=\"1em\"/>"));
 }
 
+
+// === 新增：可拉伸的顶部/底部修饰 (Stretch Operators) ===
+
+#[test]
+fn test_underbrace_with_subscript() {
+    // 带有标注的底部大括号
+    let mut input = "\\underbrace{a + b + c}_{= X}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // 1. a + b + c 应该在一个 munder 里面，底下的括号应该是 U+23DF 且带有 stretchy="true"
+    // 2. 外层还应该有一个 munder 或 msub，把 = X 挂在这个大括号的下面
+    
+    // 由于它是作为大运算符界限行为的延续，在 Display 模式下下界会生成为 munder。
+    // 在我们的结构中，underbrace 本身会生成 munder，外部附着的 _ 会让它升级为 munder。
+    assert!(mathml.contains("<mo stretchy=\"true\">⏟</mo>")); // 内部拉伸括号
+    assert!(mathml.contains("<munder><munder>")); // 嵌套的两个 munder
+    assert!(mathml.contains("<mrow><mo>=</mo><mi>X</mi></mrow>")); // 外部挂载的下标 label
+}
+
+#[test]
+fn test_overbrace_no_label() {
+    // 没有顶部标注的顶部大括号
+    let mut input = "\\overbrace{x^2 + y^2}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    
+    // 应该只有一个 mover 包含拉伸括号
+    assert!(mathml.contains("<mover><mrow><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><msup><mi>y</mi><mn>2</mn></msup></mrow><mo stretchy=\"true\">⏞</mo></mover>"));
+}
+
