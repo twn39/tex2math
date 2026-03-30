@@ -1,5 +1,8 @@
 # Tex2math
 
+[![CI](https://github.com/twn39/tex2math/actions/workflows/ci.yml/badge.svg)](https://github.com/twn39/tex2math/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/tex2math.svg)](https://crates.io/crates/tex2math)
+[![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://twn39.github.io/tex2math/)
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
