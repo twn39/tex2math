@@ -13,7 +13,7 @@ mod symbols;
 // ==========================================
 
 /// The rendering mode for the mathematical formula.
-/// 
+///
 /// `Inline` mode is used for math within text (`$...$`), often leading to smaller fonts and different operator limits.
 /// `Display` mode is used for standalone equations (`$$...$$`), often with limits displayed above and below operators.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -258,24 +258,24 @@ fn parse_fence_delim<'s>(input: &mut &'s str) -> ModalResult<String> {
             // 命令式定界符：\langle, \rangle, \lfloor, \lceil, \lVert 等
             preceded('\\', alpha1).map(|cmd: &str| {
                 match cmd {
-                    "langle" | "lang"         => "\u{27E8}", // ⟨
-                    "rangle" | "rang"         => "\u{27E9}", // ⟩
-                    "lfloor"                  => "\u{230A}", // ⌊
-                    "rfloor"                  => "\u{230B}", // ⌋
-                    "lceil"                   => "\u{2308}", // ⌈
-                    "rceil"                   => "\u{2309}", // ⌉
-                    "lbrace"                  => "{",
-                    "rbrace"                  => "}",
-                    "lbrack"                  => "[",
-                    "rbrack"                  => "]",
-                    "vert"  | "lvert" | "rvert"     => "|",
-                    "Vert"  | "lVert" | "rVert"      => "∥", // ∥
-                    _                         => cmd,
-                }.to_string()
+                    "langle" | "lang" => "\u{27E8}", // ⟨
+                    "rangle" | "rang" => "\u{27E9}", // ⟩
+                    "lfloor" => "\u{230A}",          // ⌊
+                    "rfloor" => "\u{230B}",          // ⌋
+                    "lceil" => "\u{2308}",           // ⌈
+                    "rceil" => "\u{2309}",           // ⌉
+                    "lbrace" => "{",
+                    "rbrace" => "}",
+                    "lbrack" => "[",
+                    "rbrack" => "]",
+                    "vert" | "lvert" | "rvert" => "|",
+                    "Vert" | "lVert" | "rVert" => "∥", // ∥
+                    _ => cmd,
+                }
+                .to_string()
             }),
             // 单字符定界符
-            one_of(['(', ')', '[', ']', '{', '}', '|'])
-                .map(|c: char| c.to_string()),
+            one_of(['(', ')', '[', ']', '{', '}', '|']).map(|c: char| c.to_string()),
         )),
     )
     .parse_next(input)
@@ -449,24 +449,24 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                     .parse_next(input)
             {
                 match next_cmd {
-                    "in"  | "isin"           => "\u{2209}", // ∉
-                    "ni"  | "owns"           => "\u{220C}", // ∌
-                    "subset"                 => "\u{2284}", // ⊄
-                    "supset"                 => "\u{2285}", // ⊅
-                    "subseteq"               => "\u{2288}", // ⊈
-                    "supseteq"               => "\u{2289}", // ⊉
-                    "sim"                    => "\u{2241}", // ≁
-                    "approx"                 => "\u{2249}", // ≉
-                    "equiv"                  => "\u{2262}", // ≢
-                    "parallel"               => "\u{2226}", // ∦
-                    "mid"                    => "\u{2224}", // ∤
-                    "vdash"                  => "\u{22AC}", // ⊬
-                    "prec"                   => "\u{2280}", // ⊀
-                    "succ"                   => "\u{2281}", // ⊁
-                    "le" | "leq"             => "\u{2270}", // ≰
-                    "ge" | "geq"             => "\u{2271}", // ≱
-                    "leftarrow"              => "\u{219A}", // ↚
-                    "rightarrow"             => "\u{219B}", // ↛
+                    "in" | "isin" => "\u{2209}", // ∉
+                    "ni" | "owns" => "\u{220C}", // ∌
+                    "subset" => "\u{2284}",      // ⊄
+                    "supset" => "\u{2285}",      // ⊅
+                    "subseteq" => "\u{2288}",    // ⊈
+                    "supseteq" => "\u{2289}",    // ⊉
+                    "sim" => "\u{2241}",         // ≁
+                    "approx" => "\u{2249}",      // ≉
+                    "equiv" => "\u{2262}",       // ≢
+                    "parallel" => "\u{2226}",    // ∦
+                    "mid" => "\u{2224}",         // ∤
+                    "vdash" => "\u{22AC}",       // ⊬
+                    "prec" => "\u{2280}",        // ⊀
+                    "succ" => "\u{2281}",        // ⊁
+                    "le" | "leq" => "\u{2270}",  // ≰
+                    "ge" | "geq" => "\u{2271}",  // ≱
+                    "leftarrow" => "\u{219A}",   // ↚
+                    "rightarrow" => "\u{219B}",  // ↛
                     other => {
                         return Ok(MathNode::Identifier(format!("\\not\\{}", other)));
                     }
@@ -484,15 +484,15 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // 字体样式命令：其内部是一个标准的数学表达式 (Row)
         let style_variant = match cmd {
-            "mathbf"               => Some("bold"),
-            "mathit" | "mit"       => Some("italic"),
-            "mathbb"               => Some("double-struck"),
-            "mathcal"              => Some("script"),
-            "mathfrak"             => Some("fraktur"),
+            "mathbf" => Some("bold"),
+            "mathit" | "mit" => Some("italic"),
+            "mathbb" => Some("double-struck"),
+            "mathcal" => Some("script"),
+            "mathfrak" => Some("fraktur"),
             // \mathrm 正确语义是 normal（直立）数学字体，不是 \text
-            "mathrm" | "mathup"    => Some("normal"),
-            "mathsf"               => Some("sans-serif"),
-            "mathtt"               => Some("monospace"),
+            "mathrm" | "mathup" => Some("normal"),
+            "mathsf" => Some("sans-serif"),
+            "mathtt" => Some("monospace"),
             _ => None,
         };
         if let Some(variant) = style_variant {
@@ -505,15 +505,15 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // 数学重音修饰符 (Accents)
         let accent_mark = match cmd {
-            "hat" | "widehat"     => Some("^"),
-            "vec"                 => Some("→"),
+            "hat" | "widehat" => Some("^"),
+            "vec" => Some("→"),
             // \bar 是短上划线重音；\overline 已移入 stretch_info 以支持可拉伸版本
-            "bar"                 => Some("¯"),
-            "dot"                 => Some("˙"),
-            "ddot" | "ddddot"     => Some("¨"),
+            "bar" => Some("¯"),
+            "dot" => Some("˙"),
+            "ddot" | "ddddot" => Some("¨"),
             "tilde" | "widetilde" => Some("~"),
-            "check"               => Some("ˇ"),
-            "breve"               => Some("˘"),
+            "check" => Some("ˇ"),
+            "breve" => Some("˘"),
             _ => None,
         };
         if let Some(mark) = accent_mark {
@@ -746,22 +746,19 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         // 判断 base 是否是要求使用 limits 渲染的大运算符或极限函数
         // 所有在 Display 模式下需要把 sub/sup 渲染为上下界的大型运算符
         const LARGE_OP_SYMBOLS: &[&str] = &[
-            "∑", "∏", "∐",
-            "∫", "∬", "∭", "⨌", // 单/双/三/四重积分
-            "∮", "∯", "∰",       // 曲面积分
-            "⋁", "⋀",             // bigvee, bigwedge
-            "⋃", "⋂",             // bigcup, bigcap
-            "⨆", "⨅",             // bigsqcup, bigsqcap
-            "⨀", "⨁", "⨂",       // bigodot, bigoplus, bigotimes
-            "⨄",                   // biguplus
+            "∑", "∏", "∐", "∫", "∬", "∭", "⨌", // 单/双/三/四重积分
+            "∮", "∯", "∰", // 曲面积分
+            "⋁", "⋀", // bigvee, bigwedge
+            "⋃", "⋂", // bigcup, bigcap
+            "⨆", "⨅", // bigsqcup, bigsqcap
+            "⨀", "⨁", "⨂", // bigodot, bigoplus, bigotimes
+            "⨄", // biguplus
         ];
-        const LARGE_OP_FUNS: &[&str] = &[
-            "lim", "limsup", "liminf",
-            "max", "min", "sup", "inf", "det",
-        ];
+        const LARGE_OP_FUNS: &[&str] =
+            &["lim", "limsup", "liminf", "max", "min", "sup", "inf", "det"];
         let is_large_operator = match &base {
             MathNode::Operator(op) => LARGE_OP_SYMBOLS.contains(&op.as_str()),
-            MathNode::Function(f)  => LARGE_OP_FUNS.contains(&f.as_str()),
+            MathNode::Function(f) => LARGE_OP_FUNS.contains(&f.as_str()),
             MathNode::StretchOp { .. } => true, // 拉伸修饰符（underbrace 等）把附着物当 limits
             _ => false,
         };
@@ -1031,7 +1028,7 @@ impl MathRenderer for MathMLRenderer {
                                 let align = match c {
                                     'l' => "left",
                                     'c' => "center",
-                                    _   => "right",
+                                    _ => "right",
                                 };
                                 custom_aligns.push(align);
                                 if !custom_aligns.is_empty() && custom_aligns.len() > 1 {
@@ -1184,7 +1181,10 @@ impl MathRenderer for MathMLRenderer {
                     format!("<munder>{}{}</munder>", content_xml, stretchy_op)
                 }
             }
-            MathNode::StyledMath { displaystyle, content } => {
+            MathNode::StyledMath {
+                displaystyle,
+                content,
+            } => {
                 // \dfrac → displaystyle="true"，\tfrac → displaystyle="false"
                 let ds = if *displaystyle { "true" } else { "false" };
                 format!(
