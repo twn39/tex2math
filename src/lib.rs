@@ -98,6 +98,12 @@ pub enum MathNode {
         content: Box<MathNode>,
     },
 
+    // == 新增：displaystyle 切换，用于 \dfrac, \tfrac 等 ==
+    StyledMath {
+        displaystyle: bool,
+        content: Box<MathNode>,
+    },
+
     Error(String),
 }
 // 2. Winnow 解析器 (Parser)
@@ -106,7 +112,10 @@ pub enum MathNode {
 pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_number",
-        digit1.map(|s: &str| MathNode::Number(s.to_string())),
+        // 支持整数和小数，如 42、3.14。使用 take() 捕获整个匹配区间作为字符串。
+        (digit1, opt(('.', digit1)))
+            .take()
+            .map(|s: &str| MathNode::Number(s.to_string())),
     )
     .parse_next(input)
 }
@@ -220,27 +229,54 @@ pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 
+// 解析 \left / \right 后跟随的定界符
+// 支持单字符（(, ), [, ], |, .）和命令符号（\langle, \lfloor, \lceil, \lVert 等）
+fn parse_fence_delim<'s>(input: &mut &'s str) -> ModalResult<String> {
+    preceded(
+        space0,
+        alt((
+            // 隐形定界符
+            literal(".").map(|_: &str| ".".to_string()),
+            // 命令式定界符：\langle, \rangle, \lfloor, \lceil, \lVert 等
+            preceded('\\', alpha1).map(|cmd: &str| {
+                match cmd {
+                    "langle" | "lang"         => "\u{27E8}", // ⟨
+                    "rangle" | "rang"         => "\u{27E9}", // ⟩
+                    "lfloor"                  => "\u{230A}", // ⌊
+                    "rfloor"                  => "\u{230B}", // ⌋
+                    "lceil"                   => "\u{2308}", // ⌈
+                    "rceil"                   => "\u{2309}", // ⌉
+                    "lbrace"                  => "{",
+                    "rbrace"                  => "}",
+                    "lbrack"                  => "[",
+                    "rbrack"                  => "]",
+                    "vert"  | "lvert" | "rvert"     => "|",
+                    "Vert"  | "lVert" | "rVert"      => "∥", // ∥
+                    _                         => cmd,
+                }.to_string()
+            }),
+            // 单字符定界符
+            one_of(['(', ')', '[', ']', '{', '}', '|'])
+                .map(|c: char| c.to_string()),
+        )),
+    )
+    .parse_next(input)
+}
+
 // == 新增：解析 \left 和 \right ==
 pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
-    trace(
-        "parse_left_right",
-        (
-            preceded(
-                (literal("\\left"), space0),
-                one_of(['(', '[', '{', '|', '.']),
-            ),
-            delimited(space0, parse_row, space0),
-            preceded(
-                (literal("\\right"), space0),
-                one_of([')', ']', '}', '|', '.']),
-            ),
-        )
-            .map(|(open, content, close)| MathNode::Fenced {
-                open: open.to_string(),
-                content: Box::new(content),
-                close: close.to_string(),
-            }),
-    )
+    trace("parse_left_right", |input: &mut &'s str| {
+        let _ = literal("\\left").parse_next(input)?;
+        let open = parse_fence_delim.parse_next(input)?;
+        let content = delimited(space0, parse_row, space0).parse_next(input)?;
+        let _ = literal("\\right").parse_next(input)?;
+        let close = parse_fence_delim.parse_next(input)?;
+        Ok(MathNode::Fenced {
+            open,
+            content: Box::new(content),
+            close,
+        })
+    })
     .parse_next(input)
 }
 // == 新增：命令符号字典映射 ==
@@ -263,7 +299,8 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // 1. 处理带参数的高级命令 (文本、样式、重音)
         // \text{...} 文本模式：内部必须原样保留空格，不进行数学递归解析
-        if cmd == "text" || cmd == "mathrm" {
+        if cmd == "text" {
+            // \text{} 内部是纯文本，使用 take_until 保留空格，不做数学解析
             let inner_text =
                 delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
             return Ok(MathNode::Text(inner_text.to_string()));
@@ -362,13 +399,80 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             });
         }
 
+        // == 新增：\dfrac, \tfrac, \cfrac（强制 displaystyle 的分式） ==
+        let frac_displaystyle = match cmd {
+            "dfrac" => Some(true),
+            "tfrac" => Some(false),
+            "cfrac" => Some(true), // 连分数近似作 display 处理
+            _ => None,
+        };
+        if let Some(ds) = frac_displaystyle {
+            let num = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            let den = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            return Ok(MathNode::StyledMath {
+                displaystyle: ds,
+                content: Box::new(MathNode::Fraction(Box::new(num), Box::new(den))),
+            });
+        }
+
+        // == 新增：\operatorname{name} —— 自定义算子名，渲染为直立字体 ==
+        if cmd == "operatorname" || cmd == "operatorname*" {
+            let name = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            return Ok(MathNode::Function(name.to_string()));
+        }
+
+        // == 新增：\not 否定修饰符 ==
+        if cmd == "not" {
+            let _ = space0.parse_next(input)?;
+            let negated = if let Ok(next_cmd) =
+                preceded::<_, _, _, winnow::error::ContextError, _, _>('\\', alpha1)
+                    .parse_next(input)
+            {
+                match next_cmd {
+                    "in"  | "isin"           => "\u{2209}", // ∉
+                    "ni"  | "owns"           => "\u{220C}", // ∌
+                    "subset"                 => "\u{2284}", // ⊄
+                    "supset"                 => "\u{2285}", // ⊅
+                    "subseteq"               => "\u{2288}", // ⊈
+                    "supseteq"               => "\u{2289}", // ⊉
+                    "sim"                    => "\u{2241}", // ≁
+                    "approx"                 => "\u{2249}", // ≉
+                    "equiv"                  => "\u{2262}", // ≢
+                    "parallel"               => "\u{2226}", // ∦
+                    "mid"                    => "\u{2224}", // ∤
+                    "vdash"                  => "\u{22AC}", // ⊬
+                    "prec"                   => "\u{2280}", // ⊀
+                    "succ"                   => "\u{2281}", // ⊁
+                    "le" | "leq"             => "\u{2270}", // ≰
+                    "ge" | "geq"             => "\u{2271}", // ≱
+                    "leftarrow"              => "\u{219A}", // ↚
+                    "rightarrow"             => "\u{219B}", // ↛
+                    other => {
+                        return Ok(MathNode::Identifier(format!("\\not\\{}", other)));
+                    }
+                }
+            } else if opt(one_of::<_, _, winnow::error::ContextError>('='))
+                .parse_next(input)?
+                .is_some()
+            {
+                "\u{2260}" // ≠
+            } else {
+                "\u{0338}" // 组合长反斜线回退
+            };
+            return Ok(MathNode::Operator(negated.to_string()));
+        }
+
         // 字体样式命令：其内部是一个标准的数学表达式 (Row)
         let style_variant = match cmd {
-            "mathbf" => Some("bold"),
-            "mathit" => Some("italic"),
-            "mathbb" => Some("double-struck"),
-            "mathcal" => Some("script"),
-            "mathfrak" => Some("fraktur"),
+            "mathbf"               => Some("bold"),
+            "mathit" | "mit"       => Some("italic"),
+            "mathbb"               => Some("double-struck"),
+            "mathcal"              => Some("script"),
+            "mathfrak"             => Some("fraktur"),
+            // \mathrm 正确语义是 normal（直立）数学字体，不是 \text
+            "mathrm" | "mathup"    => Some("normal"),
+            "mathsf"               => Some("sans-serif"),
+            "mathtt"               => Some("monospace"),
             _ => None,
         };
         if let Some(variant) = style_variant {
@@ -381,12 +485,15 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // 数学重音修饰符 (Accents)
         let accent_mark = match cmd {
-            "hat" | "widehat" => Some("^"),
-            "vec" => Some("→"),
-            "bar" | "overline" => Some("¯"),
-            "dot" => Some("˙"),
-            "ddot" => Some("¨"),
+            "hat" | "widehat"     => Some("^"),
+            "vec"                 => Some("→"),
+            // \bar 是短上划线重音；\overline 已移入 stretch_info 以支持可拉伸版本
+            "bar"                 => Some("¯"),
+            "dot"                 => Some("˙"),
+            "ddot" | "ddddot"     => Some("¨"),
             "tilde" | "widetilde" => Some("~"),
+            "check"               => Some("ˇ"),
+            "breve"               => Some("˘"),
             _ => None,
         };
         if let Some(mark) = accent_mark {
@@ -574,6 +681,25 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         let mut sub = None;
         let mut sup = None;
 
+        // == 新增：撇号（prime）支持 ==
+        // x' 和 x^{\prime} 等价；x'' 对应 x^{\prime\prime}（即双撇线 ″）
+        let mut prime_count = 0usize;
+        while opt(one_of::<_, _, winnow::error::ContextError>('\''))
+            .parse_next(input)?
+            .is_some()
+        {
+            prime_count += 1;
+        }
+        if prime_count > 0 {
+            let prime_char = match prime_count {
+                1 => "\u{2032}", // ′
+                2 => "\u{2033}", // ″
+                3 => "\u{2034}", // ‴
+                _ => "\u{2057}", // ⁗ (4重撇及以上)
+            };
+            sup = Some(MathNode::Identifier(prime_char.to_string()));
+        }
+
         loop {
             if sup.is_none() {
                 if let Some(s) =
@@ -595,12 +721,25 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         }
 
         // 判断 base 是否是要求使用 limits 渲染的大运算符或极限函数
+        // 所有在 Display 模式下需要把 sub/sup 渲染为上下界的大型运算符
+        const LARGE_OP_SYMBOLS: &[&str] = &[
+            "∑", "∏", "∐",
+            "∫", "∬", "∭", "⨌", // 单/双/三/四重积分
+            "∮", "∯", "∰",       // 曲面积分
+            "⋁", "⋀",             // bigvee, bigwedge
+            "⋃", "⋂",             // bigcup, bigcap
+            "⨆", "⨅",             // bigsqcup, bigsqcap
+            "⨀", "⨁", "⨂",       // bigodot, bigoplus, bigotimes
+            "⨄",                   // biguplus
+        ];
+        const LARGE_OP_FUNS: &[&str] = &[
+            "lim", "limsup", "liminf",
+            "max", "min", "sup", "inf", "det",
+        ];
         let is_large_operator = match &base {
-            MathNode::Operator(op) => ["∑", "∏", "∐", "∫", "∮"].contains(&op.as_str()),
-            MathNode::Function(f) => {
-                ["lim", "limsup", "liminf", "max", "min", "sup", "inf"].contains(&f.as_str())
-            }
-            MathNode::StretchOp { .. } => true, // 拉伸括号必须把它后面的附着物当成 limits
+            MathNode::Operator(op) => LARGE_OP_SYMBOLS.contains(&op.as_str()),
+            MathNode::Function(f)  => LARGE_OP_FUNS.contains(&f.as_str()),
+            MathNode::StretchOp { .. } => true, // 拉伸修饰符（underbrace 等）把附着物当 limits
             _ => false,
         };
 
@@ -852,28 +991,34 @@ impl MathRenderer for MathMLRenderer {
                 let mut custom_lines = Vec::new();
 
                 if let Some(fmt_str) = format {
+                    // 正确算法：跟踪列对齐和列间分隔符
+                    // MathML columnlines 需要 N-1 个条目（N 为列数）
+                    // 每个分隔符属于其左侧列的右边
+                    let mut pending_sep = "none"; // 待添加的分隔符（在看到下一列字符时提交）
+                    let mut separators: Vec<&str> = Vec::new();
                     for c in fmt_str.chars() {
                         match c {
-                            'l' => {
-                                custom_aligns.push("left");
-                                custom_lines.push("none");
-                            }
-                            'c' => {
-                                custom_aligns.push("center");
-                                custom_lines.push("none");
-                            }
-                            'r' => {
-                                custom_aligns.push("right");
-                                custom_lines.push("none");
+                            'l' | 'c' | 'r' => {
+                                let align = match c {
+                                    'l' => "left",
+                                    'c' => "center",
+                                    _   => "right",
+                                };
+                                custom_aligns.push(align);
+                                if !custom_aligns.is_empty() && custom_aligns.len() > 1 {
+                                    // 不是第一列，提交上一列的右侧分隔符
+                                    separators.push(pending_sep);
+                                }
+                                pending_sep = "none";
                             }
                             '|' => {
-                                if let Some(last) = custom_lines.last_mut() {
-                                    *last = "solid";
-                                }
+                                // |是当前列左边的分隔符（对下一列来说是左侧分隔）
+                                pending_sep = "solid";
                             }
                             _ => {}
                         }
                     }
+                    custom_lines = separators;
                 }
 
                 let table_attr = match name.as_str() {
@@ -894,6 +1039,7 @@ impl MathRenderer for MathMLRenderer {
                         if !custom_aligns.is_empty() {
                             attr.push_str(&format!(" columnalign=\"{}\"", custom_aligns.join(" ")));
                         }
+                        // columnlines 数量应为 N-1（匹配列间分隔符数）
                         if custom_lines.contains(&"solid") {
                             attr.push_str(&format!(" columnlines=\"{}\"", custom_lines.join(" ")));
                         }
@@ -945,8 +1091,10 @@ impl MathRenderer for MathMLRenderer {
             }
             MathNode::Text(t) => format!("<mtext>{}</mtext>", escape_xml(t)),
             MathNode::Style { variant, content } => {
+                // <mstyle> 是传播 mathvariant 给所有子节点的正确 MathML 元素
+                // （<mrow> 不支持 mathvariant 属性）
                 format!(
-                    "<mrow mathvariant=\"{}\">{}</mrow>",
+                    "<mstyle mathvariant=\"{}\">{}</mstyle>",
                     escape_xml(variant),
                     self.render(content, mode)
                 )
@@ -1006,6 +1154,15 @@ impl MathRenderer for MathMLRenderer {
                 } else {
                     format!("<munder>{}{}</munder>", content_xml, stretchy_op)
                 }
+            }
+            MathNode::StyledMath { displaystyle, content } => {
+                // \dfrac → displaystyle="true"，\tfrac → displaystyle="false"
+                let ds = if *displaystyle { "true" } else { "false" };
+                format!(
+                    "<mstyle displaystyle=\"{}\">{}</mstyle>",
+                    ds,
+                    self.render(content, mode)
+                )
             }
             MathNode::Error(err_msg) => {
                 format!(

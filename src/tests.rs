@@ -310,7 +310,7 @@ fn test_parse_font_styles() {
     let mut input = "\\mathbf{X} + \\mathbb{R}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    let expected = "<mrow><mrow mathvariant=\"bold\"><mi>X</mi></mrow><mo>+</mo><mrow mathvariant=\"double-struck\"><mi>R</mi></mrow></mrow>";
+    let expected = "<mrow><mstyle mathvariant=\"bold\"><mi>X</mi></mstyle><mo>+</mo><mstyle mathvariant=\"double-struck\"><mi>R</mi></mstyle></mrow>";
     assert_eq!(mathml, expected);
 }
 
@@ -755,10 +755,10 @@ fn test_environment_array_with_format() {
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
 
-    // 生成的 mtable 应该包含极其精确的属性映射
+    // r|cc 有 3 列，分隔符数为 N-1 = 2：第一个分隔符是 solid，第二个是 none
     assert!(mathml.contains("columnalign=\"right center center\""));
-    // 竖线应该变成 columnlines，第一个参数后面是 solid，其余是 none
-    assert!(mathml.contains("columnlines=\"solid none none\""));
+    // 改正后 columnlines 为 2 个条目（列数 - 1）
+    assert!(mathml.contains("columnlines=\"solid none\""));
 }
 
 #[test]
@@ -771,4 +771,296 @@ fn test_environment_row_spacing() {
     // 在 b 和 c 之间，或者是包含 b 的那一行的 mtr 上，应该带有间距注入
     // 我们预期它将间距转换为 mpadded 或者直接加在 mtr 的 style 上
     assert!(mathml.contains("<mtr style=\"margin-bottom: 2em;\">") || mathml.contains("<mpadded"));
+}
+
+// ==========================================
+// 以下是针对各项修复新增的测试
+// ==========================================
+
+// --- Fix 1: parse_number 支持小数 ---
+
+#[test]
+fn test_parse_decimal_number() {
+    // 小数应作为单个 <mn> 节点，而非 <mn>3</mn><mo>.</mo><mn>14</mn>
+    let mut input = "3.14";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert_eq!(mathml, "<mn>3.14</mn>");
+}
+
+#[test]
+fn test_decimal_in_expression() {
+    // 小数出现在表达式中
+    let mut input = "1.5 + 0.5";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mn>1.5</mn>"));
+    assert!(mathml.contains("<mn>0.5</mn>"));
+}
+
+// --- Fix 3: \overline 作为 stretch op 而非 accent ---
+
+#[test]
+fn test_overline_is_stretchy() {
+    // \overline 应生成带 stretchy="true" 的 munder/mover，而非 accent
+    let mut input = "\\overline{x + y}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    // 应该有 stretchy 属性（stretch op），而不是 accent="true"
+    assert!(mathml.contains("stretchy=\"true\""));
+    assert!(!mathml.contains("accent=\"true\""));
+    assert!(mathml.contains("<mover>"));
+}
+
+#[test]
+fn test_bar_is_accent() {
+    // \bar 仍然应该是 accent
+    let mut input = "\\bar{x}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("accent=\"true\""));
+}
+
+// --- Fix 4: 大型运算符列表扩充 ---
+
+#[test]
+fn test_iint_display_limits() {
+    // \iint (∬) 在 display 模式下应该使用 munderover
+    let mut input = "\\iint_D f";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<munder>"));
+}
+
+#[test]
+fn test_bigvee_display_limits() {
+    // \bigvee 在 display 模式下应该使用 munder
+    let mut input = "\\bigvee_{i=1}^n";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<munderover>"));
+}
+
+// --- Fix 5: Style 使用 <mstyle mathvariant> ---
+
+#[test]
+fn test_mathbf_uses_mstyle() {
+    let mut input = "\\mathbf{A}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mstyle mathvariant=\"bold\">"));
+    assert!(!mathml.contains("<mrow mathvariant"));
+}
+
+#[test]
+fn test_mathbb_uses_mstyle() {
+    let mut input = "\\mathbb{R}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mstyle mathvariant=\"double-struck\">"));
+}
+
+// --- Fix 6: columnlines 修正 (N-1 个条目) ---
+
+#[test]
+fn test_array_columnlines_count() {
+    // r|cc: 3 列 → 2 个分隔符
+    let mut input = "\\begin{array}{r|cc} x & y & z \\end{array}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    // columnlines 应为 2 个条目，而不是 3 个
+    assert!(mathml.contains("columnlines=\"solid none\""));
+    assert!(!mathml.contains("columnlines=\"solid none none\""));
+}
+
+// --- Fix 7: \left\langle 等多字符命令定界符 ---
+
+#[test]
+fn test_left_right_langle_rangle() {
+    let mut input = "\\left\\langle x \\right\\rangle";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mo stretchy=\"true\">⟨</mo>"));
+    assert!(mathml.contains("<mo stretchy=\"true\">⟩</mo>"));
+}
+
+#[test]
+fn test_left_right_lfloor_rfloor() {
+    let mut input = "\\left\\lfloor x \\right\\rfloor";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mo stretchy=\"true\">⌊</mo>"));
+    assert!(mathml.contains("<mo stretchy=\"true\">⌋</mo>"));
+}
+
+#[test]
+fn test_left_right_lceil_rceil() {
+    let mut input = "\\left\\lceil x \\right\\rceil";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mo stretchy=\"true\">⌈</mo>"));
+    assert!(mathml.contains("<mo stretchy=\"true\">⌉</mo>"));
+}
+
+#[test]
+fn test_left_right_lvert_norm() {
+    let mut input = "\\left\\lVert x \\right\\rVert";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mo stretchy=\"true\">∥</mo>"));
+}
+
+// --- Fix 8: 撇号（prime）上标 ---
+
+#[test]
+fn test_single_prime() {
+    // x' 等价于 x^{\prime}
+    let mut input = "f'";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<msup>"));
+    assert!(mathml.contains("<mi>′</mi>"));
+}
+
+#[test]
+fn test_double_prime() {
+    // f'' → ″
+    let mut input = "f''";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<msup>"));
+    assert!(mathml.contains("<mi>″</mi>"));
+}
+
+#[test]
+fn test_prime_in_expression() {
+    // f'(x) 不应奇怪地解析
+    let mut input = "f'(x)";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<msup><mi>f</mi><mi>′</mi></msup>"));
+}
+
+// --- Fix 9: \dfrac 和 \tfrac ---
+
+#[test]
+fn test_dfrac_generates_displaystyle() {
+    let mut input = "\\dfrac{a}{b}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    // dfrac 应包装在 mstyle displaystyle="true" 中
+    assert!(mathml.contains("<mstyle displaystyle=\"true\">"));
+    assert!(mathml.contains("<mfrac>"));
+}
+
+#[test]
+fn test_tfrac_generates_textstyle() {
+    let mut input = "\\tfrac{a}{b}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    // tfrac 应包装在 mstyle displaystyle="false" 中
+    assert!(mathml.contains("<mstyle displaystyle=\"false\">"));
+    assert!(mathml.contains("<mfrac>"));
+}
+
+#[test]
+fn test_dfrac_inline_forced_display() {
+    // 即使在 inline 模式下，dfrac 也强制 displaystyle="true"
+    let mut input = "\\dfrac{1}{n}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Inline);
+    assert!(mathml.contains("<mstyle displaystyle=\"true\">"));
+}
+
+// --- Fix 10: \operatorname ---
+
+#[test]
+fn test_operatorname_renders_as_function() {
+    let mut input = "\\operatorname{rank}(A)";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    // rank 应该渲染为 mathvariant="normal" 的 mi 标签（与函数相同）
+    assert!(mathml.contains("<mi mathvariant=\"normal\">rank</mi>"));
+}
+
+#[test]
+fn test_operatorname_with_subscript() {
+    // \operatorname{tr} 后可以跟下标
+    let mut input = "\\operatorname{tr}(A)";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mi mathvariant=\"normal\">tr</mi>"));
+}
+
+// --- Fix 11: \mathrm 作为 Style 而非 Text ---
+
+#[test]
+fn test_mathrm_renders_as_mstyle_normal() {
+    // \mathrm{d} 应生成 mstyle mathvariant="normal"，而不是 mtext
+    let mut input = "\\mathrm{d}x";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mstyle mathvariant=\"normal\">"));
+    assert!(!mathml.contains("<mtext>"));
+}
+
+#[test]
+fn test_mathrm_differential() {
+    // 微积分中常见的用法：∫ f(x) \mathrm{d}x
+    let mut input = "\\int f(x) \\mathrm{d} x";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mstyle mathvariant=\"normal\">"));
+}
+
+// --- Fix 12: \not 否定修饰符 ---
+
+#[test]
+fn test_not_in() {
+    let mut input = "a \\not\\in B";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mo>∉</mo>"));
+}
+
+#[test]
+fn test_not_subset() {
+    let mut input = "A \\not\\subset B";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mo>⊄</mo>"));
+}
+
+#[test]
+fn test_not_equal() {
+    // \not= 应该生成 ≠（与 \neq 等价）
+    let mut input = "a \\not= b";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mo>≠</mo>"));
+}
+
+#[test]
+fn test_not_equiv() {
+    let mut input = "a \\not\\equiv b";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mo>≢</mo>"));
+}
+
+// --- 端到端综合测试 ---
+
+#[test]
+fn test_complex_formula_with_new_features() {
+    // 综合使用多项新功能：dfrac + langle/rangle + prime + operatorname
+    let mut input = "\\left\\langle f', g \\right\\rangle = \\dfrac{1}{2}";
+    let ast = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    // 角括号定界符
+    assert!(mathml.contains("<mo stretchy=\"true\">⟨</mo>"));
+    // 撇号
+    assert!(mathml.contains("<msup>"));
+    // dfrac
+    assert!(mathml.contains("<mstyle displaystyle=\"true\">"));
+    assert!(mathml.contains("<mfrac>"));
 }
