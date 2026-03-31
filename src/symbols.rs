@@ -1,7 +1,8 @@
 use crate::MathNode;
 
-/// 将 LaTeX 命令名映射为具体的 MathNode (Identifier 或 Operator)
-/// 包含了 400 多个由 KaTeX 定义的常用希腊字母、箭头、数学符号等。
+/// Looks up a LaTeX command name and maps it to a specific `MathNode` (Identifier or Operator).
+///
+/// Contains over 400 common Greek letters, arrows, and mathematical symbols defined by KaTeX.
 pub fn lookup_symbol(cmd: &str) -> Option<MathNode> {
     match cmd {
         "equiv" => Some(MathNode::Operator("≡".to_string())),

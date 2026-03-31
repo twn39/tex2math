@@ -12,12 +12,20 @@ mod symbols;
 // 1. AST (抽象语法树) 定义
 // ==========================================
 
+/// The rendering mode for the mathematical formula.
+/// 
+/// `Inline` mode is used for math within text (`$...$`), often leading to smaller fonts and different operator limits.
+/// `Display` mode is used for standalone equations (`$$...$$`), often with limits displayed above and below operators.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RenderMode {
     Inline,
     Display,
 }
 
+/// Specifies the rendering behavior of limits (subscripts and superscripts) for operators.
+///
+/// This determines whether limits are placed to the side of the operator (like `\nolimits`) or
+/// directly above and below (like `\limits`), or following the default rules for the operator.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LimitBehavior {
     Default,
@@ -25,6 +33,10 @@ pub enum LimitBehavior {
     NoLimits, // 强制 \nolimits (总是生成 msubsup)
 }
 
+/// The Abstract Syntax Tree (AST) node representing a mathematical structure parsed from LaTeX.
+///
+/// This enum is the core representation of all mathematical elements, including numbers, identifiers,
+/// operators, fractions, scripts, roots, matrices, and various styling configurations.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MathNode {
     Number(String),
@@ -109,6 +121,7 @@ pub enum MathNode {
 // 2. Winnow 解析器 (Parser)
 // ==========================================
 
+/// Parses a numeric literal (e.g., `123`, `3.14`) into a `MathNode::Number`.
 pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_number",
@@ -120,6 +133,7 @@ pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 
+/// Parses a single alphabetic character as an identifier into a `MathNode::Identifier`.
 pub fn parse_ident<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_ident",
@@ -129,6 +143,7 @@ pub fn parse_ident<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 
+/// Parses common mathematical operators (e.g., `+`, `-`, `=`, `!`) into a `MathNode::Operator`.
 pub fn parse_operator<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_operator",
@@ -138,6 +153,7 @@ pub fn parse_operator<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 
+/// Parses LaTeX fractions like `\frac{num}{den}`, `\dfrac{num}{den}`, and `\tfrac{num}{den}`.
 pub fn parse_fraction<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_fraction", |input: &mut &'s str| {
         let _ = literal("\\frac").parse_next(input)?;
@@ -176,6 +192,7 @@ pub fn parse_fraction<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 
+/// Parses a grouped expression enclosed in curly braces (`{...}`) into a `MathNode::Row` or a single node.
 pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_group", |input: &mut &'s str| {
         // 匹配左大括号
@@ -205,6 +222,7 @@ pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 // == 新增：解析 \sqrt 和 \sqrt[3] ==
+/// Parses a square root or nth root like `\sqrt{x}` or `\sqrt[n]{x}`.
 pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_sqrt", |input: &mut &'s str| {
         let _ = literal("\\sqrt").parse_next(input)?;
@@ -264,6 +282,7 @@ fn parse_fence_delim<'s>(input: &mut &'s str) -> ModalResult<String> {
 }
 
 // == 新增：解析 \left 和 \right ==
+/// Parses dynamically sized fences like `\left( ... \right)`.
 pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_left_right", |input: &mut &'s str| {
         let _ = literal("\\left").parse_next(input)?;
@@ -281,6 +300,7 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 // == 新增：命令符号字典映射 ==
 // 参考了 KaTeX 和 texmath 的底层字典，将 LaTeX 命令映射为等价的 Unicode 字符
+/// Parses a general LaTeX command starting with a backslash (e.g., `\alpha`, `\int`, `\mathbf{x}`).
 pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_command", |input: &mut &'s str| {
         // 提取命令名：可以是英文字母组成的词，也可以是特定的单字符标点符号
@@ -548,6 +568,7 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 // == 新增：解析 LaTeX Environment (\begin...\end) ==
+/// Parses a LaTeX environment enclosed in `\begin{env}` and `\end{env}` (e.g., `matrix`, `cases`).
 pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_environment", |input: &mut &'s str| {
         let begin_tag = preceded((literal("\\begin"), space0, '{'), alpha1).parse_next(input)?;
@@ -644,6 +665,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 
+/// Parses an atomic mathematical element, which can be a number, identifier, operator, group, or command.
 pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_atom",
@@ -661,6 +683,7 @@ pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 
+/// Parses subscripts (`_`) and superscripts (`^`) attached to a base mathematical element.
 pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_script", |input: &mut &'s str| {
         let base = parse_atom.parse_next(input)?;
@@ -760,10 +783,12 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 
+/// The main parser for a single mathematical node, handling scripts, atoms, and other constructs.
 pub fn parse_node<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_node", alt((parse_script, parse_operator))).parse_next(input)
 }
 
+/// Parses a sequence (row) of mathematical nodes, optionally separated by spaces.
 pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_row",
@@ -859,7 +884,9 @@ fn escape_xml(input: &str) -> String {
 // 3. 抽象渲染后端 (Pluggable Backends)
 // ==========================================
 
-/// 所有后端渲染器必须实现的抽象接口
+/// An abstract backend interface for rendering a `MathNode` abstract syntax tree into an output format.
+///
+/// All backend renderers must implement this trait.
 pub trait MathRenderer {
     fn render(&self, node: &MathNode, mode: RenderMode) -> String;
 }
@@ -868,7 +895,9 @@ pub trait MathRenderer {
 // 4. 标准 MathML 渲染器实现
 // ==========================================
 
-/// tex2math 官方提供的标准 MathML 渲染后端
+/// The standard MathML rendering backend provided by tex2math.
+///
+/// Converts a `MathNode` AST into a MathML XML string.
 pub struct MathMLRenderer;
 
 impl MathMLRenderer {
@@ -1179,8 +1208,17 @@ impl MathRenderer for MathMLRenderer {
 #[cfg(test)]
 mod tests;
 
-/// 为了保持向后兼容性和提供一个极其简单易用的接口，
-/// 这里提供一个标准的单次调用函数来使用 MathML 渲染器。
+/// A convenience function to generate MathML from a `MathNode` AST directly.
+///
+/// This uses the `MathMLRenderer` under the hood to perform the translation.
+/// Provides a simple, standard interface for backward compatibility.
+///
+/// # Arguments
+/// * `node` - The root `MathNode` of the parsed formula.
+/// * `mode` - The `RenderMode` (Inline or Display) determining layout rules.
+///
+/// # Returns
+/// A `String` containing the generated MathML XML.
 pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
     MathMLRenderer::new().render(node, mode)
 }
