@@ -6,7 +6,7 @@
 [![Crates.io](https://img.shields.io/crates/v/tex2math.svg)](https://crates.io/crates/tex2math)
 [![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://twn39.github.io/tex2math/)
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)
 
 > A blazing fast, zero-copy Rust library and CLI tool designed to parse LaTeX mathematical formulas and compile them into perfectly structured MathML XML.
 
@@ -127,4 +127,4 @@ If you need to debug a failing parser, enable the `debug-trace` feature in `Carg
 
 ## 📄 License
 
-This project is licensed under the **MIT License**.
+This project is licensed under the **GNU Lesser General Public License v3.0 (LGPL-3.0)**. See the `LICENSE` file for details.
