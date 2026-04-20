@@ -814,6 +814,27 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     .parse_next(input)
 }
 /// Parses a LaTeX environment enclosed in `\begin{env}` and `\end{env}` (e.g., `matrix`, `cases`).
+// == 新增：辅助解析函数 ==
+
+/// 解析一行中由 `&` 分隔的多个单元格 (Cell)
+pub fn parse_cells_in_row<'s>(input: &mut &'s str) -> ModalResult<Vec<MathNode>> {
+    separated(
+        0..,
+        delimited(space0, parse_row, space0),
+        (space0, '&', space0),
+    )
+    .parse_next(input)
+}
+
+/// 解析换行符 `\\` 及其可选的垂直间距参数，例如 `\\[2mm]`
+pub fn parse_newline_opt<'s>(input: &mut &'s str) -> ModalResult<Option<&'s str>> {
+    preceded(
+        literal("\\\\"),
+        opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')),
+    )
+    .parse_next(input)
+}
+
 // == 新增：解析 LaTeX Environment (\begin...\end) ==
 pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_environment", |input: &mut &'s str| {
@@ -1127,23 +1148,6 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
 /// The main parser for a single mathematical node, handling scripts, atoms, and other constructs.
 pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
-    let mut parse_cells_in_row = |row_input: &mut &'s str| -> ModalResult<Vec<MathNode>> {
-        separated(
-            0..,
-            delimited(space0, parse_row, space0),
-            (space0, '&', space0),
-        )
-        .parse_next(row_input)
-    };
-
-    let mut parse_newline_opt = |input: &mut &'s str| -> ModalResult<Option<&str>> {
-        preceded(
-            literal("\\\\"),
-            opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')),
-        )
-        .parse_next(input)
-    };
-
     let mut rows: Vec<(Vec<MathNode>, Option<String>)> = Vec::new();
 
     loop {
