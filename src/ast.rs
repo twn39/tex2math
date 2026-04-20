@@ -124,7 +124,6 @@ pub enum MathNode {
     },
 
     Error(String),
-    NewLine,
 }
 
 impl MathNode {

@@ -278,10 +278,6 @@ impl MathRenderer for MathMLRenderer {
                 )
             }
             MathNode::Space(width) => write!(buf, "<mspace width=\"{}\"/>", escape_xml(width)),
-            MathNode::NewLine => {
-                buf.push_str("<mspace linebreak=\"newline\"/>");
-                Ok(())
-            }
 
             MathNode::Color { color, content } => {
                 write!(buf, "<mstyle mathcolor=\"{}\">", escape_xml(color))?;
