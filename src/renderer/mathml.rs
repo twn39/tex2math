@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::renderer::MathRenderer;
+use std::fmt::Write;
 
 fn escape_xml(input: &str) -> String {
     input
@@ -9,10 +10,6 @@ fn escape_xml(input: &str) -> String {
         .replace('\'', "&apos;")
         .replace('\"', "&quot;")
 }
-
-// ==========================================
-// 4. 标准 MathML 渲染器实现
-// ==========================================
 
 /// The standard MathML rendering backend provided by tex2math.
 ///
@@ -26,10 +23,10 @@ impl MathMLRenderer {
 }
 
 impl MathRenderer for MathMLRenderer {
-    fn render(&self, node: &MathNode, mode: RenderMode) -> String {
+    fn render_into(&self, node: &MathNode, mode: RenderMode, buf: &mut String) -> std::fmt::Result {
         match node {
-            MathNode::Number(n) => format!("<mn>{}</mn>", escape_xml(n)),
-            MathNode::Identifier(i) => format!("<mi>{}</mi>", escape_xml(i)),
+            MathNode::Number(n) => write!(buf, "<mn>{}</mn>", escape_xml(n)),
+            MathNode::Identifier(i) => write!(buf, "<mi>{}</mi>", escape_xml(i)),
             MathNode::Operator(o) => {
                 let is_arrow = [
                     "\u{2190}", "\u{2192}", "\u{2194}", "\u{21D2}", "\u{21D0}", "\u{21D4}",
@@ -37,17 +34,17 @@ impl MathRenderer for MathMLRenderer {
                 ]
                 .contains(&o.as_str());
                 if is_arrow {
-                    format!("<mo stretchy=\"true\">{}</mo>", escape_xml(o))
+                    write!(buf, "<mo stretchy=\"true\">{}</mo>", escape_xml(o))
                 } else {
-                    format!("<mo>{}</mo>", escape_xml(o))
+                    write!(buf, "<mo>{}</mo>", escape_xml(o))
                 }
             }
             MathNode::Fraction(num, den) => {
-                format!(
-                    "<mfrac>{}{}</mfrac>",
-                    self.render(num, mode),
-                    self.render(den, mode)
-                )
+                buf.push_str("<mfrac>");
+                self.render_into(num, mode, buf)?;
+                self.render_into(den, mode, buf)?;
+                buf.push_str("</mfrac>");
+                Ok(())
             }
             MathNode::Scripts {
                 base,
@@ -58,34 +55,21 @@ impl MathRenderer for MathMLRenderer {
                 behavior,
                 is_large_op,
             } => {
-                let base_str = self.render(base, mode);
-
                 if pre_sub.is_some() || pre_sup.is_some() {
-                    let s_sub = sub
-                        .as_ref()
-                        .map(|s| self.render(s, mode))
-                        .unwrap_or_else(|| "<none/>".to_string());
-                    let s_sup = sup
-                        .as_ref()
-                        .map(|s| self.render(s, mode))
-                        .unwrap_or_else(|| "<none/>".to_string());
-                    let p_sub = pre_sub
-                        .as_ref()
-                        .map(|s| self.render(s, mode))
-                        .unwrap_or_else(|| "<none/>".to_string());
-                    let p_sup = pre_sup
-                        .as_ref()
-                        .map(|s| self.render(s, mode))
-                        .unwrap_or_else(|| "<none/>".to_string());
+                    buf.push_str("<mmultiscripts>");
+                    self.render_into(base, mode, buf)?;
 
-                    return format!(
-                        "<mmultiscripts>{}{}{}<mprescripts/>{}{}</mmultiscripts>",
-                        base_str, s_sub, s_sup, p_sub, p_sup
-                    );
+                    if let Some(s) = sub { self.render_into(s, mode, buf)?; } else { buf.push_str("<none/>"); }
+                    if let Some(s) = sup { self.render_into(s, mode, buf)?; } else { buf.push_str("<none/>"); }
+
+                    buf.push_str("<mprescripts/>");
+                    
+                    if let Some(s) = pre_sub { self.render_into(s, mode, buf)?; } else { buf.push_str("<none/>"); }
+                    if let Some(s) = pre_sup { self.render_into(s, mode, buf)?; } else { buf.push_str("<none/>"); }
+
+                    buf.push_str("</mmultiscripts>");
+                    return Ok(());
                 }
-
-                let sub_str = sub.as_ref().map(|s| self.render(s, mode));
-                let sup_str = sup.as_ref().map(|s| self.render(s, mode));
 
                 let render_as_limits = match behavior {
                     LimitBehavior::Limits => true,
@@ -93,69 +77,71 @@ impl MathRenderer for MathMLRenderer {
                     LimitBehavior::Default => *is_large_op && mode == RenderMode::Display,
                 };
 
-                match (render_as_limits, sub_str, sup_str) {
-                    (true, Some(sub), Some(sup)) => {
-                        format!("<munderover>{}{}{}</munderover>", base_str, sub, sup)
+                let tag = match (render_as_limits, sub.is_some(), sup.is_some()) {
+                    (true, true, true) => "munderover",
+                    (true, true, false) => "munder",
+                    (true, false, true) => "mover",
+                    (false, true, true) => "msubsup",
+                    (false, true, false) => "msub",
+                    (false, false, true) => "msup",
+                    (_, false, false) => {
+                        self.render_into(base, mode, buf)?;
+                        return Ok(());
                     }
-                    (true, Some(sub), None) => format!("<munder>{}{}</munder>", base_str, sub),
-                    (true, None, Some(sup)) => format!("<mover>{}{}</mover>", base_str, sup),
+                };
 
-                    (false, Some(sub), Some(sup)) => {
-                        format!("<msubsup>{}{}{}</msubsup>", base_str, sub, sup)
-                    }
-                    (false, Some(sub), None) => format!("<msub>{}{}</msub>", base_str, sub),
-                    (false, None, Some(sup)) => format!("<msup>{}{}</msup>", base_str, sup),
-
-                    (_, None, None) => base_str,
-                }
+                write!(buf, "<{}>", tag)?;
+                self.render_into(base, mode, buf)?;
+                if let Some(s) = sub { self.render_into(s, mode, buf)?; }
+                if let Some(s) = sup { self.render_into(s, mode, buf)?; }
+                write!(buf, "</{}>", tag)?;
+                Ok(())
             }
             MathNode::Row(nodes) => {
-                let inner: String = nodes.iter().map(|n| self.render(n, mode)).collect();
-                format!("<mrow>{}</mrow>", inner)
+                buf.push_str("<mrow>");
+                for n in nodes {
+                    self.render_into(n, mode, buf)?;
+                }
+                buf.push_str("</mrow>");
+                Ok(())
             }
             MathNode::Sqrt(content) => {
-                format!("<msqrt>{}</msqrt>", self.render(content, mode))
+                buf.push_str("<msqrt>");
+                self.render_into(content, mode, buf)?;
+                buf.push_str("</msqrt>");
+                Ok(())
             }
             MathNode::Root { index, content } => {
-                format!(
-                    "<mroot>{}{}</mroot>",
-                    self.render(content, mode),
-                    self.render(index, mode)
-                )
+                buf.push_str("<mroot>");
+                self.render_into(content, mode, buf)?;
+                self.render_into(index, mode, buf)?;
+                buf.push_str("</mroot>");
+                Ok(())
             }
             MathNode::Fenced {
                 open,
                 content,
                 close,
             } => {
-                let mo_open = if open == "." {
-                    String::new()
-                } else {
-                    format!("<mo stretchy=\"true\">{}</mo>", escape_xml(open))
-                };
-                let mo_close = if close == "." {
-                    String::new()
-                } else {
-                    format!("<mo stretchy=\"true\">{}</mo>", escape_xml(close))
-                };
-                // Wrap the rendered content in an inner <mrow> to prevent baseline shift
-                // issues in WebKit/Blink when a stretchy fence immediately follows a <msup>/<msub>.
-                format!(
-                    "<mrow>{}<mrow>{}</mrow>{}</mrow>",
-                    mo_open,
-                    self.render(content, mode),
-                    mo_close
-                )
+                buf.push_str("<mrow>");
+                if open != "." {
+                    write!(buf, "<mo stretchy=\"true\">{}</mo>", escape_xml(open))?;
+                }
+                buf.push_str("<mrow>");
+                self.render_into(content, mode, buf)?;
+                buf.push_str("</mrow>");
+                if close != "." {
+                    write!(buf, "<mo stretchy=\"true\">{}</mo>", escape_xml(close))?;
+                }
+                buf.push_str("</mrow>");
+                Ok(())
             }
             MathNode::Environment { name, format, rows } => {
                 let mut custom_aligns = Vec::new();
                 let mut custom_lines = Vec::new();
 
                 if let Some(fmt_str) = format {
-                    // 正确算法：跟踪列对齐和列间分隔符
-                    // MathML columnlines 需要 N-1 个条目（N 为列数）
-                    // 每个分隔符属于其左侧列的右边
-                    let mut pending_sep = "none"; // 待添加的分隔符（在看到下一列字符时提交）
+                    let mut pending_sep = "none";
                     let mut separators: Vec<&str> = Vec::new();
                     for c in fmt_str.chars() {
                         match c {
@@ -167,119 +153,106 @@ impl MathRenderer for MathMLRenderer {
                                 };
                                 custom_aligns.push(align);
                                 if !custom_aligns.is_empty() && custom_aligns.len() > 1 {
-                                    // 不是第一列，提交上一列的右侧分隔符
                                     separators.push(pending_sep);
                                 }
                                 pending_sep = "none";
                             }
-                            '|' => {
-                                // |是当前列左边的分隔符（对下一列来说是左侧分隔）
-                                pending_sep = "solid";
-                            }
+                            '|' => pending_sep = "solid",
                             _ => {}
                         }
                     }
                     custom_lines = separators;
                 }
 
-                let table_attr = match name.as_str() {
+                let (open_fence, close_fence) = match name.as_str() {
+                    "pmatrix" => (Some("("), Some(")")),
+                    "bmatrix" => (Some("["), Some("]")),
+                    "Bmatrix" => (Some("{"), Some("}")),
+                    "vmatrix" => (Some("|"), Some("|")),
+                    "Vmatrix" => (Some("‖"), Some("‖")),
+                    "cases" => (Some("{"), None),
+                    _ => (None, None),
+                };
+
+                if open_fence.is_some() || close_fence.is_some() || name == "cases" {
+                    buf.push_str("<mrow>");
+                }
+
+                if let Some(f) = open_fence {
+                    write!(buf, "<mo stretchy=\"true\">{}</mo>", escape_xml(f))?;
+                }
+
+                buf.push_str("<mtable");
+                match name.as_str() {
                     "align" | "align*" | "eqnarray" | "eqnarray*" => {
                         let max_cols = rows.iter().map(|(r, _)| r.len()).max().unwrap_or(0);
                         let aligns: Vec<&str> = (0..max_cols)
                             .map(|i| if i % 2 == 0 { "right" } else { "left" })
                             .collect();
-                        if aligns.is_empty() {
-                            String::new()
-                        } else {
-                            format!(" columnalign=\"{}\"", aligns.join(" "))
+                        if !aligns.is_empty() {
+                            write!(buf, " columnalign=\"{}\"", aligns.join(" "))?;
                         }
                     }
-                    "cases" => " columnalign=\"left\"".to_string(),
+                    "cases" => buf.push_str(" columnalign=\"left\""),
                     "array" => {
-                        let mut attr = String::new();
                         if !custom_aligns.is_empty() {
-                            attr.push_str(&format!(" columnalign=\"{}\"", custom_aligns.join(" ")));
+                            write!(buf, " columnalign=\"{}\"", custom_aligns.join(" "))?;
                         }
-                        // columnlines 数量应为 N-1（匹配列间分隔符数）
                         if custom_lines.contains(&"solid") {
-                            attr.push_str(&format!(" columnlines=\"{}\"", custom_lines.join(" ")));
+                            write!(buf, " columnlines=\"{}\"", custom_lines.join(" "))?;
                         }
-                        attr
                     }
-                    _ => "".to_string(), // 默认居中 (matrix 等)
+                    _ => {}
                 };
+                buf.push('>');
 
-                let mut table_xml = format!("<mtable{}>", table_attr);
                 for (row, spacing) in rows {
-                    let tr_attr = if let Some(space) = spacing {
-                        format!(" style=\"margin-bottom: {};\"", escape_xml(space))
-                    } else {
-                        "".to_string()
-                    };
-
-                    table_xml.push_str(&format!("<mtr{}>", tr_attr));
-                    for cell in row {
-                        table_xml.push_str(&format!("<mtd>{}</mtd>", self.render(cell, mode)));
+                    buf.push_str("<mtr");
+                    if let Some(space) = spacing {
+                        write!(buf, " style=\"margin-bottom: {};\"", escape_xml(space))?;
                     }
-                    table_xml.push_str("</mtr>");
+                    buf.push('>');
+                    for cell in row {
+                        buf.push_str("<mtd>");
+                        self.render_into(cell, mode, buf)?;
+                        buf.push_str("</mtd>");
+                    }
+                    buf.push_str("</mtr>");
                 }
-                table_xml.push_str("</mtable>");
+                buf.push_str("</mtable>");
 
-                match name.as_str() {
-                    "pmatrix" => format!(
-                        "<mrow><mo stretchy=\"true\">(</mo>{}<mo stretchy=\"true\">)</mo></mrow>",
-                        table_xml
-                    ),
-                    "bmatrix" => format!(
-                        "<mrow><mo stretchy=\"true\">[</mo>{}<mo stretchy=\"true\">]</mo></mrow>",
-                        table_xml
-                    ),
-                    "Bmatrix" => format!(
-                        "<mrow><mo stretchy=\"true\">{{</mo>{}<mo stretchy=\"true\">}}</mo></mrow>",
-                        table_xml
-                    ),
-                    "vmatrix" => format!(
-                        "<mrow><mo stretchy=\"true\">|</mo>{}<mo stretchy=\"true\">|</mo></mrow>",
-                        table_xml
-                    ),
-                    "Vmatrix" => format!(
-                        "<mrow><mo stretchy=\"true\">‖</mo>{}<mo stretchy=\"true\">‖</mo></mrow>",
-                        table_xml
-                    ),
-                    "cases" => format!("<mrow><mo stretchy=\"true\">{{</mo>{}</mrow>", table_xml),
-                    _ => table_xml,
+                if let Some(f) = close_fence {
+                    write!(buf, "<mo stretchy=\"true\">{}</mo>", escape_xml(f))?;
                 }
+
+                if open_fence.is_some() || close_fence.is_some() || name == "cases" {
+                    buf.push_str("</mrow>");
+                }
+                Ok(())
             }
-            MathNode::Text(t) => format!("<mtext>{}</mtext>", escape_xml(t)),
+            MathNode::Text(t) => write!(buf, "<mtext>{}</mtext>", escape_xml(t)),
             MathNode::Style { variant, content } => {
                 if variant == "vphantom" {
-                    // \vphantom: Height of the content, but zero width.
-                    // <mphantom> makes it invisible but takes up full space.
-                    // <mpadded width="0px"> makes its width zero.
-                    format!(
-                        "<mpadded width=\"0px\"><mphantom>{}</mphantom></mpadded>",
-                        self.render(content, mode)
-                    )
+                    buf.push_str("<mpadded width=\"0px\"><mphantom>");
+                    self.render_into(content, mode, buf)?;
+                    buf.push_str("</mphantom></mpadded>");
+                    Ok(())
                 } else if variant == "hphantom" {
-                    // \hphantom: Width of the content, but zero height and depth.
-                    format!(
-                        "<mpadded height=\"0px\" depth=\"0px\"><mphantom>{}</mphantom></mpadded>",
-                        self.render(content, mode)
-                    )
+                    buf.push_str("<mpadded height=\"0px\" depth=\"0px\"><mphantom>");
+                    self.render_into(content, mode, buf)?;
+                    buf.push_str("</mphantom></mpadded>");
+                    Ok(())
                 } else {
-                    format!(
-                        "<mstyle mathvariant=\"{}\">{}</mstyle>",
-                        escape_xml(variant),
-                        self.render(content, mode)
-                    )
+                    write!(buf, "<mstyle mathvariant=\"{}\">", escape_xml(variant))?;
+                    self.render_into(content, mode, buf)?;
+                    buf.push_str("</mstyle>");
+                    Ok(())
                 }
             }
             MathNode::Accent { mark, content } => {
-                format!(
-                    "<mover accent=\"true\">{}<mo>{}</mo></mover>",
-                    self.render(content, mode),
-                    escape_xml(mark)
-                )
+                buf.push_str("<mover accent=\"true\">");
+                self.render_into(content, mode, buf)?;
+                write!(buf, "<mo>{}</mo></mover>", escape_xml(mark))
             }
             MathNode::Function(f) => {
                 let func_text = match f.as_str() {
@@ -287,73 +260,69 @@ impl MathRenderer for MathMLRenderer {
                     "projlim" => "proj lim",
                     _ => f.as_str(),
                 };
-                format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(func_text))
+                write!(buf, "<mi mathvariant=\"normal\">{}</mi>", escape_xml(func_text))
             }
             MathNode::OperatorName(content) => {
-                // Do not use <mi> as a wrapper for complex layouts like <munder>,
-                // because browsers (like Chrome/Safari) flatten or break layout elements inside token elements (<mi>, <mo>, <mn>).
-                // Instead, use <mstyle mathvariant="normal"> wrapped in an <mrow>.
-                format!(
-                    "<mrow><mstyle mathvariant=\"normal\">{}</mstyle></mrow>",
-                    self.render(content, mode)
-                )
+                buf.push_str("<mrow><mstyle mathvariant=\"normal\">");
+                self.render_into(content, mode, buf)?;
+                buf.push_str("</mstyle></mrow>");
+                Ok(())
             }
             MathNode::SizedDelimiter { size, delim } => {
-                // LaTeX \big, \Big, \bigg, \Bigg correspond to increasing sizes.
-                // We use minsize and maxsize to force stretching to that exact size.
-                format!(
+                let esc_size = escape_xml(size);
+                write!(
+                    buf,
                     "<mo minsize=\"{}\" maxsize=\"{}\">{}</mo>",
-                    escape_xml(size),
-                    escape_xml(size),
+                    esc_size,
+                    esc_size,
                     escape_xml(delim)
                 )
             }
-            MathNode::Space(width) => format!("<mspace width=\"{}\"/>", escape_xml(width)),
-            MathNode::NewLine => "<mspace linebreak=\"newline\"/>".to_string(),
+            MathNode::Space(width) => write!(buf, "<mspace width=\"{}\"/>", escape_xml(width)),
+            MathNode::NewLine => {
+                buf.push_str("<mspace linebreak=\"newline\"/>");
+                Ok(())
+            }
 
             MathNode::Color { color, content } => {
-                format!(
-                    "<mstyle mathcolor=\"{}\">{}</mstyle>",
-                    escape_xml(color),
-                    self.render(content, mode)
-                )
+                write!(buf, "<mstyle mathcolor=\"{}\">", escape_xml(color))?;
+                self.render_into(content, mode, buf)?;
+                buf.push_str("</mstyle>");
+                Ok(())
             }
             MathNode::ColorBox { bg_color, content } => {
-                format!(
-                    "<mstyle mathbackground=\"{}\">{}</mstyle>",
-                    escape_xml(bg_color),
-                    self.render(content, mode)
-                )
+                write!(buf, "<mstyle mathbackground=\"{}\">", escape_xml(bg_color))?;
+                self.render_into(content, mode, buf)?;
+                buf.push_str("</mstyle>");
+                Ok(())
             }
             MathNode::Boxed(content) => {
-                format!(
-                    "<menclose notation=\"box\">{}</menclose>",
-                    self.render(content, mode)
-                )
+                buf.push_str("<menclose notation=\"box\">");
+                self.render_into(content, mode, buf)?;
+                buf.push_str("</menclose>");
+                Ok(())
             }
             MathNode::Phantom { kind, content } => {
-                let rendered = self.render(content, mode);
                 match kind {
-                    PhantomKind::Invisible => format!("<mphantom>{}</mphantom>", rendered),
-                    PhantomKind::Vertical => format!(
-                        "<mpadded width=\"0px\"><mphantom>{}</mphantom></mpadded>",
-                        rendered
-                    ),
-                    PhantomKind::Horizontal => format!(
-                        "<mpadded height=\"0px\" depth=\"0px\"><mphantom>{}</mphantom></mpadded>",
-                        rendered
-                    ),
+                    PhantomKind::Invisible => buf.push_str("<mphantom>"),
+                    PhantomKind::Vertical => buf.push_str("<mpadded width=\"0px\"><mphantom>"),
+                    PhantomKind::Horizontal => buf.push_str("<mpadded height=\"0px\" depth=\"0px\"><mphantom>"),
                 }
+                self.render_into(content, mode, buf)?;
+                match kind {
+                    PhantomKind::Invisible => buf.push_str("</mphantom>"),
+                    _ => buf.push_str("</mphantom></mpadded>"),
+                }
+                Ok(())
             }
             MathNode::Cancel {
                 mode: notation_mode,
                 content,
             } => {
-                format!(
-                    "<menclose notation=\"{}\">{}</menclose>",
-                    escape_xml(notation_mode),
-                    self.render(content, mode)
-                )
+                write!(buf, "<menclose notation=\"{}\">", escape_xml(notation_mode))?;
+                self.render_into(content, mode, buf)?;
+                buf.push_str("</menclose>");
+                Ok(())
             }
             MathNode::StretchOp {
                 op,
@@ -361,27 +330,32 @@ impl MathRenderer for MathMLRenderer {
                 content,
             } => {
                 let stretchy_op = format!("<mo stretchy=\"true\">{}</mo>", escape_xml(op));
-                let content_xml = self.render(content, mode);
                 if *is_over {
-                    format!("<mover>{}{}</mover>", content_xml, stretchy_op)
+                    buf.push_str("<mover>");
+                    self.render_into(content, mode, buf)?;
+                    buf.push_str(&stretchy_op);
+                    buf.push_str("</mover>");
                 } else {
-                    format!("<munder>{}{}</munder>", content_xml, stretchy_op)
+                    buf.push_str("<munder>");
+                    self.render_into(content, mode, buf)?;
+                    buf.push_str(&stretchy_op);
+                    buf.push_str("</munder>");
                 }
+                Ok(())
             }
             MathNode::StyledMath {
                 displaystyle,
                 content,
             } => {
-                // \dfrac → displaystyle="true"，\tfrac → displaystyle="false"
                 let ds = if *displaystyle { "true" } else { "false" };
-                format!(
-                    "<mstyle displaystyle=\"{}\">{}</mstyle>",
-                    ds,
-                    self.render(content, mode)
-                )
+                write!(buf, "<mstyle displaystyle=\"{}\">", ds)?;
+                self.render_into(content, mode, buf)?;
+                buf.push_str("</mstyle>");
+                Ok(())
             }
             MathNode::Error(err_msg) => {
-                format!(
+                write!(
+                    buf,
                     "<merror><mtext mathcolor=\"red\">Syntax Error: {}</mtext></merror>",
                     escape_xml(err_msg)
                 )
@@ -389,8 +363,6 @@ impl MathRenderer for MathMLRenderer {
         }
     }
 }
-
-// ==========================================
 
 /// A convenience function to generate MathML from a `MathNode` AST directly.
 ///
