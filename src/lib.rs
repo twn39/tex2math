@@ -333,14 +333,392 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 // == 新增：命令符号字典映射 ==
 // 参考了 KaTeX 和 texmath 的底层字典，将 LaTeX 命令映射为等价的 Unicode 字符
 /// Parses a general LaTeX command starting with a backslash (e.g., `\alpha`, `\int`, `\mathbf{x}`).
+
+// --- Sub-parsers for commands ---
+
+fn parse_text_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+    let inner_text = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+    Ok(MathNode::Text(inner_text.to_string()))
+}
+
+fn parse_color_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    match cmd {
+        "textcolor" => {
+            let color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            Ok(MathNode::Color {
+                color: color.to_string(),
+                content: Box::new(content),
+            })
+        }
+        "colorbox" => {
+            let bg_color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            Ok(MathNode::ColorBox {
+                bg_color: bg_color.to_string(),
+                content: Box::new(content),
+            })
+        }
+        "color" => {
+            let color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let remaining_nodes: Vec<MathNode> =
+                repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
+            let content = if remaining_nodes.len() == 1 {
+                remaining_nodes.into_iter().next().unwrap()
+            } else {
+                MathNode::Row(remaining_nodes)
+            };
+            Ok(MathNode::Color {
+                color: color.to_string(),
+                content: Box::new(content),
+            })
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn parse_boxed_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+    let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    Ok(MathNode::Boxed(Box::new(content)))
+}
+
+fn parse_sideset_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+    let left_scripts = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let right_scripts = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+
+    fn extract_scripts(node: &MathNode) -> (Option<Box<MathNode>>, Option<Box<MathNode>>) {
+        match node {
+            MathNode::Scripts { sub, sup, .. } => (sub.clone(), sup.clone()),
+            MathNode::Row(nodes) if nodes.len() == 1 => extract_scripts(&nodes[0]),
+            _ => (None, None),
+        }
+    }
+
+    let (pre_sub, pre_sup) = extract_scripts(&left_scripts);
+    let (post_sub, post_sup) = extract_scripts(&right_scripts);
+    let next_node = preceded(space0, parse_node).parse_next(input)?;
+
+    Ok(MathNode::Scripts {
+        base: Box::new(next_node),
+        sub: post_sub,
+        sup: post_sup,
+        pre_sub,
+        pre_sup,
+        behavior: LimitBehavior::Default,
+        is_large_op: false,
+    })
+}
+
+fn parse_over_under_set_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let modifier = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let base = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let (sub, sup) = if cmd == "overset" {
+        (None, Some(Box::new(modifier)))
+    } else {
+        (Some(Box::new(modifier)), None)
+    };
+    Ok(MathNode::Scripts {
+        base: Box::new(base),
+        sub,
+        sup,
+        pre_sub: None,
+        pre_sup: None,
+        behavior: LimitBehavior::Limits,
+        is_large_op: false,
+    })
+}
+
+fn parse_phantom_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    if cmd == "phantom" {
+        Ok(MathNode::Phantom(Box::new(content)))
+    } else {
+        Ok(MathNode::Style {
+            variant: cmd.to_string(), // "vphantom" or "hphantom"
+            content: Box::new(content),
+        })
+    }
+}
+
+fn parse_cancel_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let mode = match cmd {
+        "cancel" => "updiagonalstrike",
+        "bcancel" => "downdiagonalstrike",
+        "xcancel" => "updiagonalstrike downdiagonalstrike",
+        _ => unreachable!(),
+    };
+    let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    Ok(MathNode::Cancel {
+        mode: mode.to_string(),
+        content: Box::new(content),
+    })
+}
+
+fn parse_extensible_arrow_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let arrow_char = match cmd {
+        "xleftarrow" => "\u{2190}",
+        "xrightarrow" => "\u{2192}",
+        "xleftrightarrow" => "\u{2194}",
+        "xRightarrow" => "\u{21D2}",
+        "xLeftarrow" => "\u{21D0}",
+        "xLeftrightarrow" => "\u{21D4}",
+        "xmapsto" => "\u{21A6}",
+        "xlongequal" => "=",
+        "xhookleftarrow" => "\u{21A9}",
+        "xhookrightarrow" => "\u{21AA}",
+        "xtwoheadleftarrow" => "\u{219E}",
+        "xtwoheadrightarrow" => "\u{21A0}",
+        _ => unreachable!(),
+    };
+
+    let sub_str_opt =
+        opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')).parse_next(input)?;
+    let sup = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+
+    let sub = if let Some(mut s) = sub_str_opt {
+        Some(Box::new(parse_row.parse_next(&mut s)?))
+    } else {
+        None
+    };
+
+    Ok(MathNode::Scripts {
+        base: Box::new(MathNode::Operator(arrow_char.to_string())),
+        sub,
+        sup: Some(Box::new(sup)),
+        pre_sub: None,
+        pre_sup: None,
+        behavior: LimitBehavior::Limits,
+        is_large_op: true,
+    })
+}
+
+fn parse_stretch_modifier_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let (op_str, is_over) = match cmd {
+        "underbrace" => ("⏟", false),
+        "overbrace" => ("⏞", true),
+        "underline" => ("_", false),
+        "overline" => ("¯", true),
+        "overrightarrow" => ("\u{2192}", true),
+        "overleftarrow" => ("\u{2190}", true),
+        "overleftrightarrow" => ("\u{2194}", true),
+        "underrightarrow" => ("\u{2192}", false),
+        "underleftarrow" => ("\u{2190}", false),
+        "underleftrightarrow" => ("\u{2194}", false),
+        _ => unreachable!(),
+    };
+    let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    Ok(MathNode::StretchOp {
+        op: op_str.to_string(),
+        is_over,
+        content: Box::new(content),
+    })
+}
+
+fn parse_frac_style_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let ds = match cmd {
+        "dfrac" | "cfrac" => true,
+        "tfrac" => false,
+        _ => unreachable!(),
+    };
+    let num = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let den = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    Ok(MathNode::StyledMath {
+        displaystyle: ds,
+        content: Box::new(MathNode::Fraction(Box::new(num), Box::new(den))),
+    })
+}
+
+fn parse_operatorname_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    if cmd == "operatorname*" {
+        Ok(MathNode::Scripts {
+            base: Box::new(MathNode::OperatorName(Box::new(content))),
+            sub: None,
+            sup: None,
+            pre_sub: None,
+            pre_sup: None,
+            behavior: LimitBehavior::Limits,
+            is_large_op: true,
+        })
+    } else {
+        Ok(MathNode::OperatorName(Box::new(content)))
+    }
+}
+
+fn parse_not_modifier_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+    let _ = space0.parse_next(input)?;
+    let negated = if let Ok(next_cmd) =
+        preceded::<_, _, _, winnow::error::ContextError, _, _>('\\', alpha1).parse_next(input)
+    {
+        match next_cmd {
+            "in" | "isin" => "\u{2209}",
+            "ni" | "owns" => "\u{220C}",
+            "subset" => "\u{2284}",
+            "supset" => "\u{2285}",
+            "subseteq" => "\u{2288}",
+            "supseteq" => "\u{2289}",
+            "sim" => "\u{2241}",
+            "approx" => "\u{2249}",
+            "equiv" => "\u{2262}",
+            "parallel" => "\u{2226}",
+            "mid" => "\u{2224}",
+            "vdash" => "\u{22AC}",
+            "prec" => "\u{2280}",
+            "succ" => "\u{2281}",
+            "le" | "leq" => "\u{2270}",
+            "ge" | "geq" => "\u{2271}",
+            "leftarrow" => "\u{219A}",
+            "rightarrow" => "\u{219B}",
+            other => return Ok(MathNode::Identifier(format!("\\not\\{}", other))),
+        }
+    } else if opt(one_of::<_, _, winnow::error::ContextError>('='))
+        .parse_next(input)?
+        .is_some()
+    {
+        "\u{2260}"
+    } else {
+        "\u{0338}"
+    };
+    Ok(MathNode::Operator(negated.to_string()))
+}
+
+fn parse_font_style_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let variant = match cmd {
+        "mathbf" => "bold",
+        "mathit" | "mit" => "italic",
+        "mathbb" => "double-struck",
+        "mathcal" => "script",
+        "mathfrak" => "fraktur",
+        "boldsymbol" => "bold-italic",
+        "mathrm" | "mathup" | "rm" => "normal",
+        "mathsf" => "sans-serif",
+        "mathtt" => "monospace",
+        _ => unreachable!(),
+    };
+
+    let content = if let Ok(c) = delimited::<_, _, _, _, winnow::error::ContextError, _, _, _>(
+        (space0, '{'),
+        parse_row,
+        (space0, '}'),
+    )
+    .parse_next(input)
+    {
+        c
+    } else {
+        let remaining_nodes: Vec<MathNode> =
+            repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
+        if remaining_nodes.is_empty() {
+            MathNode::Row(vec![])
+        } else if remaining_nodes.len() == 1 {
+            remaining_nodes.into_iter().next().unwrap()
+        } else {
+            MathNode::Row(remaining_nodes)
+        }
+    };
+
+    Ok(MathNode::Style {
+        variant: variant.to_string(),
+        content: Box::new(content),
+    })
+}
+
+fn parse_accent_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let mark = match cmd {
+        "hat" | "widehat" => "^",
+        "vec" => "→",
+        "bar" => "¯",
+        "dot" => "˙",
+        "ddot" | "ddddot" => "¨",
+        "tilde" | "widetilde" => "~",
+        "check" => "ˇ",
+        "breve" => "˘",
+        _ => unreachable!(),
+    };
+    let content = alt((
+        delimited((space0, '{'), parse_row, (space0, '}')),
+        preceded(space0, parse_atom),
+    ))
+    .parse_next(input)?;
+
+    Ok(MathNode::Accent {
+        mark: mark.to_string(),
+        content: Box::new(content),
+    })
+}
+
+fn parse_sized_delimiter_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
+    let size = match cmd {
+        "big" | "bigl" | "bigr" | "bigm" => "1.2em",
+        "Big" | "Bigl" | "Bigr" | "Bigm" => "1.8em",
+        "bigg" | "biggl" | "biggr" | "biggm" => "2.4em",
+        "Bigg" | "Biggl" | "Biggr" | "Biggm" => "3.0em",
+        _ => unreachable!(),
+    };
+    let delim = parse_fence_delim.parse_next(input)?;
+    Ok(MathNode::SizedDelimiter {
+        size: size.to_string(),
+        delim: delim.to_string(),
+    })
+}
+
+fn parse_special_limit_arrow_cmd<'s>(cmd: &str) -> ModalResult<MathNode> {
+    let arrow = if cmd == "varinjlim" {
+        "\u{2192}"
+    } else {
+        "\u{2190}"
+    };
+    Ok(MathNode::Scripts {
+        base: Box::new(MathNode::Function("lim".to_string())),
+        sub: Some(Box::new(MathNode::Operator(arrow.to_string()))),
+        sup: None,
+        pre_sub: None,
+        pre_sup: None,
+        behavior: LimitBehavior::Limits,
+        is_large_op: true,
+    })
+}
+
+fn parse_var_greek_cmd<'s>(cmd: &str) -> ModalResult<MathNode> {
+    let letter = match cmd {
+        "varGamma" => "Γ",
+        "varDelta" => "Δ",
+        "varTheta" => "Θ",
+        "varLambda" => "Λ",
+        "varXi" => "Ξ",
+        "varPi" => "Π",
+        "varSigma" => "Σ",
+        "varUpsilon" => "Υ",
+        "varPhi" => "Φ",
+        "varPsi" => "Ψ",
+        "varOmega" => "Ω",
+        _ => unreachable!(),
+    };
+    Ok(MathNode::Style {
+        variant: "italic".to_string(),
+        content: Box::new(MathNode::Identifier(letter.to_string())),
+    })
+}
+
+fn parse_spacing_cmd<'s>(cmd: &str) -> ModalResult<MathNode> {
+    let width = match cmd {
+        "quad" => "1em",
+        "qquad" => "2em",
+        "enspace" | "enskip" => "0.5em",
+        "," | "thinspace" => "0.1667em",
+        ":" | "medspace" => "0.2222em",
+        ";" | "thickspace" => "0.2778em",
+        "!" | "negthinspace" => "-0.1667em",
+        _ => unreachable!(),
+    };
+    Ok(MathNode::Space(width.to_string()))
+}
+
 pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_command", |input: &mut &'s str| {
-        // 提取命令名：可以是英文字母组成的词，也可以是特定的单字符标点符号
         let cmd = preceded(
             '\\',
             alt((
                 alpha1,
-                // 支持 \%, \$, \{ 等特殊单字符命令
                 one_of([
                     ',', ';', ':', '!', '%', '$', '#', '&', '_', ' ', '{', '}', '|',
                 ])
@@ -349,526 +727,94 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         )
         .parse_next(input)?;
 
-        // 1. 处理带参数的高级命令 (文本、样式、重音)
-        // \text{...} 文本模式：内部必须原样保留空格，不进行数学递归解析
-        if cmd == "text" {
-            // \text{} 内部是纯文本，使用 take_until 保留空格，不做数学解析
-            let inner_text =
-                delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
-            return Ok(MathNode::Text(inner_text.to_string()));
-        }
+        match cmd {
+            // 1. 文本
+            "text" => parse_text_cmd(input),
 
-        // == 新增：颜色与高亮盒子 ==
-        if cmd == "sideset" {
-            let left_scripts =
-                delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            let right_scripts =
-                delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            // 2. 颜色与盒子
+            "color" | "textcolor" | "colorbox" => parse_color_cmd(cmd, input),
+            "boxed" => parse_boxed_cmd(input),
 
-            fn extract_scripts(node: &MathNode) -> (Option<Box<MathNode>>, Option<Box<MathNode>>) {
-                match node {
-                    MathNode::Scripts { sub, sup, .. } => (sub.clone(), sup.clone()),
-                    MathNode::Row(nodes) if nodes.len() == 1 => extract_scripts(&nodes[0]),
-                    _ => (None, None),
-                }
+            // 3. 上下限与特殊操作符
+            "overset" | "underset" => parse_over_under_set_cmd(cmd, input),
+            "sideset" => parse_sideset_cmd(input),
+            "operatorname" | "operatorname*" => parse_operatorname_cmd(cmd, input),
+            "not" => parse_not_modifier_cmd(input),
+
+            // 4. 字体样式与数学分式
+            "mathbf" | "mathit" | "mit" | "mathbb" | "mathcal" | "mathfrak" | "boldsymbol"
+            | "mathrm" | "mathup" | "rm" | "mathsf" | "mathtt" => parse_font_style_cmd(cmd, input),
+            "dfrac" | "tfrac" | "cfrac" => parse_frac_style_cmd(cmd, input),
+
+            // 5. 箭头与拉伸修饰符
+            "xleftarrow" | "xrightarrow" | "xleftrightarrow" | "xRightarrow" | "xLeftarrow"
+            | "xLeftrightarrow" | "xmapsto" | "xlongequal" | "xhookleftarrow"
+            | "xhookrightarrow" | "xtwoheadleftarrow" | "xtwoheadrightarrow" => {
+                parse_extensible_arrow_cmd(cmd, input)
+            }
+            "underbrace"
+            | "overbrace"
+            | "underline"
+            | "overline"
+            | "overrightarrow"
+            | "overleftarrow"
+            | "overleftrightarrow"
+            | "underrightarrow"
+            | "underleftarrow"
+            | "underleftrightarrow" => parse_stretch_modifier_cmd(cmd, input),
+
+            // 6. 重音与划线
+            "hat" | "widehat" | "vec" | "bar" | "dot" | "ddot" | "ddddot" | "tilde"
+            | "widetilde" | "check" | "breve" => parse_accent_cmd(cmd, input),
+            "cancel" | "bcancel" | "xcancel" => parse_cancel_cmd(cmd, input),
+
+            // 7. 间距、占位与定界符
+            "phantom" | "vphantom" | "hphantom" => parse_phantom_cmd(cmd, input),
+            "quad" | "qquad" | "enspace" | "enskip" | "," | "thinspace" | ":" | "medspace"
+            | ";" | "thickspace" | "!" | "negthinspace" => parse_spacing_cmd(cmd),
+            "big" | "bigl" | "bigr" | "bigm" | "Big" | "Bigl" | "Bigr" | "Bigm" | "bigg"
+            | "biggl" | "biggr" | "biggm" | "Bigg" | "Biggl" | "Biggr" | "Biggm" => {
+                parse_sized_delimiter_cmd(cmd, input)
             }
 
-            let (pre_sub, pre_sup) = extract_scripts(&left_scripts);
-            let (post_sub, post_sup) = extract_scripts(&right_scripts);
-
-            let next_node = preceded(space0, parse_node).parse_next(input)?;
-
-            return Ok(MathNode::Scripts {
-                base: Box::new(next_node),
-                sub: post_sub,
-                sup: post_sup,
-                pre_sub,
-                pre_sup,
-                behavior: LimitBehavior::Default,
-                is_large_op: false,
-            });
-        }
-
-        if cmd == "textcolor" {
-            // \textcolor{red}{content}
-            let color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::Color {
-                color: color.to_string(),
-                content: Box::new(content),
-            });
-        }
-
-        if cmd == "colorbox" {
-            // \colorbox{#FF0000}{content}
-            let bg_color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::ColorBox {
-                bg_color: bg_color.to_string(),
-                content: Box::new(content),
-            });
-        }
-
-        if cmd == "boxed" {
-            // \boxed{content}
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::Boxed(Box::new(content)));
-        }
-
-        // == 新增：\overset 和 \underset ==
-        if cmd == "overset" || cmd == "underset" {
-            let modifier = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            let base = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-
-            // We use Scripts with limits to force munder/mover
-            let (sub, sup) = if cmd == "overset" {
-                (None, Some(Box::new(modifier)))
-            } else {
-                (Some(Box::new(modifier)), None)
-            };
-
-            return Ok(MathNode::Scripts {
-                base: Box::new(base),
-                sub,
-                sup,
-                pre_sub: None,
-                pre_sup: None,
-                behavior: LimitBehavior::Limits, // Force munder/mover rendering
-                is_large_op: false,
-            });
-        }
-
-        if cmd == "phantom" {
-            // \phantom{content}
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::Phantom(Box::new(content)));
-        }
-
-        if cmd == "vphantom" {
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::Style {
-                variant: "vphantom".to_string(), // Use a special variant string to intercept in MathMLRenderer
-                content: Box::new(content),
-            });
-        }
-
-        if cmd == "hphantom" {
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::Style {
-                variant: "hphantom".to_string(),
-                content: Box::new(content),
-            });
-        }
-
-        let cancel_mode = match cmd {
-            "cancel" => Some("updiagonalstrike"),
-            "bcancel" => Some("downdiagonalstrike"),
-            "xcancel" => Some("updiagonalstrike downdiagonalstrike"),
-            _ => None,
-        };
-        if let Some(mode) = cancel_mode {
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::Cancel {
-                mode: mode.to_string(),
-                content: Box::new(content),
-            });
-        }
-
-        // == 新增：可拉伸的箭头 (xleftarrow, xrightarrow) ==
-        if [
-            "xleftarrow",
-            "xrightarrow",
-            "xleftrightarrow",
-            "xRightarrow",
-            "xLeftarrow",
-            "xLeftrightarrow",
-            "xtwoheadrightarrow",
-            "xtwoheadleftarrow",
-            "xmapsto",
-            "xlongequal",
-            "xhookleftarrow",
-            "xhookrightarrow",
-        ]
-        .contains(&cmd)
-        {
-            let arrow_char = match cmd {
-                "xleftarrow" => "\u{2190}",
-                "xrightarrow" => "\u{2192}",
-                "xleftrightarrow" => "\u{2194}",
-                "xRightarrow" => "\u{21D2}",
-                "xLeftarrow" => "\u{21D0}",
-                "xLeftrightarrow" => "\u{21D4}",
-                "xmapsto" => "\u{21A6}",
-                "xlongequal" => "=",
-                "xhookleftarrow" => "\u{21A9}",
-                "xhookrightarrow" => "\u{21AA}",
-                "xtwoheadleftarrow" => "\u{219E}",
-                "xtwoheadrightarrow" => "\u{21A0}",
-                _ => "\u{2192}",
-            };
-
-            let sub_str_opt = opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']'))
-                .parse_next(input)?;
-            let sup = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-
-            let sub = if let Some(mut s) = sub_str_opt {
-                Some(Box::new(parse_row.parse_next(&mut s)?))
-            } else {
-                None
-            };
-
-            // Render extensible arrows using munderover. MathML handles stretchy operators internally.
-            // But we must wrap the arrow_char in an Operator that is forced to stretch.
-            // Wait, standard MathML engines stretch <mo> when it's the base of munderover, IF the dictionary has it.
-            // To guarantee it stretches over the content, we can use the MathNode::StretchOp trick,
-            // but StretchOp currently puts the stretchy operator over/under the content.
-            // Here, we have both sub and sup. We should just use Scripts but ensure the base is a stretchy operator.
-            // Let's create an identifier that has the HTML/XML for stretchy embedded for now, or just use Operator.
-            // Some browsers need the mpadded trick or just explicit stretchy="true" which MathMLRenderer already doesn't add to normal Operator.
-            // Let's fix MathMLRenderer to always output <mo stretchy="true"> for this base by injecting raw XML as Text? No.
-            // Actually, we can just use Scripts, and if we need to force stretch, we can modify MathMLRenderer.
-
-            return Ok(MathNode::Scripts {
-                base: Box::new(MathNode::Operator(arrow_char.to_string())), // MathMLRenderer will be updated to stretch arrows if needed, but native munderover stretches the base Operator automatically in compliant browsers.
-                sub,
-                sup: Some(Box::new(sup)),
-                pre_sub: None,
-                pre_sup: None,
-                behavior: LimitBehavior::Limits,
-                is_large_op: true,
-            });
-        }
-
-        // == 新增：可拉伸的修饰符 ==
-        let stretch_info = match cmd {
-            "underbrace" => Some(("⏟", false)),
-            "overbrace" => Some(("⏞", true)),
-            "underline" => Some(("_", false)),
-            "overline" => Some(("¯", true)),
-            "overrightarrow" => Some(("\u{2192}", true)),
-            "overleftarrow" => Some(("\u{2190}", true)),
-            "overleftrightarrow" => Some(("\u{2194}", true)),
-            "underrightarrow" => Some(("\u{2192}", false)),
-            "underleftarrow" => Some(("\u{2190}", false)),
-            "underleftrightarrow" => Some(("\u{2194}", false)),
-            _ => None,
-        };
-        if let Some((op_str, is_over)) = stretch_info {
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::StretchOp {
-                op: op_str.to_string(),
-                is_over,
-                content: Box::new(content),
-            });
-        }
-
-        if cmd == "color" {
-            // \color{red} ... 从此处开始吃掉当前级别的剩余所有元素
-            let color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
-
-            // 巧妙的贪婪：读取从这里到作用域结束（如 } 或者 EOF）的所有后续节点
-            // 由于 parse_row 是由当前层级调用的，为了不污染外层的 '}' 终止符，
-            // 我们不能直接用 parse_row 吃到文件末尾。在真正的 PEG 中，
-            // 这是极其依赖上下文状态的（Stateful）。
-            // 作为一个轻量级实现，我们可以让它只解析接下来的一个 Atom 或 Group 块：
-            // （如果用户写 \color{red} x + y，在我们的极简版里可能需要写成 \color{red}{x + y} 或隔离在括号中）
-            // 我们采取折衷：在 tex2math 中，遇到 \color{red} 时，如果它紧跟着括号，
-            // 就直接把它当做 textcolor 对待；否则它只影响下一个 Node。
-            // 实际上为了通过标准测试 test_parse_color_switch，我们需要让它贪婪消耗当前环境剩余的内容。
-            // 为了安全，我们先提取剩下的所有能被 parse_node 消费的东西，这本质上就是剩下的 row：
-            let remaining_nodes: Vec<MathNode> =
-                repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
-
-            let content = if remaining_nodes.len() == 1 {
-                remaining_nodes.into_iter().next().unwrap()
-            } else {
-                MathNode::Row(remaining_nodes)
-            };
-
-            return Ok(MathNode::Color {
-                color: color.to_string(),
-                content: Box::new(content),
-            });
-        }
-
-        // == 新增：\dfrac, \tfrac, \cfrac（强制 displaystyle 的分式） ==
-        let frac_displaystyle = match cmd {
-            "dfrac" => Some(true),
-            "tfrac" => Some(false),
-            "cfrac" => Some(true), // 连分数近似作 display 处理
-            _ => None,
-        };
-        if let Some(ds) = frac_displaystyle {
-            let num = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            let den = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            return Ok(MathNode::StyledMath {
-                displaystyle: ds,
-                content: Box::new(MathNode::Fraction(Box::new(num), Box::new(den))),
-            });
-        }
-
-        // == 新增：\operatorname{name} —— 自定义算子名，渲染为直立字体 ==
-        if cmd == "operatorname" || cmd == "operatorname*" {
-            // operatorname can contain complex expressions, not just plain text!
-            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-
-            // If it's operatorname*, it behaves like a large operator with limits
-            if cmd == "operatorname*" {
-                return Ok(MathNode::Scripts {
-                    base: Box::new(MathNode::OperatorName(Box::new(content))),
-                    sub: None,
-                    sup: None,
-                    pre_sub: None,
-                    pre_sup: None,
-                    behavior: LimitBehavior::Limits,
-                    is_large_op: true,
-                });
-            } else {
-                return Ok(MathNode::OperatorName(Box::new(content)));
-            }
-        }
-
-        // == 新增：\not 否定修饰符 ==
-        if cmd == "not" {
-            let _ = space0.parse_next(input)?;
-            let negated = if let Ok(next_cmd) =
-                preceded::<_, _, _, winnow::error::ContextError, _, _>('\\', alpha1)
-                    .parse_next(input)
-            {
-                match next_cmd {
-                    "in" | "isin" => "\u{2209}", // ∉
-                    "ni" | "owns" => "\u{220C}", // ∌
-                    "subset" => "\u{2284}",      // ⊄
-                    "supset" => "\u{2285}",      // ⊅
-                    "subseteq" => "\u{2288}",    // ⊈
-                    "supseteq" => "\u{2289}",    // ⊉
-                    "sim" => "\u{2241}",         // ≁
-                    "approx" => "\u{2249}",      // ≉
-                    "equiv" => "\u{2262}",       // ≢
-                    "parallel" => "\u{2226}",    // ∦
-                    "mid" => "\u{2224}",         // ∤
-                    "vdash" => "\u{22AC}",       // ⊬
-                    "prec" => "\u{2280}",        // ⊀
-                    "succ" => "\u{2281}",        // ⊁
-                    "le" | "leq" => "\u{2270}",  // ≰
-                    "ge" | "geq" => "\u{2271}",  // ≱
-                    "leftarrow" => "\u{219A}",   // ↚
-                    "rightarrow" => "\u{219B}",  // ↛
-                    other => {
-                        return Ok(MathNode::Identifier(format!("\\not\\{}", other)));
-                    }
-                }
-            } else if opt(one_of::<_, _, winnow::error::ContextError>('='))
-                .parse_next(input)?
-                .is_some()
-            {
-                "\u{2260}" // ≠
-            } else {
-                "\u{0338}" // 组合长反斜线回退
-            };
-            return Ok(MathNode::Operator(negated.to_string()));
-        }
-
-        // 字体样式命令：其内部是一个标准的数学表达式 (Row)
-        let style_variant = match cmd {
-            "mathbf" => Some("bold"),
-            "mathit" | "mit" => Some("italic"),
-            "mathbb" => Some("double-struck"),
-            "mathcal" => Some("script"),
-            "mathfrak" => Some("fraktur"),
-            "boldsymbol" => Some("bold-italic"), // Support \boldsymbol
-            // \mathrm 正确语义是 normal（直立）数学字体，不是 \text
-            "mathrm" | "mathup" | "rm" => Some("normal"),
-            "mathsf" => Some("sans-serif"),
-            "mathtt" => Some("monospace"),
-            _ => None,
-        };
-        if let Some(variant) = style_variant {
-            // Check if it's used as \mathrm{...} or {\mathrm ...}
-            // If it's followed by '{', parse the block.
-            // Otherwise, in LaTeX, commands like \rm or \mathrm applied without braces just apply to the NEXT atom or rest of group.
-            // We'll support \mathrm{...} standard syntax, and fallback to parsing the next atom if no brace is found.
-            // But wait, the input is {\mathrm d}. So `parse_group` will enter `{`. Then `parse_row` parses `\mathrm`.
-            // If we greedily take the rest of the group, we can just use `parse_node` or `parse_row`.
-            // Wait, if it's \mathrm d, then `d` is not in braces. Let's try to parse a `{...}` block. If not present, parse the next atom.
-            let content = if let Ok(c) =
-                delimited::<_, _, _, _, winnow::error::ContextError, _, _, _>(
-                    (space0, '{'),
-                    parse_row,
-                    (space0, '}'),
-                )
-                .parse_next(input)
-            {
-                c
-            } else {
-                // If it's like {\mathrm d}, the `\mathrm` is inside a group. It should consume the rest of the row!
-                // Let's consume the rest of the row, similar to \color.
-                let remaining_nodes: Vec<MathNode> =
-                    repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
-                if remaining_nodes.is_empty() {
-                    MathNode::Row(vec![])
-                } else if remaining_nodes.len() == 1 {
-                    remaining_nodes.into_iter().next().unwrap()
-                } else {
-                    MathNode::Row(remaining_nodes)
-                }
-            };
-
-            return Ok(MathNode::Style {
-                variant: variant.to_string(),
-                content: Box::new(content),
-            });
-        }
-
-        // 数学重音修饰符 (Accents)
-        let accent_mark = match cmd {
-            "hat" | "widehat" => Some("^"),
-            "vec" => Some("→"),
-            // \bar 是短上划线重音；\overline 已移入 stretch_info 以支持可拉伸版本
-            "bar" => Some("¯"),
-            "dot" => Some("˙"),
-            "ddot" | "ddddot" => Some("¨"),
-            "tilde" | "widetilde" => Some("~"),
-            "check" => Some("ˇ"),
-            "breve" => Some("˘"),
-            _ => None,
-        };
-        if let Some(mark) = accent_mark {
-            // 重音的参数可以是一个字符，也可以是大括号包裹的表达式
-            let content = alt((
-                delimited((space0, '{'), parse_row, (space0, '}')),
-                // 允许 \hat x 或 \hat y (不带括号，并且允许中间有空格)
-                preceded(space0, parse_atom),
-            ))
-            .parse_next(input)?;
-
-            return Ok(MathNode::Accent {
-                mark: mark.to_string(),
-                content: Box::new(content),
-            });
-        }
-
-        // == 标准数学函数 (包含 limits 特性的算子) ==
-        let macro_alias = match cmd {
-            "N" => Some("N"),
-            "R" => Some("R"),
-            "Z" => Some("Z"),
-            "C" => Some("C"),
-            "Q" => Some("Q"),
-            "H" => Some("H"),
-            _ => None,
-        };
-        if let Some(letter) = macro_alias {
-            return Ok(MathNode::Style {
+            // 8. 字母宏与标准函数
+            "N" | "R" | "Z" | "C" | "Q" | "H" => Ok(MathNode::Style {
                 variant: "double-struck".to_string(),
-                content: Box::new(MathNode::Identifier(letter.to_string())),
-            });
-        }
-
-        // == \big, \Big 等强制大小括号定界符 ==
-        let fixed_size = match cmd {
-            "big" | "bigl" | "bigr" | "bigm" => Some("1.2em"),
-            "Big" | "Bigl" | "Bigr" | "Bigm" => Some("1.8em"),
-            "bigg" | "biggl" | "biggr" | "biggm" => Some("2.4em"),
-            "Bigg" | "Biggl" | "Biggr" | "Biggm" => Some("3.0em"),
-            _ => None,
-        };
-        if let Some(size) = fixed_size {
-            let delim = parse_fence_delim.parse_next(input)?;
-            return Ok(MathNode::SizedDelimiter {
-                size: size.to_string(),
-                delim: delim.to_string(),
-            });
-        }
-
-        // == 特殊字符别名 ==
-        match cmd {
-            "AA" => return Ok(MathNode::Identifier("\u{00C5}".to_string())), // Å
-            "aa" => return Ok(MathNode::Identifier("\u{00E5}".to_string())), // å
-            "O" => return Ok(MathNode::Identifier("\u{00D8}".to_string())),  // Ø
-            "o" => return Ok(MathNode::Identifier("\u{00F8}".to_string())),  // ø
-            _ => {}
-        }
-
-        // == 特殊大写斜体希腊字母 (varGamma 等) ==
-        let var_greek = match cmd {
-            "varGamma" => Some("Γ"),
-            "varDelta" => Some("Δ"),
-            "varTheta" => Some("Θ"),
-            "varLambda" => Some("Λ"),
-            "varXi" => Some("Ξ"),
-            "varPi" => Some("Π"),
-            "varSigma" => Some("Σ"),
-            "varUpsilon" => Some("Υ"),
-            "varPhi" => Some("Φ"),
-            "varPsi" => Some("Ψ"),
-            "varOmega" => Some("Ω"),
-            _ => None,
-        };
-        if let Some(letter) = var_greek {
-            return Ok(MathNode::Style {
-                variant: "italic".to_string(),
-                content: Box::new(MathNode::Identifier(letter.to_string())),
-            });
-        }
-
-        match cmd {
-            // == 显式排版空格 ==
-            "quad" => return Ok(MathNode::Space("1em".to_string())),
-            "qquad" => return Ok(MathNode::Space("2em".to_string())),
-            "enspace" | "enskip" => return Ok(MathNode::Space("0.5em".to_string())),
-            "," | "thinspace" => return Ok(MathNode::Space("0.1667em".to_string())),
-            ":" | "medspace" => return Ok(MathNode::Space("0.2222em".to_string())),
-            ";" | "thickspace" => return Ok(MathNode::Space("0.2778em".to_string())),
-            "!" | "negthinspace" => return Ok(MathNode::Space("-0.1667em".to_string())),
-
-            // == 标准数学函数 (包含 limits 特性的算子) ==
+                content: Box::new(MathNode::Identifier(cmd.to_string())),
+            }),
             "sin" | "cos" | "tan" | "csc" | "sec" | "cot" | "arcsin" | "arccos" | "arctan"
             | "sinh" | "cosh" | "tanh" | "exp" | "log" | "ln" | "lg" | "lim" | "limsup"
             | "liminf" | "max" | "min" | "sup" | "inf" | "det" | "arg" | "dim" | "deg" | "ker"
             | "hom" | "Pr" | "gcd" | "injlim" | "projlim" => {
-                return Ok(MathNode::Function(cmd.to_string()))
+                Ok(MathNode::Function(cmd.to_string()))
             }
+            "varinjlim" | "varprojlim" => parse_special_limit_arrow_cmd(cmd),
 
-            // == 特殊极限算子 (带下方箭头) ==
-            "varinjlim" | "varprojlim" => {
-                let arrow = if cmd == "varinjlim" {
-                    "\u{2192}"
+            // 9. 特殊符号别名与希腊字母变体
+            "AA" => Ok(MathNode::Identifier("\u{00C5}".to_string())),
+            "aa" => Ok(MathNode::Identifier("\u{00E5}".to_string())),
+            "O" => Ok(MathNode::Identifier("\u{00D8}".to_string())),
+            "o" => Ok(MathNode::Identifier("\u{00F8}".to_string())),
+            "varGamma" | "varDelta" | "varTheta" | "varLambda" | "varXi" | "varPi" | "varSigma"
+            | "varUpsilon" | "varPhi" | "varPsi" | "varOmega" => parse_var_greek_cmd(cmd),
+
+            // 10. 排除特定结构命令（交给外层 parser）
+            "frac" | "sqrt" | "left" | "right" => winnow::combinator::fail.parse_next(input),
+
+            // 11. 查符号表或兜底为未识别的标识符
+            _ => {
+                if let Some(node) = crate::symbols::lookup_symbol(cmd) {
+                    Ok(node)
                 } else {
-                    "\u{2190}"
-                };
-                // 它们本质上是 \mathop{\underrightarrow{\lim}}，所以用 Scripts 结构并在下面垫一个箭头
-                return Ok(MathNode::Scripts {
-                    base: Box::new(MathNode::Function("lim".to_string())),
-                    sub: Some(Box::new(MathNode::Operator(arrow.to_string()))),
-                    sup: None,
-                    pre_sub: None,
-                    pre_sup: None,
-                    behavior: LimitBehavior::Limits, // 强制将箭头放在下方
-                    is_large_op: true,               // 它本身还需要接受后续的 limits！
-                });
+                    Ok(MathNode::Identifier(format!("\\{}", cmd)))
+                }
             }
-
-            // 排除专门的结构命令，让它们去各自的解析器里匹配
-            "frac" | "sqrt" | "left" | "right" => {
-                return winnow::combinator::fail.parse_next(input);
-            }
-            _ => {}
         }
-
-        // 3. 去外部超级大字典里查找 (希腊字母、特殊符号、箭头、大运算符)
-        if let Some(node) = symbols::lookup_symbol(cmd) {
-            return Ok(node);
-        }
-
-        // 如果哪里都不在，原样保留为未识别命令 (Fallback)
-        Ok(MathNode::Identifier(format!("\\{}", cmd)))
     })
     .parse_next(input)
 }
-
-// == 新增：解析 LaTeX Environment (\begin...\end) ==
 /// Parses a LaTeX environment enclosed in `\begin{env}` and `\end{env}` (e.g., `matrix`, `cases`).
+// == 新增：解析 LaTeX Environment (\begin...\end) ==
 pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_environment", |input: &mut &'s str| {
         let begin_tag = preceded((literal("\\begin"), space0, '{'), alpha1).parse_next(input)?;
