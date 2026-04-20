@@ -1290,3 +1290,12 @@ fn test_nested_environments_no_cross_boundary() {
     println!("{}", mathml);
     assert!(mathml.contains("<mtr><mtd><mrow><mo stretchy=\"true\">[</mo><mtable><mtr><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr></mtable><mo stretchy=\"true\">]</mo></mrow></mtd></mtr>"));
 }
+
+#[test]
+fn test_multiline_max_with_bullet() {
+    let mut input = "\\text{max}  \\quad   0.25 L•X \\\\\n    \\text{    s.t.} \\quad   \\mathrm{diag}(X) = e \\\\\n                 \\qquad X \\succeq 0";
+    let result = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&result, RenderMode::Display);
+    let expected = r#"<mtable columnalign="right"><mtr><mtd><mrow><mtext>max</mtext><mspace width="1em"/><mn>0.25</mn><mi>L</mi><mo>•</mo><mi>X</mi></mrow></mtd></mtr><mtr><mtd><mrow><mtext>    s.t.</mtext><mspace width="1em"/><mstyle mathvariant="normal"><mrow><mi>d</mi><mi>i</mi><mi>a</mi><mi>g</mi></mrow></mstyle><mo>(</mo><mi>X</mi><mo>)</mo><mo>=</mo><mi>e</mi></mrow></mtd></mtr><mtr><mtd><mrow><mspace width="2em"/><mi>X</mi><mo>⪰</mo><mn>0</mn></mrow></mtd></mtr></mtable>"#;
+    assert_eq!(mathml, expected);
+}
