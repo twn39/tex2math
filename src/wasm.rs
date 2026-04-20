@@ -21,7 +21,7 @@ pub fn convert_to_mathml(latex_input: &str, display_mode: bool) -> Result<String
             } else {
                 ""
             };
-            
+
             Ok(format!(
                 "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"{}>{}</math>",
                 display_attr, mathml

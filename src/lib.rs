@@ -152,8 +152,10 @@ pub fn parse_ident<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 pub fn parse_operator<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_operator",
-        one_of(['+', '-', '=', '<', '>', '(', ')', '[', ']', '|', ',', '/', '*', '.', ':'])
-            .map(|c: char| MathNode::Operator(c.to_string())),
+        one_of([
+            '+', '-', '=', '<', '>', '(', ')', '[', ']', '|', ',', '/', '*', '.', ':',
+        ])
+        .map(|c: char| MathNode::Operator(c.to_string())),
     )
     .parse_next(input)
 }
@@ -277,12 +279,12 @@ fn parse_fence_delim<'s>(input: &mut &'s str) -> ModalResult<String> {
                     "rbrack" => "]",
                     "vert" | "lvert" | "rvert" => "|",
                     "Vert" | "lVert" | "rVert" => "∥", // ∥
-                    "uparrow" => "\u{2191}",         // ↑
-                    "downarrow" => "\u{2193}",       // ↓
-                    "Uparrow" => "\u{21D1}",         // ⇑
-                    "Downarrow" => "\u{21D3}",       // ⇓
-                    "updownarrow" => "\u{2195}",     // ↕
-                    "Updownarrow" => "\u{21D5}",     // ⇕
+                    "uparrow" => "\u{2191}",           // ↑
+                    "downarrow" => "\u{2193}",         // ↓
+                    "Uparrow" => "\u{21D1}",           // ⇑
+                    "Downarrow" => "\u{21D3}",         // ⇓
+                    "updownarrow" => "\u{2195}",       // ↕
+                    "Updownarrow" => "\u{21D5}",       // ⇕
                     _ => cmd,
                 }
                 .to_string()
@@ -341,9 +343,11 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         // == 新增：颜色与高亮盒子 ==
         if cmd == "sideset" {
-            let left_scripts = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            let right_scripts = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            
+            let left_scripts =
+                delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            let right_scripts =
+                delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+
             fn extract_scripts(node: &MathNode) -> (Option<Box<MathNode>>, Option<Box<MathNode>>) {
                 match node {
                     MathNode::Scripts { sub, sup, .. } => (sub.clone(), sup.clone()),
@@ -398,7 +402,7 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         if cmd == "overset" || cmd == "underset" {
             let modifier = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
             let base = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            
+
             // We use Scripts with limits to force munder/mover
             let (sub, sup) = if cmd == "overset" {
                 (None, Some(Box::new(modifier)))
@@ -434,7 +438,7 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         if cmd == "hphantom" {
             let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
             return Ok(MathNode::Style {
-                variant: "hphantom".to_string(), 
+                variant: "hphantom".to_string(),
                 content: Box::new(content),
             });
         }
@@ -454,7 +458,22 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         }
 
         // == 新增：可拉伸的箭头 (xleftarrow, xrightarrow) ==
-        if cmd == "xleftarrow" || cmd == "xrightarrow" || cmd == "xleftrightarrow" || cmd == "xRightarrow" || cmd == "xLeftarrow" || cmd == "xLeftrightarrow" || cmd == "xrightarrow" || cmd == "xleftarrow" || cmd == "xtwoheadrightarrow" || cmd == "xtwoheadleftarrow" || cmd == "xmapsto" || cmd == "xlongequal" || cmd == "xhookleftarrow" || cmd == "xhookrightarrow" {
+        if [
+            "xleftarrow",
+            "xrightarrow",
+            "xleftrightarrow",
+            "xRightarrow",
+            "xLeftarrow",
+            "xLeftrightarrow",
+            "xtwoheadrightarrow",
+            "xtwoheadleftarrow",
+            "xmapsto",
+            "xlongequal",
+            "xhookleftarrow",
+            "xhookrightarrow",
+        ]
+        .contains(&cmd)
+        {
             let arrow_char = match cmd {
                 "xleftarrow" => "\u{2190}",
                 "xrightarrow" => "\u{2192}",
@@ -470,8 +489,9 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                 "xtwoheadrightarrow" => "\u{21A0}",
                 _ => "\u{2192}",
             };
-            
-            let sub_str_opt = opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')).parse_next(input)?;
+
+            let sub_str_opt = opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']'))
+                .parse_next(input)?;
             let sup = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
 
             let sub = if let Some(mut s) = sub_str_opt {
@@ -483,14 +503,14 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             // Render extensible arrows using munderover. MathML handles stretchy operators internally.
             // But we must wrap the arrow_char in an Operator that is forced to stretch.
             // Wait, standard MathML engines stretch <mo> when it's the base of munderover, IF the dictionary has it.
-            // To guarantee it stretches over the content, we can use the MathNode::StretchOp trick, 
-            // but StretchOp currently puts the stretchy operator over/under the content. 
+            // To guarantee it stretches over the content, we can use the MathNode::StretchOp trick,
+            // but StretchOp currently puts the stretchy operator over/under the content.
             // Here, we have both sub and sup. We should just use Scripts but ensure the base is a stretchy operator.
             // Let's create an identifier that has the HTML/XML for stretchy embedded for now, or just use Operator.
             // Some browsers need the mpadded trick or just explicit stretchy="true" which MathMLRenderer already doesn't add to normal Operator.
             // Let's fix MathMLRenderer to always output <mo stretchy="true"> for this base by injecting raw XML as Text? No.
             // Actually, we can just use Scripts, and if we need to force stretch, we can modify MathMLRenderer.
-            
+
             return Ok(MathNode::Scripts {
                 base: Box::new(MathNode::Operator(arrow_char.to_string())), // MathMLRenderer will be updated to stretch arrows if needed, but native munderover stretches the base Operator automatically in compliant browsers.
                 sub,
@@ -574,7 +594,7 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         if cmd == "operatorname" || cmd == "operatorname*" {
             // operatorname can contain complex expressions, not just plain text!
             let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-            
+
             // If it's operatorname*, it behaves like a large operator with limits
             if cmd == "operatorname*" {
                 return Ok(MathNode::Scripts {
@@ -651,15 +671,23 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             // If it's followed by '{', parse the block.
             // Otherwise, in LaTeX, commands like \rm or \mathrm applied without braces just apply to the NEXT atom or rest of group.
             // We'll support \mathrm{...} standard syntax, and fallback to parsing the next atom if no brace is found.
-            // But wait, the input is {\mathrm d}. So `parse_group` will enter `{`. Then `parse_row` parses `\mathrm`. 
+            // But wait, the input is {\mathrm d}. So `parse_group` will enter `{`. Then `parse_row` parses `\mathrm`.
             // If we greedily take the rest of the group, we can just use `parse_node` or `parse_row`.
             // Wait, if it's \mathrm d, then `d` is not in braces. Let's try to parse a `{...}` block. If not present, parse the next atom.
-            let content = if let Ok(c) = delimited::<_, _, _, _, winnow::error::ContextError, _, _, _>((space0, '{'), parse_row, (space0, '}')).parse_next(input) {
+            let content = if let Ok(c) =
+                delimited::<_, _, _, _, winnow::error::ContextError, _, _, _>(
+                    (space0, '{'),
+                    parse_row,
+                    (space0, '}'),
+                )
+                .parse_next(input)
+            {
                 c
             } else {
                 // If it's like {\mathrm d}, the `\mathrm` is inside a group. It should consume the rest of the row!
                 // Let's consume the rest of the row, similar to \color.
-                let remaining_nodes: Vec<MathNode> = repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
+                let remaining_nodes: Vec<MathNode> =
+                    repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
                 if remaining_nodes.is_empty() {
                     MathNode::Row(vec![])
                 } else if remaining_nodes.len() == 1 {
@@ -740,8 +768,8 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         match cmd {
             "AA" => return Ok(MathNode::Identifier("\u{00C5}".to_string())), // Å
             "aa" => return Ok(MathNode::Identifier("\u{00E5}".to_string())), // å
-            "O" => return Ok(MathNode::Identifier("\u{00D8}".to_string())), // Ø
-            "o" => return Ok(MathNode::Identifier("\u{00F8}".to_string())), // ø
+            "O" => return Ok(MathNode::Identifier("\u{00D8}".to_string())),  // Ø
+            "o" => return Ok(MathNode::Identifier("\u{00F8}".to_string())),  // ø
             _ => {}
         }
 
@@ -780,14 +808,18 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             // == 标准数学函数 (包含 limits 特性的算子) ==
             "sin" | "cos" | "tan" | "csc" | "sec" | "cot" | "arcsin" | "arccos" | "arctan"
             | "sinh" | "cosh" | "tanh" | "exp" | "log" | "ln" | "lg" | "lim" | "limsup"
-            | "liminf" | "max" | "min" | "sup" | "inf" | "det" | "arg" | "dim" | "deg"
-            | "ker" | "hom" | "Pr" | "gcd" | "injlim" | "projlim" => {
+            | "liminf" | "max" | "min" | "sup" | "inf" | "det" | "arg" | "dim" | "deg" | "ker"
+            | "hom" | "Pr" | "gcd" | "injlim" | "projlim" => {
                 return Ok(MathNode::Function(cmd.to_string()))
             }
 
             // == 特殊极限算子 (带下方箭头) ==
             "varinjlim" | "varprojlim" => {
-                let arrow = if cmd == "varinjlim" { "\u{2192}" } else { "\u{2190}" };
+                let arrow = if cmd == "varinjlim" {
+                    "\u{2192}"
+                } else {
+                    "\u{2190}"
+                };
                 // 它们本质上是 \mathop{\underrightarrow{\lim}}，所以用 Scripts 结构并在下面垫一个箭头
                 return Ok(MathNode::Scripts {
                     base: Box::new(MathNode::Function("lim".to_string())),
@@ -796,7 +828,7 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                     pre_sub: None,
                     pre_sup: None,
                     behavior: LimitBehavior::Limits, // 强制将箭头放在下方
-                    is_large_op: true, // 它本身还需要接受后续的 limits！
+                    is_large_op: true,               // 它本身还需要接受后续的 limits！
                 });
             }
 
@@ -1014,16 +1046,28 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             "⨀", "⨁", "⨂", // bigodot, bigoplus, bigotimes
             "⨄", // biguplus
         ];
-        
+
         // 积分符号虽然是大型运算符，但即使在 Display 模式下，它们的默认行为也是 \nolimits (挂在右下/右上)
         const INTEGRAL_SYMBOLS: &[&str] = &[
             "∫", "∬", "∭", "⨌", // 单/双/三/四重积分
             "∮", "∯", "∰", // 曲面积分
         ];
 
-        const LARGE_OP_FUNS: &[&str] =
-            &["lim", "limsup", "liminf", "max", "min", "sup", "inf", "det", "injlim", "projlim", "varinjlim", "varprojlim"];
-        
+        const LARGE_OP_FUNS: &[&str] = &[
+            "lim",
+            "limsup",
+            "liminf",
+            "max",
+            "min",
+            "sup",
+            "inf",
+            "det",
+            "injlim",
+            "projlim",
+            "varinjlim",
+            "varprojlim",
+        ];
+
         let is_large_operator = match &base {
             MathNode::Operator(op) => LARGE_OP_SYMBOLS.contains(&op.as_str()),
             MathNode::Function(f) => LARGE_OP_FUNS.contains(&f.as_str()),
@@ -1035,7 +1079,9 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         // 除非用户显式写了 \limits，则保留 LimitBehavior::Limits。
         let final_behavior = if behavior == LimitBehavior::Default {
             match &base {
-                MathNode::Operator(op) if INTEGRAL_SYMBOLS.contains(&op.as_str()) => LimitBehavior::NoLimits,
+                MathNode::Operator(op) if INTEGRAL_SYMBOLS.contains(&op.as_str()) => {
+                    LimitBehavior::NoLimits
+                }
                 _ => behavior,
             }
         } else {
@@ -1188,13 +1234,17 @@ impl MathRenderer for MathMLRenderer {
             MathNode::Number(n) => format!("<mn>{}</mn>", escape_xml(n)),
             MathNode::Identifier(i) => format!("<mi>{}</mi>", escape_xml(i)),
             MathNode::Operator(o) => {
-                let is_arrow = ["\u{2190}", "\u{2192}", "\u{2194}", "\u{21D2}", "\u{21D0}", "\u{21D4}", "\u{21A6}", "\u{21A9}", "\u{21AA}", "\u{219E}", "\u{21A0}"].contains(&o.as_str());
+                let is_arrow = [
+                    "\u{2190}", "\u{2192}", "\u{2194}", "\u{21D2}", "\u{21D0}", "\u{21D4}",
+                    "\u{21A6}", "\u{21A9}", "\u{21AA}", "\u{219E}", "\u{21A0}",
+                ]
+                .contains(&o.as_str());
                 if is_arrow {
                     format!("<mo stretchy=\"true\">{}</mo>", escape_xml(o))
                 } else {
                     format!("<mo>{}</mo>", escape_xml(o))
                 }
-            },
+            }
             MathNode::Fraction(num, den) => {
                 format!(
                     "<mfrac>{}{}</mfrac>",
@@ -1441,24 +1491,26 @@ impl MathRenderer for MathMLRenderer {
                     _ => f.as_str(),
                 };
                 format!("<mi mathvariant=\"normal\">{}</mi>", escape_xml(func_text))
-            },
+            }
             MathNode::OperatorName(content) => {
-                // Do not use <mi> as a wrapper for complex layouts like <munder>, 
+                // Do not use <mi> as a wrapper for complex layouts like <munder>,
                 // because browsers (like Chrome/Safari) flatten or break layout elements inside token elements (<mi>, <mo>, <mn>).
                 // Instead, use <mstyle mathvariant="normal"> wrapped in an <mrow>.
                 format!(
                     "<mrow><mstyle mathvariant=\"normal\">{}</mstyle></mrow>",
                     self.render(content, mode)
                 )
-            },
+            }
             MathNode::SizedDelimiter { size, delim } => {
                 // LaTeX \big, \Big, \bigg, \Bigg correspond to increasing sizes.
                 // We use minsize and maxsize to force stretching to that exact size.
                 format!(
                     "<mo minsize=\"{}\" maxsize=\"{}\">{}</mo>",
-                    escape_xml(size), escape_xml(size), escape_xml(delim)
+                    escape_xml(size),
+                    escape_xml(size),
+                    escape_xml(delim)
                 )
-            },
+            }
             MathNode::Space(width) => format!("<mspace width=\"{}\"/>", escape_xml(width)),
 
             MathNode::Color { color, content } => {
@@ -1551,4 +1603,3 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
 
 #[cfg(feature = "wasm-bindgen")]
 pub mod wasm;
-

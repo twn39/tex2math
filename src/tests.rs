@@ -405,13 +405,13 @@ fn test_algebra_standard_functions() {
     let mut input = "\\dim p, \\deg q, \\det m, \\ker\\phi";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // Check that all four standard functions are rendered correctly with normal mathvariant
     assert!(mathml.contains("<mi mathvariant=\"normal\">dim</mi>"));
     assert!(mathml.contains("<mi mathvariant=\"normal\">deg</mi>"));
     assert!(mathml.contains("<mi mathvariant=\"normal\">det</mi>"));
     assert!(mathml.contains("<mi mathvariant=\"normal\">ker</mi>"));
-    
+
     // Check for the phi symbol rendering correctly
     assert!(mathml.contains("<mi>ϕ</mi>"));
 }
@@ -421,14 +421,16 @@ fn test_complex_operatorname_with_underset() {
     let mut input = "\\operatorname{\\underset{\\mathit{j\\,\\ne\\,i}}{median}} X_{i,j}";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // operatorname should be wrapped in <mrow><mstyle mathvariant="normal">
     assert!(mathml.contains("<mrow><mstyle mathvariant=\"normal\">"));
-    
+
     // It should contain an <munder> with "median" on top and the mathit block on bottom
-    assert!(mathml.contains("<munder><mrow><mi>m</mi><mi>e</mi><mi>d</mi><mi>i</mi><mi>a</mi><mi>n</mi></mrow>"));
+    assert!(mathml.contains(
+        "<munder><mrow><mi>m</mi><mi>e</mi><mi>d</mi><mi>i</mi><mi>a</mi><mi>n</mi></mrow>"
+    ));
     assert!(mathml.contains("<mstyle mathvariant=\"italic\"><mrow><mi>j</mi><mspace width=\"0.1667em\"/><mo>≠</mo><mspace width=\"0.1667em\"/><mi>i</mi></mrow></mstyle>"));
-    
+
     // The X_{i,j} part should be correctly parsed as a subscript
     assert!(mathml.contains("<msub><mi>X</mi><mrow><mi>i</mi><mo>,</mo><mi>j</mi></mrow></msub>"));
 }
@@ -438,16 +440,20 @@ fn test_category_theory_limits() {
     let mut input = "\\injlim, \\varinjlim, \\projlim, \\varprojlim";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // Check that injlim and projlim render as normal mi functions with space
     assert!(mathml.contains("<mi mathvariant=\"normal\">inj lim</mi>"));
     assert!(mathml.contains("<mi mathvariant=\"normal\">proj lim</mi>"));
-    
+
     // Check that varinjlim renders as lim with an under arrow
-    assert!(mathml.contains("<munder><mi mathvariant=\"normal\">lim</mi><mo stretchy=\"true\">→</mo></munder>"));
-    
+    assert!(mathml.contains(
+        "<munder><mi mathvariant=\"normal\">lim</mi><mo stretchy=\"true\">→</mo></munder>"
+    ));
+
     // Check that varprojlim renders as lim with an under left arrow
-    assert!(mathml.contains("<munder><mi mathvariant=\"normal\">lim</mi><mo stretchy=\"true\">←</mo></munder>"));
+    assert!(mathml.contains(
+        "<munder><mi mathvariant=\"normal\">lim</mi><mo stretchy=\"true\">←</mo></munder>"
+    ));
 }
 
 #[test]
@@ -455,7 +461,7 @@ fn test_accents_with_spaces() {
     let mut input = "\\prime, \\backprime, f^\\prime, f', f'', f^{(3)}, \\dot y, \\ddot y";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // Check that \dot y and \ddot y work correctly with spaces before the atom
     assert!(mathml.contains("<mover accent=\"true\"><mi>y</mi><mo>˙</mo></mover>"));
     assert!(mathml.contains("<mover accent=\"true\"><mi>y</mi><mo>¨</mo></mover>"));
@@ -466,7 +472,7 @@ fn test_special_character_aliases() {
     let mut input = "\\AA, \\aa, \\O, \\o";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // Check that the Angstrom symbols and slashed O symbols are correctly parsed
     assert!(mathml.contains("<mi>Å</mi>"));
     assert!(mathml.contains("<mi>å</mi>"));
@@ -479,7 +485,7 @@ fn test_math_symbol_aliases() {
     let mut input = "\\N, \\R, \\Z, \\C, \\Q, \\H";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // Check that aliases correctly use the double-struck variant style
     assert!(mathml.contains("<mstyle mathvariant=\"double-struck\"><mi>N</mi></mstyle>"));
     assert!(mathml.contains("<mstyle mathvariant=\"double-struck\"><mi>R</mi></mstyle>"));
@@ -491,16 +497,17 @@ fn test_math_symbol_aliases() {
 
 #[test]
 fn test_sized_delimiters() {
-    let mut input = "( \\bigl( \\Bigl( \\biggl( \\Biggl( \\dots \\Biggr] \\biggr] \\Bigr] \\bigr] ]";
+    let mut input =
+        "( \\bigl( \\Bigl( \\biggl( \\Biggl( \\dots \\Biggr] \\biggr] \\Bigr] \\bigr] ]";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // Check that sized delimiters are correctly parsed and have minsize/maxsize attributes
     assert!(mathml.contains("<mo minsize=\"1.2em\" maxsize=\"1.2em\">(</mo>"));
     assert!(mathml.contains("<mo minsize=\"1.8em\" maxsize=\"1.8em\">(</mo>"));
     assert!(mathml.contains("<mo minsize=\"2.4em\" maxsize=\"2.4em\">(</mo>"));
     assert!(mathml.contains("<mo minsize=\"3.0em\" maxsize=\"3.0em\">(</mo>"));
-    
+
     assert!(mathml.contains("<mo minsize=\"3.0em\" maxsize=\"3.0em\">]</mo>"));
     assert!(mathml.contains("<mo minsize=\"2.4em\" maxsize=\"2.4em\">]</mo>"));
     assert!(mathml.contains("<mo minsize=\"1.8em\" maxsize=\"1.8em\">]</mo>"));
@@ -512,7 +519,7 @@ fn test_var_greek_letters() {
     let mut input = "\\varGamma \\varDelta \\varTheta \\varLambda \\varXi \\varPi \\varSigma \\varPhi \\varUpsilon \\varOmega";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // Check that variant Greek letters correctly use the italic variant style
     assert!(mathml.contains("<mstyle mathvariant=\"italic\"><mi>Γ</mi></mstyle>"));
     assert!(mathml.contains("<mstyle mathvariant=\"italic\"><mi>Δ</mi></mstyle>"));
@@ -531,11 +538,11 @@ fn test_vertical_arrow_fences() {
     let mut input = "\\left \\uparrow \\frac{a}{b} \\right \\downarrow \\quad";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    
+
     // Check that the vertical arrows are correctly parsed as stretchy fences
     assert!(mathml.contains("<mo stretchy=\"true\">↑</mo>"));
     assert!(mathml.contains("<mo stretchy=\"true\">↓</mo>"));
-    
+
     // Check that the fraction is inside the mrow
     assert!(mathml.contains("<mfrac><mi>a</mi><mi>b</mi></mfrac>"));
 }
@@ -1129,7 +1136,9 @@ fn test_operatorname_with_subscript() {
     let mut input = "\\operatorname{tr}(A)";
     let ast = parse_row.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    assert!(mathml.contains("<mrow><mstyle mathvariant=\"normal\"><mrow><mi>t</mi><mi>r</mi></mrow></mstyle></mrow>"));
+    assert!(mathml.contains(
+        "<mrow><mstyle mathvariant=\"normal\"><mrow><mi>t</mi><mi>r</mi></mrow></mstyle></mrow>"
+    ));
 }
 
 // --- Fix 11: \mathrm 作为 Style 而非 Text ---
