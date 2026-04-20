@@ -3,1021 +3,1040 @@ use crate::MathNode;
 /// Looks up a LaTeX command name and maps it to a specific `MathNode` (Identifier or Operator).
 ///
 /// Contains over 400 common Greek letters, arrows, and mathematical symbols defined by KaTeX.
-pub fn lookup_symbol(cmd: &str) -> Option<MathNode> {
-    match cmd {
-        "equiv" => Some(MathNode::Operator("≡".to_string())),
-        "prec" => Some(MathNode::Operator("≺".to_string())),
-        "succ" => Some(MathNode::Operator("≻".to_string())),
-        "sim" => Some(MathNode::Operator("∼".to_string())),
-        "perp" => Some(MathNode::Operator("⊥".to_string())),
-        "preceq" => Some(MathNode::Operator("⪯".to_string())),
-        "succeq" => Some(MathNode::Operator("⪰".to_string())),
-        "simeq" => Some(MathNode::Operator("≃".to_string())),
-        "mid" => Some(MathNode::Operator("∣".to_string())),
-        "ll" => Some(MathNode::Operator("≪".to_string())),
-        "gg" => Some(MathNode::Operator("≫".to_string())),
-        "asymp" => Some(MathNode::Operator("≍".to_string())),
-        "parallel" => Some(MathNode::Operator("∥".to_string())),
-        "bowtie" => Some(MathNode::Operator("⋈".to_string())),
-        "smile" => Some(MathNode::Operator("⌣".to_string())),
-        "sqsubseteq" => Some(MathNode::Operator("⊑".to_string())),
-        "sqsupseteq" => Some(MathNode::Operator("⊒".to_string())),
-        "doteq" => Some(MathNode::Operator("≐".to_string())),
-        "frown" => Some(MathNode::Operator("⌢".to_string())),
-        "ni" => Some(MathNode::Operator("∋".to_string())),
-        "propto" => Some(MathNode::Operator("∝".to_string())),
-        "vdash" => Some(MathNode::Operator("⊢".to_string())),
-        "dashv" => Some(MathNode::Operator("⊣".to_string())),
-        "owns" => Some(MathNode::Operator("∋".to_string())),
-        "ldotp" => Some(MathNode::Operator(".".to_string())),
-        "cdotp" => Some(MathNode::Operator("⋅".to_string())),
-        "aleph" => Some(MathNode::Identifier("ℵ".to_string())),
-        "forall" => Some(MathNode::Identifier("∀".to_string())),
-        "hbar" => Some(MathNode::Identifier("ℏ".to_string())),
-        "exists" => Some(MathNode::Identifier("∃".to_string())),
-        "nabla" => Some(MathNode::Identifier("∇".to_string())),
-        "flat" => Some(MathNode::Identifier("♭".to_string())),
-        "ell" => Some(MathNode::Identifier("ℓ".to_string())),
-        "natural" => Some(MathNode::Identifier("♮".to_string())),
-        "clubsuit" => Some(MathNode::Identifier("♣".to_string())),
-        "wp" => Some(MathNode::Identifier("℘".to_string())),
-        "sharp" => Some(MathNode::Identifier("♯".to_string())),
-        "diamondsuit" => Some(MathNode::Identifier("♢".to_string())),
-        "Re" => Some(MathNode::Identifier("ℜ".to_string())),
-        "heartsuit" => Some(MathNode::Identifier("♡".to_string())),
-        "Im" => Some(MathNode::Identifier("ℑ".to_string())),
-        "spadesuit" => Some(MathNode::Identifier("♠".to_string())),
-        "S" => Some(MathNode::Identifier("§".to_string())),
-        "P" => Some(MathNode::Identifier("¶".to_string())),
-        "dag" => Some(MathNode::Identifier("†".to_string())),
-        "ddag" => Some(MathNode::Identifier("‡".to_string())),
-        "rmoustache" => Some(MathNode::Operator("⎱".to_string())),
-        "lmoustache" => Some(MathNode::Operator("⎰".to_string())),
-        "rgroup" => Some(MathNode::Operator("⟯".to_string())),
-        "lgroup" => Some(MathNode::Operator("⟮".to_string())),
-        "mp" => Some(MathNode::Operator("∓".to_string())),
-        "ominus" => Some(MathNode::Operator("⊖".to_string())),
-        "uplus" => Some(MathNode::Operator("⊎".to_string())),
-        "sqcap" => Some(MathNode::Operator("⊓".to_string())),
-        "ast" => Some(MathNode::Operator("∗".to_string())),
-        "sqcup" => Some(MathNode::Operator("⊔".to_string())),
-        "bigcirc" => Some(MathNode::Operator("◯".to_string())),
-        "bullet" => Some(MathNode::Operator("∙".to_string())),
-        "ddagger" => Some(MathNode::Operator("‡".to_string())),
-        "wr" => Some(MathNode::Operator("≀".to_string())),
-        "amalg" => Some(MathNode::Operator("⨿".to_string())),
-        "And" => Some(MathNode::Operator("&".to_string())),
-        "longleftarrow" => Some(MathNode::Operator("⟵".to_string())),
-        "Leftarrow" => Some(MathNode::Operator("⇐".to_string())),
-        "Longleftarrow" => Some(MathNode::Operator("⟸".to_string())),
-        "longrightarrow" => Some(MathNode::Operator("⟶".to_string())),
-        "Rightarrow" => Some(MathNode::Operator("⇒".to_string())),
-        "Longrightarrow" => Some(MathNode::Operator("⟹".to_string())),
-        "leftrightarrow" => Some(MathNode::Operator("↔".to_string())),
-        "longleftrightarrow" => Some(MathNode::Operator("⟷".to_string())),
-        "Leftrightarrow" => Some(MathNode::Operator("⇔".to_string())),
-        "Longleftrightarrow" => Some(MathNode::Operator("⟺".to_string())),
-        "mapsto" => Some(MathNode::Operator("↦".to_string())),
-        "longmapsto" => Some(MathNode::Operator("⟼".to_string())),
-        "nearrow" => Some(MathNode::Operator("↗".to_string())),
-        "hookleftarrow" => Some(MathNode::Operator("↩".to_string())),
-        "hookrightarrow" => Some(MathNode::Operator("↪".to_string())),
-        "searrow" => Some(MathNode::Operator("↘".to_string())),
-        "leftharpoonup" => Some(MathNode::Operator("↼".to_string())),
-        "rightharpoonup" => Some(MathNode::Operator("⇀".to_string())),
-        "swarrow" => Some(MathNode::Operator("↙".to_string())),
-        "leftharpoondown" => Some(MathNode::Operator("↽".to_string())),
-        "rightharpoondown" => Some(MathNode::Operator("⇁".to_string())),
-        "nwarrow" => Some(MathNode::Operator("↖".to_string())),
-        "rightleftharpoons" => Some(MathNode::Operator("⇌".to_string())),
-        "nless" => Some(MathNode::Operator("≮".to_string())),
-        "lneq" => Some(MathNode::Operator("⪇".to_string())),
-        "lneqq" => Some(MathNode::Operator("≨".to_string())),
-        "lnsim" => Some(MathNode::Operator("⋦".to_string())),
-        "lnapprox" => Some(MathNode::Operator("⪉".to_string())),
-        "nprec" => Some(MathNode::Operator("⊀".to_string())),
-        "npreceq" => Some(MathNode::Operator("⋠".to_string())),
-        "precnsim" => Some(MathNode::Operator("⋨".to_string())),
-        "precnapprox" => Some(MathNode::Operator("⪹".to_string())),
-        "nsim" => Some(MathNode::Operator("≁".to_string())),
-        "nmid" => Some(MathNode::Operator("∤".to_string())),
-        "nvdash" => Some(MathNode::Operator("⊬".to_string())),
-        "nvDash" => Some(MathNode::Operator("⊭".to_string())),
-        "ntriangleleft" => Some(MathNode::Operator("⋪".to_string())),
-        "ntrianglelefteq" => Some(MathNode::Operator("⋬".to_string())),
-        "subsetneq" => Some(MathNode::Operator("⊊".to_string())),
-        "subsetneqq" => Some(MathNode::Operator("⫋".to_string())),
-        "ngtr" => Some(MathNode::Operator("≯".to_string())),
-        "gneq" => Some(MathNode::Operator("⪈".to_string())),
-        "gneqq" => Some(MathNode::Operator("≩".to_string())),
-        "gnsim" => Some(MathNode::Operator("⋧".to_string())),
-        "gnapprox" => Some(MathNode::Operator("⪊".to_string())),
-        "nsucc" => Some(MathNode::Operator("⊁".to_string())),
-        "nsucceq" => Some(MathNode::Operator("⋡".to_string())),
-        "succnsim" => Some(MathNode::Operator("⋩".to_string())),
-        "succnapprox" => Some(MathNode::Operator("⪺".to_string())),
-        "ncong" => Some(MathNode::Operator("≆".to_string())),
-        "nparallel" => Some(MathNode::Operator("∦".to_string())),
-        "nVDash" => Some(MathNode::Operator("⊯".to_string())),
-        "ntriangleright" => Some(MathNode::Operator("⋫".to_string())),
-        "ntrianglerighteq" => Some(MathNode::Operator("⋭".to_string())),
-        "supsetneq" => Some(MathNode::Operator("⊋".to_string())),
-        "supsetneqq" => Some(MathNode::Operator("⫌".to_string())),
-        "nVdash" => Some(MathNode::Operator("⊮".to_string())),
-        "precneqq" => Some(MathNode::Operator("⪵".to_string())),
-        "succneqq" => Some(MathNode::Operator("⪶".to_string())),
-        "unlhd" => Some(MathNode::Operator("⊴".to_string())),
-        "unrhd" => Some(MathNode::Operator("⊵".to_string())),
-        "nleftarrow" => Some(MathNode::Operator("↚".to_string())),
-        "nrightarrow" => Some(MathNode::Operator("↛".to_string())),
-        "nLeftarrow" => Some(MathNode::Operator("⇍".to_string())),
-        "nRightarrow" => Some(MathNode::Operator("⇏".to_string())),
-        "nleftrightarrow" => Some(MathNode::Operator("↮".to_string())),
-        "nLeftrightarrow" => Some(MathNode::Operator("⇎".to_string())),
-        "vartriangle" => Some(MathNode::Operator("△".to_string())),
-        "hslash" => Some(MathNode::Identifier("ℏ".to_string())),
-        "triangledown" => Some(MathNode::Identifier("▽".to_string())),
-        "lozenge" => Some(MathNode::Identifier("◊".to_string())),
-        "circledS" => Some(MathNode::Identifier("Ⓢ".to_string())),
-        "circledR" => Some(MathNode::Identifier("®".to_string())),
-        "measuredangle" => Some(MathNode::Identifier("∡".to_string())),
-        "nexists" => Some(MathNode::Identifier("∄".to_string())),
-        "mho" => Some(MathNode::Identifier("℧".to_string())),
-        "Finv" => Some(MathNode::Identifier("Ⅎ".to_string())),
-        "Game" => Some(MathNode::Identifier("⅁".to_string())),
-        "backprime" => Some(MathNode::Identifier("‵".to_string())),
-        "blacktriangle" => Some(MathNode::Identifier("▲".to_string())),
-        "blacktriangledown" => Some(MathNode::Identifier("▼".to_string())),
-        "blacksquare" => Some(MathNode::Identifier("■".to_string())),
-        "blacklozenge" => Some(MathNode::Identifier("⧫".to_string())),
-        "bigstar" => Some(MathNode::Identifier("★".to_string())),
-        "sphericalangle" => Some(MathNode::Identifier("∢".to_string())),
-        "complement" => Some(MathNode::Identifier("∁".to_string())),
-        "eth" => Some(MathNode::Identifier("ð".to_string())),
-        "diagup" => Some(MathNode::Identifier("╱".to_string())),
-        "diagdown" => Some(MathNode::Identifier("╲".to_string())),
-        "square" => Some(MathNode::Identifier("□".to_string())),
-        "Box" => Some(MathNode::Identifier("□".to_string())),
-        "Diamond" => Some(MathNode::Identifier("◊".to_string())),
-        "yen" => Some(MathNode::Identifier("¥".to_string())),
-        "checkmark" => Some(MathNode::Identifier("✓".to_string())),
-        "beth" => Some(MathNode::Identifier("ℶ".to_string())),
-        "daleth" => Some(MathNode::Identifier("ℸ".to_string())),
-        "gimel" => Some(MathNode::Identifier("ℷ".to_string())),
-        "digamma" => Some(MathNode::Identifier("ϝ".to_string())),
-        "varkappa" => Some(MathNode::Identifier("ϰ".to_string())),
-        "leqq" => Some(MathNode::Operator("≦".to_string())),
-        "leqslant" => Some(MathNode::Operator("⩽".to_string())),
-        "eqslantless" => Some(MathNode::Operator("⪕".to_string())),
-        "lesssim" => Some(MathNode::Operator("≲".to_string())),
-        "lessapprox" => Some(MathNode::Operator("⪅".to_string())),
-        "approxeq" => Some(MathNode::Operator("≊".to_string())),
-        "lessdot" => Some(MathNode::Operator("⋖".to_string())),
-        "lll" => Some(MathNode::Operator("⋘".to_string())),
-        "lessgtr" => Some(MathNode::Operator("≶".to_string())),
-        "lesseqgtr" => Some(MathNode::Operator("⋚".to_string())),
-        "lesseqqgtr" => Some(MathNode::Operator("⪋".to_string())),
-        "doteqdot" => Some(MathNode::Operator("≑".to_string())),
-        "risingdotseq" => Some(MathNode::Operator("≓".to_string())),
-        "fallingdotseq" => Some(MathNode::Operator("≒".to_string())),
-        "backsim" => Some(MathNode::Operator("∽".to_string())),
-        "backsimeq" => Some(MathNode::Operator("⋍".to_string())),
-        "subseteqq" => Some(MathNode::Operator("⫅".to_string())),
-        "Subset" => Some(MathNode::Operator("⋐".to_string())),
-        "sqsubset" => Some(MathNode::Operator("⊏".to_string())),
-        "preccurlyeq" => Some(MathNode::Operator("≼".to_string())),
-        "curlyeqprec" => Some(MathNode::Operator("⋞".to_string())),
-        "precsim" => Some(MathNode::Operator("≾".to_string())),
-        "precapprox" => Some(MathNode::Operator("⪷".to_string())),
-        "vartriangleleft" => Some(MathNode::Operator("⊲".to_string())),
-        "trianglelefteq" => Some(MathNode::Operator("⊴".to_string())),
-        "vDash" => Some(MathNode::Operator("⊨".to_string())),
-        "Vvdash" => Some(MathNode::Operator("⊪".to_string())),
-        "smallsmile" => Some(MathNode::Operator("⌣".to_string())),
-        "smallfrown" => Some(MathNode::Operator("⌢".to_string())),
-        "bumpeq" => Some(MathNode::Operator("≏".to_string())),
-        "Bumpeq" => Some(MathNode::Operator("≎".to_string())),
-        "geqq" => Some(MathNode::Operator("≧".to_string())),
-        "geqslant" => Some(MathNode::Operator("⩾".to_string())),
-        "eqslantgtr" => Some(MathNode::Operator("⪖".to_string())),
-        "gtrsim" => Some(MathNode::Operator("≳".to_string())),
-        "gtrapprox" => Some(MathNode::Operator("⪆".to_string())),
-        "gtrdot" => Some(MathNode::Operator("⋗".to_string())),
-        "ggg" => Some(MathNode::Operator("⋙".to_string())),
-        "gtrless" => Some(MathNode::Operator("≷".to_string())),
-        "gtreqless" => Some(MathNode::Operator("⋛".to_string())),
-        "gtreqqless" => Some(MathNode::Operator("⪌".to_string())),
-        "eqcirc" => Some(MathNode::Operator("≖".to_string())),
-        "circeq" => Some(MathNode::Operator("≗".to_string())),
-        "triangleq" => Some(MathNode::Operator("≜".to_string())),
-        "thicksim" => Some(MathNode::Operator("∼".to_string())),
-        "thickapprox" => Some(MathNode::Operator("≈".to_string())),
-        "supseteqq" => Some(MathNode::Operator("⫆".to_string())),
-        "Supset" => Some(MathNode::Operator("⋑".to_string())),
-        "sqsupset" => Some(MathNode::Operator("⊐".to_string())),
-        "succcurlyeq" => Some(MathNode::Operator("≽".to_string())),
-        "curlyeqsucc" => Some(MathNode::Operator("⋟".to_string())),
-        "succsim" => Some(MathNode::Operator("≿".to_string())),
-        "succapprox" => Some(MathNode::Operator("⪸".to_string())),
-        "vartriangleright" => Some(MathNode::Operator("⊳".to_string())),
-        "trianglerighteq" => Some(MathNode::Operator("⊵".to_string())),
-        "Vdash" => Some(MathNode::Operator("⊩".to_string())),
-        "shortmid" => Some(MathNode::Operator("∣".to_string())),
-        "shortparallel" => Some(MathNode::Operator("∥".to_string())),
-        "between" => Some(MathNode::Operator("≬".to_string())),
-        "pitchfork" => Some(MathNode::Operator("⋔".to_string())),
-        "varpropto" => Some(MathNode::Operator("∝".to_string())),
-        "blacktriangleleft" => Some(MathNode::Operator("◀".to_string())),
-        "therefore" => Some(MathNode::Operator("∴".to_string())),
-        "backepsilon" => Some(MathNode::Operator("∍".to_string())),
-        "blacktriangleright" => Some(MathNode::Operator("▶".to_string())),
-        "because" => Some(MathNode::Operator("∵".to_string())),
-        "llless" => Some(MathNode::Operator("⋘".to_string())),
-        "gggtr" => Some(MathNode::Operator("⋙".to_string())),
-        "lhd" => Some(MathNode::Operator("⊲".to_string())),
-        "rhd" => Some(MathNode::Operator("⊳".to_string())),
-        "eqsim" => Some(MathNode::Operator("≂".to_string())),
-        "Join" => Some(MathNode::Operator("⋈".to_string())),
-        "Doteq" => Some(MathNode::Operator("≑".to_string())),
-        "dotplus" => Some(MathNode::Operator("∔".to_string())),
-        "smallsetminus" => Some(MathNode::Operator("∖".to_string())),
-        "Cap" => Some(MathNode::Operator("⋒".to_string())),
-        "Cup" => Some(MathNode::Operator("⋓".to_string())),
-        "doublebarwedge" => Some(MathNode::Operator("⩞".to_string())),
-        "boxminus" => Some(MathNode::Operator("⊟".to_string())),
-        "boxplus" => Some(MathNode::Operator("⊞".to_string())),
-        "divideontimes" => Some(MathNode::Operator("⋇".to_string())),
-        "ltimes" => Some(MathNode::Operator("⋉".to_string())),
-        "rtimes" => Some(MathNode::Operator("⋊".to_string())),
-        "leftthreetimes" => Some(MathNode::Operator("⋋".to_string())),
-        "rightthreetimes" => Some(MathNode::Operator("⋌".to_string())),
-        "curlywedge" => Some(MathNode::Operator("⋏".to_string())),
-        "curlyvee" => Some(MathNode::Operator("⋎".to_string())),
-        "circleddash" => Some(MathNode::Operator("⊝".to_string())),
-        "circledast" => Some(MathNode::Operator("⊛".to_string())),
-        "centerdot" => Some(MathNode::Operator("⋅".to_string())),
-        "intercal" => Some(MathNode::Operator("⊺".to_string())),
-        "doublecap" => Some(MathNode::Operator("⋒".to_string())),
-        "doublecup" => Some(MathNode::Operator("⋓".to_string())),
-        "boxtimes" => Some(MathNode::Operator("⊠".to_string())),
-        "dashrightarrow" => Some(MathNode::Operator("⇢".to_string())),
-        "dashleftarrow" => Some(MathNode::Operator("⇠".to_string())),
-        "leftleftarrows" => Some(MathNode::Operator("⇇".to_string())),
-        "leftrightarrows" => Some(MathNode::Operator("⇆".to_string())),
-        "Lleftarrow" => Some(MathNode::Operator("⇚".to_string())),
-        "twoheadleftarrow" => Some(MathNode::Operator("↞".to_string())),
-        "leftarrowtail" => Some(MathNode::Operator("↢".to_string())),
-        "looparrowleft" => Some(MathNode::Operator("↫".to_string())),
-        "leftrightharpoons" => Some(MathNode::Operator("⇋".to_string())),
-        "curvearrowleft" => Some(MathNode::Operator("↶".to_string())),
-        "circlearrowleft" => Some(MathNode::Operator("↺".to_string())),
-        "Lsh" => Some(MathNode::Operator("↰".to_string())),
-        "upuparrows" => Some(MathNode::Operator("⇈".to_string())),
-        "upharpoonleft" => Some(MathNode::Operator("↿".to_string())),
-        "downharpoonleft" => Some(MathNode::Operator("⇃".to_string())),
-        "origof" => Some(MathNode::Operator("⊶".to_string())),
-        "imageof" => Some(MathNode::Operator("⊷".to_string())),
-        "multimap" => Some(MathNode::Operator("⊸".to_string())),
-        "leftrightsquigarrow" => Some(MathNode::Operator("↭".to_string())),
-        "rightrightarrows" => Some(MathNode::Operator("⇉".to_string())),
-        "rightleftarrows" => Some(MathNode::Operator("⇄".to_string())),
-        "twoheadrightarrow" => Some(MathNode::Operator("↠".to_string())),
-        "rightarrowtail" => Some(MathNode::Operator("↣".to_string())),
-        "looparrowright" => Some(MathNode::Operator("↬".to_string())),
-        "curvearrowright" => Some(MathNode::Operator("↷".to_string())),
-        "circlearrowright" => Some(MathNode::Operator("↻".to_string())),
-        "Rsh" => Some(MathNode::Operator("↱".to_string())),
-        "downdownarrows" => Some(MathNode::Operator("⇊".to_string())),
-        "upharpoonright" => Some(MathNode::Operator("↾".to_string())),
-        "downharpoonright" => Some(MathNode::Operator("⇂".to_string())),
-        "rightsquigarrow" => Some(MathNode::Operator("⇝".to_string())),
-        "leadsto" => Some(MathNode::Operator("⇝".to_string())),
-        "Rrightarrow" => Some(MathNode::Operator("⇛".to_string())),
-        "restriction" => Some(MathNode::Operator("↾".to_string())),
-        "angle" => Some(MathNode::Identifier("∠".to_string())),
-        "infty" => Some(MathNode::Identifier("∞".to_string())),
-        "prime" => Some(MathNode::Identifier("′".to_string())),
-        "triangle" => Some(MathNode::Identifier("△".to_string())),
-        "Alpha" => Some(MathNode::Identifier("Α".to_string())),
-        "Beta" => Some(MathNode::Identifier("Β".to_string())),
-        "Gamma" => Some(MathNode::Identifier("Γ".to_string())),
-        "Delta" => Some(MathNode::Identifier("Δ".to_string())),
-        "Epsilon" => Some(MathNode::Identifier("Ε".to_string())),
-        "Zeta" => Some(MathNode::Identifier("Ζ".to_string())),
-        "Eta" => Some(MathNode::Identifier("Η".to_string())),
-        "Theta" => Some(MathNode::Identifier("Θ".to_string())),
-        "Iota" => Some(MathNode::Identifier("Ι".to_string())),
-        "Kappa" => Some(MathNode::Identifier("Κ".to_string())),
-        "Lambda" => Some(MathNode::Identifier("Λ".to_string())),
-        "Mu" => Some(MathNode::Identifier("Μ".to_string())),
-        "Nu" => Some(MathNode::Identifier("Ν".to_string())),
-        "Xi" => Some(MathNode::Identifier("Ξ".to_string())),
-        "Omicron" => Some(MathNode::Identifier("Ο".to_string())),
-        "Pi" => Some(MathNode::Identifier("Π".to_string())),
-        "Rho" => Some(MathNode::Identifier("Ρ".to_string())),
-        "Sigma" => Some(MathNode::Identifier("Σ".to_string())),
-        "Tau" => Some(MathNode::Identifier("Τ".to_string())),
-        "Upsilon" => Some(MathNode::Identifier("Υ".to_string())),
-        "Phi" => Some(MathNode::Identifier("Φ".to_string())),
-        "Chi" => Some(MathNode::Identifier("Χ".to_string())),
-        "Psi" => Some(MathNode::Identifier("Ψ".to_string())),
-        "Omega" => Some(MathNode::Identifier("Ω".to_string())),
-        "neg" => Some(MathNode::Identifier("¬".to_string())),
-        "lnot" => Some(MathNode::Identifier("¬".to_string())),
-        "top" => Some(MathNode::Identifier("⊤".to_string())),
-        "bot" => Some(MathNode::Identifier("⊥".to_string())),
-        "emptyset" => Some(MathNode::Identifier("∅".to_string())),
-        "varnothing" => Some(MathNode::Identifier("∅".to_string())),
-        "alpha" => Some(MathNode::Identifier("α".to_string())),
-        "beta" => Some(MathNode::Identifier("β".to_string())),
-        "gamma" => Some(MathNode::Identifier("γ".to_string())),
-        "delta" => Some(MathNode::Identifier("δ".to_string())),
-        "epsilon" => Some(MathNode::Identifier("ϵ".to_string())),
-        "zeta" => Some(MathNode::Identifier("ζ".to_string())),
-        "eta" => Some(MathNode::Identifier("η".to_string())),
-        "theta" => Some(MathNode::Identifier("θ".to_string())),
-        "iota" => Some(MathNode::Identifier("ι".to_string())),
-        "kappa" => Some(MathNode::Identifier("κ".to_string())),
-        "lambda" => Some(MathNode::Identifier("λ".to_string())),
-        "mu" => Some(MathNode::Identifier("μ".to_string())),
-        "nu" => Some(MathNode::Identifier("ν".to_string())),
-        "xi" => Some(MathNode::Identifier("ξ".to_string())),
-        "omicron" => Some(MathNode::Identifier("ο".to_string())),
-        "pi" => Some(MathNode::Identifier("π".to_string())),
-        "rho" => Some(MathNode::Identifier("ρ".to_string())),
-        "sigma" => Some(MathNode::Identifier("σ".to_string())),
-        "tau" => Some(MathNode::Identifier("τ".to_string())),
-        "upsilon" => Some(MathNode::Identifier("υ".to_string())),
-        "phi" => Some(MathNode::Identifier("ϕ".to_string())),
-        "chi" => Some(MathNode::Identifier("χ".to_string())),
-        "psi" => Some(MathNode::Identifier("ψ".to_string())),
-        "omega" => Some(MathNode::Identifier("ω".to_string())),
-        "varepsilon" => Some(MathNode::Identifier("ε".to_string())),
-        "vartheta" => Some(MathNode::Identifier("ϑ".to_string())),
-        "varpi" => Some(MathNode::Identifier("ϖ".to_string())),
-        "varrho" => Some(MathNode::Identifier("ϱ".to_string())),
-        "varsigma" => Some(MathNode::Identifier("ς".to_string())),
-        "varphi" => Some(MathNode::Identifier("φ".to_string())),
-        "cdot" => Some(MathNode::Operator("⋅".to_string())),
-        "circ" => Some(MathNode::Operator("∘".to_string())),
-        "div" => Some(MathNode::Operator("÷".to_string())),
-        "pm" => Some(MathNode::Operator("±".to_string())),
-        "times" => Some(MathNode::Operator("×".to_string())),
-        "cap" => Some(MathNode::Operator("∩".to_string())),
-        "cup" => Some(MathNode::Operator("∪".to_string())),
-        "setminus" => Some(MathNode::Operator("∖".to_string())),
-        "land" => Some(MathNode::Operator("∧".to_string())),
-        "lor" => Some(MathNode::Operator("∨".to_string())),
-        "wedge" => Some(MathNode::Operator("∧".to_string())),
-        "vee" => Some(MathNode::Operator("∨".to_string())),
-        "surd" => Some(MathNode::Identifier("√".to_string())),
-        "langle" => Some(MathNode::Operator("⟨".to_string())),
-        "lvert" => Some(MathNode::Operator("∣".to_string())),
-        "lVert" => Some(MathNode::Operator("∥".to_string())),
-        "rangle" => Some(MathNode::Operator("⟩".to_string())),
-        "rvert" => Some(MathNode::Operator("∣".to_string())),
-        "rVert" => Some(MathNode::Operator("∥".to_string())),
-        "approx" => Some(MathNode::Operator("≈".to_string())),
-        "cong" => Some(MathNode::Operator("≅".to_string())),
-        "ge" => Some(MathNode::Operator("≥".to_string())),
-        "geq" => Some(MathNode::Operator("≥".to_string())),
-        "gets" => Some(MathNode::Operator("←".to_string())),
-        "gt" => Some(MathNode::Operator(">".to_string())),
-        "in" => Some(MathNode::Operator("∈".to_string())),
-        "subset" => Some(MathNode::Operator("⊂".to_string())),
-        "supset" => Some(MathNode::Operator("⊃".to_string())),
-        "subseteq" => Some(MathNode::Operator("⊆".to_string())),
-        "supseteq" => Some(MathNode::Operator("⊇".to_string())),
-        "nsubseteq" => Some(MathNode::Operator("⊈".to_string())),
-        "nsupseteq" => Some(MathNode::Operator("⊉".to_string())),
-        "models" => Some(MathNode::Operator("⊨".to_string())),
-        "leftarrow" => Some(MathNode::Operator("←".to_string())),
-        "le" => Some(MathNode::Operator("≤".to_string())),
-        "leq" => Some(MathNode::Operator("≤".to_string())),
-        "lt" => Some(MathNode::Operator("<".to_string())),
-        "rightarrow" => Some(MathNode::Operator("→".to_string())),
-        "to" => Some(MathNode::Operator("→".to_string())),
-        "ngeq" => Some(MathNode::Operator("≱".to_string())),
-        "nleq" => Some(MathNode::Operator("≰".to_string())),
-        "space" => Some(MathNode::Operator(" ".to_string())),
-        "nobreakspace" => Some(MathNode::Operator(" ".to_string())),
-        "barwedge" => Some(MathNode::Operator("⊼".to_string())),
-        "veebar" => Some(MathNode::Operator("⊻".to_string())),
-        "odot" => Some(MathNode::Operator("⊙".to_string())),
-        "oplus" => Some(MathNode::Operator("⊕".to_string())),
-        "otimes" => Some(MathNode::Operator("⊗".to_string())),
-        "partial" => Some(MathNode::Identifier("∂".to_string())),
-        "oslash" => Some(MathNode::Operator("⊘".to_string())),
-        "circledcirc" => Some(MathNode::Operator("⊚".to_string())),
-        "boxdot" => Some(MathNode::Operator("⊡".to_string())),
-        "bigtriangleup" => Some(MathNode::Operator("△".to_string())),
-        "bigtriangledown" => Some(MathNode::Operator("▽".to_string())),
-        "dagger" => Some(MathNode::Operator("†".to_string())),
-        "diamond" => Some(MathNode::Operator("⋄".to_string())),
-        "star" => Some(MathNode::Operator("⋆".to_string())),
-        "triangleleft" => Some(MathNode::Operator("◃".to_string())),
-        "triangleright" => Some(MathNode::Operator("▹".to_string())),
-        "lbrace" => Some(MathNode::Operator("{".to_string())),
-        "rbrace" => Some(MathNode::Operator("}".to_string())),
-        "lbrack" => Some(MathNode::Operator("[".to_string())),
-        "rbrack" => Some(MathNode::Operator("]".to_string())),
-        "lparen" => Some(MathNode::Operator("(".to_string())),
-        "rparen" => Some(MathNode::Operator(")".to_string())),
-        "lfloor" => Some(MathNode::Operator("⌊".to_string())),
-        "rfloor" => Some(MathNode::Operator("⌋".to_string())),
-        "lceil" => Some(MathNode::Operator("⌈".to_string())),
-        "rceil" => Some(MathNode::Operator("⌉".to_string())),
-        "backslash" => Some(MathNode::Identifier("\\".to_string())),
-        "vert" => Some(MathNode::Identifier("∣".to_string())),
-        "Vert" => Some(MathNode::Identifier("∥".to_string())),
-        "uparrow" => Some(MathNode::Operator("↑".to_string())),
-        "Uparrow" => Some(MathNode::Operator("⇑".to_string())),
-        "downarrow" => Some(MathNode::Operator("↓".to_string())),
-        "Downarrow" => Some(MathNode::Operator("⇓".to_string())),
-        "updownarrow" => Some(MathNode::Operator("↕".to_string())),
-        "Updownarrow" => Some(MathNode::Operator("⇕".to_string())),
-        "coprod" => Some(MathNode::Operator("∐".to_string())),
-        "bigvee" => Some(MathNode::Operator("⋁".to_string())),
-        "bigwedge" => Some(MathNode::Operator("⋀".to_string())),
-        "biguplus" => Some(MathNode::Operator("⨄".to_string())),
-        "bigcap" => Some(MathNode::Operator("⋂".to_string())),
-        "bigcup" => Some(MathNode::Operator("⋃".to_string())),
-        "int" => Some(MathNode::Operator("∫".to_string())),
-        "intop" => Some(MathNode::Operator("∫".to_string())),
-        "iint" => Some(MathNode::Operator("∬".to_string())),
-        "iiint" => Some(MathNode::Operator("∭".to_string())),
-        "prod" => Some(MathNode::Operator("∏".to_string())),
-        "sum" => Some(MathNode::Operator("∑".to_string())),
-        "bigotimes" => Some(MathNode::Operator("⨂".to_string())),
-        "bigoplus" => Some(MathNode::Operator("⨁".to_string())),
-        "bigodot" => Some(MathNode::Operator("⨀".to_string())),
-        "oint" => Some(MathNode::Operator("∮".to_string())),
-        "oiint" => Some(MathNode::Operator("∯".to_string())),
-        "oiiint" => Some(MathNode::Operator("∰".to_string())),
-        "bigsqcup" => Some(MathNode::Operator("⨆".to_string())),
-        "smallint" => Some(MathNode::Operator("∫".to_string())),
-        "mathellipsis" => Some(MathNode::Operator("…".to_string())),
-        "ldots" => Some(MathNode::Operator("…".to_string())),
-        "ddots" => Some(MathNode::Operator("⋱".to_string())),
-        "varvdots" => Some(MathNode::Identifier("⋮".to_string())),
-        "acute" => Some(MathNode::Operator("ˊ".to_string())),
-        "grave" => Some(MathNode::Operator("ˋ".to_string())),
-        "breve" => Some(MathNode::Operator("˘".to_string())),
-        "check" => Some(MathNode::Operator("ˇ".to_string())),
-        "mathring" => Some(MathNode::Operator("˚".to_string())),
-        "degree" => Some(MathNode::Identifier("°".to_string())),
-        "pounds" => Some(MathNode::Identifier("£".to_string())),
-        "mathsterling" => Some(MathNode::Identifier("£".to_string())),
-        "maltese" => Some(MathNode::Identifier("✠".to_string())),
-        "#" => Some(MathNode::Identifier("#".to_string())),
-        "&" => Some(MathNode::Identifier("&".to_string())),
-        "$" => Some(MathNode::Identifier("$".to_string())),
-        "%" => Some(MathNode::Identifier("%".to_string())),
-        "_" => Some(MathNode::Identifier("_".to_string())),
-        " " => Some(MathNode::Operator(" ".to_string())),
-        "{" => Some(MathNode::Operator("{".to_string())),
-        "}" => Some(MathNode::Operator("}".to_string())),
-        "|" => Some(MathNode::Identifier("∥".to_string())),
-        "neq" => Some(MathNode::Operator("≠".to_string())),
-        "ne" => Some(MathNode::Operator("≠".to_string())),
-        "implies" => Some(MathNode::Operator("⟹".to_string())),
-        "impliedby" => Some(MathNode::Operator("⟸".to_string())),
-        "iff" => Some(MathNode::Operator("⟺".to_string())),
-        "cdots" => Some(MathNode::Operator("⋯".to_string())),
-        "vdots" => Some(MathNode::Operator("⋮".to_string())),
-        "dots" => Some(MathNode::Operator("…".to_string())),
-        "dotso" => Some(MathNode::Operator("…".to_string())),
-        "dotsc" => Some(MathNode::Operator("…".to_string())),
-        "dotsb" => Some(MathNode::Operator("⋯".to_string())),
-        "dotsm" => Some(MathNode::Operator("⋯".to_string())),
-        "dotsi" => Some(MathNode::Operator("⋯".to_string())),
-        "dotsx" => Some(MathNode::Operator("…".to_string())),
-        "iddots" => Some(MathNode::Operator("⋰".to_string())),
-        "notin" => Some(MathNode::Operator("∉".to_string())),
-        "notni" => Some(MathNode::Operator("∌".to_string())),
-        "coloneqq" => Some(MathNode::Operator("≔".to_string())),
-        "eqqcolon" => Some(MathNode::Operator("≕".to_string())),
-        "colonequals" => Some(MathNode::Operator("≔".to_string())),
-        "equalscolon" => Some(MathNode::Operator("≕".to_string())),
-        "darr" => Some(MathNode::Operator("↓".to_string())),
-        "dArr" => Some(MathNode::Operator("⇓".to_string())),
-        "Darr" => Some(MathNode::Operator("⇓".to_string())),
-        "lang" => Some(MathNode::Operator("⟨".to_string())),
-        "rang" => Some(MathNode::Operator("⟩".to_string())),
-        "uarr" => Some(MathNode::Operator("↑".to_string())),
-        "uArr" => Some(MathNode::Operator("⇑".to_string())),
-        "Uarr" => Some(MathNode::Operator("⇑".to_string())),
-        "alef" => Some(MathNode::Identifier("ℵ".to_string())),
-        "alefsym" => Some(MathNode::Identifier("ℵ".to_string())),
-        "bull" => Some(MathNode::Operator("∙".to_string())),
-        "clubs" => Some(MathNode::Identifier("♣".to_string())),
-        "Dagger" => Some(MathNode::Operator("‡".to_string())),
-        "diamonds" => Some(MathNode::Identifier("♢".to_string())),
-        "empty" => Some(MathNode::Identifier("∅".to_string())),
-        "exist" => Some(MathNode::Identifier("∃".to_string())),
-        "harr" => Some(MathNode::Operator("↔".to_string())),
-        "hArr" => Some(MathNode::Operator("⇔".to_string())),
-        "Harr" => Some(MathNode::Operator("⇔".to_string())),
-        "hearts" => Some(MathNode::Identifier("♡".to_string())),
-        "image" => Some(MathNode::Identifier("ℑ".to_string())),
-        "infin" => Some(MathNode::Identifier("∞".to_string())),
-        "isin" => Some(MathNode::Operator("∈".to_string())),
-        "larr" => Some(MathNode::Operator("←".to_string())),
-        "lArr" => Some(MathNode::Operator("⇐".to_string())),
-        "Larr" => Some(MathNode::Operator("⇐".to_string())),
-        "lrarr" => Some(MathNode::Operator("↔".to_string())),
-        "lrArr" => Some(MathNode::Operator("⇔".to_string())),
-        "Lrarr" => Some(MathNode::Operator("⇔".to_string())),
-        "plusmn" => Some(MathNode::Operator("±".to_string())),
-        "rarr" => Some(MathNode::Operator("→".to_string())),
-        "rArr" => Some(MathNode::Operator("⇒".to_string())),
-        "Rarr" => Some(MathNode::Operator("⇒".to_string())),
-        "real" => Some(MathNode::Identifier("ℜ".to_string())),
-        "sdot" => Some(MathNode::Operator("⋅".to_string())),
-        "sect" => Some(MathNode::Identifier("§".to_string())),
-        "spades" => Some(MathNode::Identifier("♠".to_string())),
-        "sub" => Some(MathNode::Operator("⊂".to_string())),
-        "sube" => Some(MathNode::Operator("⊆".to_string())),
-        "supe" => Some(MathNode::Operator("⊇".to_string())),
-        "thetasym" => Some(MathNode::Identifier("ϑ".to_string())),
-        "weierp" => Some(MathNode::Identifier("℘".to_string())),
-        "mathdollar" => Some(MathNode::Identifier("$".to_string())), // base
-        "slash" => Some(MathNode::Identifier("/".to_string())),      // base
-        "imath" => Some(MathNode::Identifier("ı".to_string())),      // base
-        "jmath" => Some(MathNode::Identifier("ȷ".to_string())),      // base
-        "overleftarrow" => Some(MathNode::Identifier("⃖".to_string())), // base
-        "underleftarrow" => Some(MathNode::Identifier("⃮".to_string())), // amsmath
-        "underrightarrow" => Some(MathNode::Identifier("⃯".to_string())), // amsmath
-        "iiiint" => Some(MathNode::Operator("⨌".to_string())),       // amsmath
-        "widehat" => Some(MathNode::Identifier("̂".to_string())),     // amssymb
-        "Bbbk" => Some(MathNode::Identifier("𝕜".to_string())),       // amssymb
-        "second" => Some(MathNode::Identifier("″".to_string())),     // mathabx
-        "third" => Some(MathNode::Identifier("‴".to_string())),      // mathabx
-        "fourth" => Some(MathNode::Identifier("⁗".to_string())),     // mathabx
-        "dlsh" => Some(MathNode::Operator("↲".to_string())),         // mathabx
-        "drsh" => Some(MathNode::Operator("↳".to_string())),         // mathabx
-        "updownarrows" => Some(MathNode::Operator("⇅".to_string())), // mathabx
-        "leftsquigarrow" => Some(MathNode::Operator("⇜".to_string())), // mathabx
-        "downuparrows" => Some(MathNode::Operator("⇵".to_string())), // mathabx
-        "coloneq" => Some(MathNode::Operator("≔".to_string())),      // mathabx
-        "corresponds" => Some(MathNode::Operator("≙".to_string())),  // mathabx
-        "notasymp" => Some(MathNode::Operator("≭".to_string())),     // mathabx
-        "VDash" => Some(MathNode::Operator("⊫".to_string())),        // mathabx
-        "hash" => Some(MathNode::Operator("⋕".to_string())),         // mathabx
-        "barin" => Some(MathNode::Operator("⋶".to_string())),        // mathabx
-        "diameter" => Some(MathNode::Identifier("⌀".to_string())),   // mathabx
-        "blacktriangleup" => Some(MathNode::Operator("▴".to_string())), // mathabx
-        "smalltriangleup" => Some(MathNode::Operator("▵".to_string())), // mathabx
-        "smalltriangleright" => Some(MathNode::Operator("▹".to_string())), // mathabx
-        "smalltriangledown" => Some(MathNode::Operator("▿".to_string())), // mathabx
-        "smalltriangleleft" => Some(MathNode::Operator("◃".to_string())), // mathabx
-        "Sun" => Some(MathNode::Identifier("☉".to_string())),        // mathabx
-        "Mercury" => Some(MathNode::Identifier("☿".to_string())),    // mathabx
-        "Venus" => Some(MathNode::Identifier("♀".to_string())),      // mathabx
-        "varEarth" => Some(MathNode::Identifier("♁".to_string())),   // mathabx
-        "Mars" => Some(MathNode::Identifier("♂".to_string())),       // mathabx
-        "Jupiter" => Some(MathNode::Identifier("♃".to_string())),    // mathabx
-        "Saturn" => Some(MathNode::Identifier("♄".to_string())),     // mathabx
-        "Uranus" => Some(MathNode::Identifier("♅".to_string())),     // mathabx
-        "Neptune" => Some(MathNode::Identifier("♆".to_string())),    // mathabx
-        "Pluto" => Some(MathNode::Identifier("♇".to_string())),      // mathabx
-        "Aries" => Some(MathNode::Identifier("♈".to_string())),     // mathabx
-        "Taurus" => Some(MathNode::Identifier("♉".to_string())),    // mathabx
-        "Gemini" => Some(MathNode::Identifier("♊".to_string())),    // mathabx
-        "Leo" => Some(MathNode::Identifier("♌".to_string())),       // mathabx
-        "Libra" => Some(MathNode::Identifier("♎".to_string())),     // mathabx
-        "Scorpio" => Some(MathNode::Identifier("♏".to_string())),   // mathabx
-        "leftrightharpoon" => Some(MathNode::Operator("⥊".to_string())), // mathabx
-        "rightleftharpoon" => Some(MathNode::Operator("⥋".to_string())), // mathabx
-        "leftleftharpoons" => Some(MathNode::Operator("⥢".to_string())), // mathabx
-        "upupharpoons" => Some(MathNode::Operator("⥣".to_string())), // mathabx
-        "rightrightharpoons" => Some(MathNode::Operator("⥤".to_string())), // mathabx
-        "downdownharpoons" => Some(MathNode::Operator("⥥".to_string())), // mathabx
-        "leftbarharpoon" => Some(MathNode::Operator("⥪".to_string())), // mathabx
-        "barleftharpoon" => Some(MathNode::Operator("⥫".to_string())), // mathabx
-        "rightbarharpoon" => Some(MathNode::Operator("⥬".to_string())), // mathabx
-        "barrightharpoon" => Some(MathNode::Operator("⥭".to_string())), // mathabx
-        "updownharpoons" => Some(MathNode::Operator("⥮".to_string())), // mathabx
-        "downupharpoons" => Some(MathNode::Operator("⥯".to_string())), // mathabx
-        "llcurly" => Some(MathNode::Operator("⪻".to_string())),      // mathabx
-        "ggcurly" => Some(MathNode::Operator("⪼".to_string())),      // mathabx
-        "mathcent" => Some(MathNode::Identifier("¢".to_string())),   // txfonts
-        "invamp" => Some(MathNode::Operator("⅋".to_string())),       // txfonts
-        "Nwarrow" => Some(MathNode::Operator("⇖".to_string())),      // txfonts
-        "Nearrow" => Some(MathNode::Operator("⇗".to_string())),      // txfonts
-        "Searrow" => Some(MathNode::Operator("⇘".to_string())),      // txfonts
-        "Swarrow" => Some(MathNode::Operator("⇙".to_string())),      // txfonts
-        "eqcolon" => Some(MathNode::Operator("∹".to_string())),      // txfonts
-        "nsimeq" => Some(MathNode::Operator("≄".to_string())),       // txfonts
-        "multimapdotbothA" => Some(MathNode::Operator("⊶".to_string())), // txfonts
-        "multimapdotbothB" => Some(MathNode::Operator("⊷".to_string())), // txfonts
-        "lrtimes" => Some(MathNode::Operator("⋈".to_string())),      // txfonts
-        "Diamondblack" => Some(MathNode::Identifier("◆".to_string())), // txfonts
-        "varspadesuit" => Some(MathNode::Identifier("♤".to_string())), // txfonts
-        "varheartsuit" => Some(MathNode::Identifier("♥".to_string())), // txfonts
-        "vardiamondsuit" => Some(MathNode::Identifier("♦".to_string())), // txfonts
-        "varclubsuit" => Some(MathNode::Identifier("♧".to_string())), // txfonts
-        "medcirc" => Some(MathNode::Identifier("⚪".to_string())),   // txfonts
-        "medbullet" => Some(MathNode::Identifier("⚫".to_string())), // txfonts
-        "Diamonddot" => Some(MathNode::Identifier("⟐".to_string())), // txfonts
-        "multimapinv" => Some(MathNode::Operator("⟜".to_string())),  // txfonts
-        "strictfi" => Some(MathNode::Operator("⥼".to_string())),     // txfonts
-        "strictif" => Some(MathNode::Operator("⥽".to_string())),     // txfonts
-        "circledbslash" => Some(MathNode::Operator("⦸".to_string())), // txfonts
-        "circledless" => Some(MathNode::Operator("⧀".to_string())),  // txfonts
-        "circledgtr" => Some(MathNode::Operator("⧁".to_string())),   // txfonts
-        "multimapboth" => Some(MathNode::Operator("⧟".to_string())), // txfonts
-        "bigsqcap" => Some(MathNode::Operator("⨅".to_string())),     // txfonts
-        "varprod" => Some(MathNode::Operator("⨉".to_string())),      // txfonts
-        "Coloneqq" => Some(MathNode::Operator("⩴".to_string())),     // txfonts
-        "preceqq" => Some(MathNode::Operator("⪳".to_string())),      // txfonts
-        "succeqq" => Some(MathNode::Operator("⪴".to_string())),      // txfonts
-        "Top" => Some(MathNode::Operator("⫪".to_string())),          // txfonts
-        "Bot" => Some(MathNode::Operator("⫫".to_string())),          // txfonts
-        "Perp" => Some(MathNode::Operator("⫫".to_string())),         // txfonts
-        "varparallel" => Some(MathNode::Operator("⫽".to_string())),  // txfonts
-        "binampersand" => Some(MathNode::Identifier("&".to_string())), // stmaryrd
-        "Yup" => Some(MathNode::Identifier("⅄".to_string())),        // stmaryrd
-        "bindnasrepma" => Some(MathNode::Operator("⅋".to_string())), // stmaryrd
-        "mapsfrom" => Some(MathNode::Operator("↤".to_string())),     // stmaryrd
-        "lightning" => Some(MathNode::Operator("↯".to_string())),    // stmaryrd
-        "leftarrowtriangle" => Some(MathNode::Operator("⇽".to_string())), // stmaryrd
-        "rightarrowtriangle" => Some(MathNode::Operator("⇾".to_string())), // stmaryrd
-        "boxbar" => Some(MathNode::Operator("◫".to_string())),       // stmaryrd
-        "Lbag" => Some(MathNode::Operator("⟅".to_string())),         // stmaryrd
-        "Rbag" => Some(MathNode::Operator("⟆".to_string())),         // stmaryrd
-        "llbracket" => Some(MathNode::Operator("⟦".to_string())),    // stmaryrd
-        "rrbracket" => Some(MathNode::Operator("⟧".to_string())),    // stmaryrd
-        "longmapsfrom" => Some(MathNode::Operator("⟻".to_string())), // stmaryrd
-        "Longmapsfrom" => Some(MathNode::Operator("⟽".to_string())), // stmaryrd
-        "Longmapsto" => Some(MathNode::Operator("⟾".to_string())),   // stmaryrd
-        "Mapsfrom" => Some(MathNode::Operator("⤆".to_string())),     // stmaryrd
-        "Mapsto" => Some(MathNode::Operator("⤇".to_string())),       // stmaryrd
-        "llparenthesis" => Some(MathNode::Operator("⦇".to_string())), // stmaryrd
-        "rrparenthesis" => Some(MathNode::Operator("⦈".to_string())), // stmaryrd
-        "boxslash" => Some(MathNode::Operator("⧄".to_string())),     // stmaryrd
-        "boxbslash" => Some(MathNode::Operator("⧅".to_string())),    // stmaryrd
-        "boxast" => Some(MathNode::Operator("⧆".to_string())),       // stmaryrd
-        "boxcircle" => Some(MathNode::Operator("⧇".to_string())),    // stmaryrd
-        "boxbox" => Some(MathNode::Operator("⧈".to_string())),       // stmaryrd
-        "leftslice" => Some(MathNode::Operator("⪦".to_string())),    // stmaryrd
-        "rightslice" => Some(MathNode::Operator("⪧".to_string())),   // stmaryrd
-        "interleave" => Some(MathNode::Operator("⫴".to_string())),   // stmaryrd
-        "biginterleave" => Some(MathNode::Operator("⫼".to_string())), // stmaryrd
-        "sslash" => Some(MathNode::Operator("⫽".to_string())),       // stmaryrd
-        "talloblong" => Some(MathNode::Operator("⫾".to_string())),   // stmaryrd
-        "cat" => Some(MathNode::Operator("⁀".to_string())),          // oz
-        "rel" => Some(MathNode::Operator("↔".to_string())),          // oz
-        "tsur" => Some(MathNode::Operator("↠".to_string())),         // oz
-        "tinj" => Some(MathNode::Operator("↣".to_string())),         // oz
-        "pfun" => Some(MathNode::Operator("⇸".to_string())),         // oz
-        "ffun" => Some(MathNode::Operator("⇻".to_string())),         // oz
-        "exi" => Some(MathNode::Identifier("∃".to_string())),        // oz
-        "nexi" => Some(MathNode::Identifier("∄".to_string())),       // oz
-        "sdef" => Some(MathNode::Operator("≙".to_string())),         // oz
-        "varsdef" => Some(MathNode::Operator("≜".to_string())),      // oz
-        "buni" => Some(MathNode::Operator("⊎".to_string())),         // oz
-        "dint" => Some(MathNode::Operator("⋂".to_string())),         // oz
-        "duni" => Some(MathNode::Operator("⋃".to_string())),         // oz
-        "rres" => Some(MathNode::Operator("▷".to_string())),         // oz
-        "dres" => Some(MathNode::Operator("◁".to_string())),         // oz
-        "psur" => Some(MathNode::Operator("⤀".to_string())),         // oz
-        "psurj" => Some(MathNode::Operator("⤀".to_string())),        // oz
-        "pinj" => Some(MathNode::Operator("⤔".to_string())),         // oz
-        "finj" => Some(MathNode::Operator("⤕".to_string())),         // oz
-        "bij" => Some(MathNode::Operator("⤖".to_string())),          // oz
-        "spot" => Some(MathNode::Identifier("⦁".to_string())),       // oz
-        "limg" => Some(MathNode::Operator("⦇".to_string())),         // oz
-        "rimg" => Some(MathNode::Operator("⦈".to_string())),         // oz
-        "lblot" => Some(MathNode::Operator("⦉".to_string())),        // oz
-        "rblot" => Some(MathNode::Operator("⦊".to_string())),        // oz
-        "zhide" => Some(MathNode::Operator("⧹".to_string())),        // oz
-        "hide" => Some(MathNode::Operator("⧹".to_string())),         // oz
-        "zcmp" => Some(MathNode::Operator("⨟".to_string())),         // oz
-        "semi" => Some(MathNode::Operator("⨟".to_string())),         // oz
-        "zpipe" => Some(MathNode::Operator("⨠".to_string())),        // oz
-        "zproject" => Some(MathNode::Operator("⨡".to_string())),     // oz
-        "project" => Some(MathNode::Operator("⨡".to_string())),      // oz
-        "fcmp" => Some(MathNode::Operator("⨾".to_string())),         // oz
-        "comp" => Some(MathNode::Operator("⨾".to_string())),         // oz
-        "dsub" => Some(MathNode::Operator("⩤".to_string())),         // oz
-        "ndres" => Some(MathNode::Operator("⩤".to_string())),        // oz
-        "rsub" => Some(MathNode::Operator("⩥".to_string())),         // oz
-        "nrres" => Some(MathNode::Operator("⩥".to_string())),        // oz
-        "exclam" => Some(MathNode::Operator("!".to_string())),       // unicode-math
-        "octothorpe" => Some(MathNode::Identifier("#".to_string())), // unicode-math
-        "percent" => Some(MathNode::Identifier("%".to_string())),    // unicode-math
-        "ampersand" => Some(MathNode::Identifier("&".to_string())),  // unicode-math
-        "plus" => Some(MathNode::Operator("+".to_string())),         // unicode-math
-        "comma" => Some(MathNode::Operator(",".to_string())),        // unicode-math
-        "period" => Some(MathNode::Identifier(".".to_string())),     // unicode-math
-        "mathslash" => Some(MathNode::Identifier("/".to_string())),  // unicode-math
-        "mathcolon" => Some(MathNode::Operator(":".to_string())),    // unicode-math
-        "semicolon" => Some(MathNode::Operator(";".to_string())),    // unicode-math
-        "less" => Some(MathNode::Operator("<".to_string())),         // unicode-math
-        "equal" => Some(MathNode::Operator("=".to_string())),        // unicode-math
-        "greater" => Some(MathNode::Operator(">".to_string())),      // unicode-math
-        "question" => Some(MathNode::Identifier("?".to_string())),   // unicode-math
-        "atsign" => Some(MathNode::Identifier("@".to_string())),     // unicode-math
-        "sphat" => Some(MathNode::Identifier("^".to_string())),      // unicode-math
-        "sterling" => Some(MathNode::Identifier("£".to_string())),   // unicode-math
-        "matheth" => Some(MathNode::Identifier("ð".to_string())),    // unicode-math
-        "Zbar" => Some(MathNode::Identifier("Ƶ".to_string())),       // unicode-math
-        "overbar" => Some(MathNode::Identifier("̅".to_string())),     // unicode-math
-        "ovhook" => Some(MathNode::Identifier("̉".to_string())),      // unicode-math
-        "ocirc" => Some(MathNode::Identifier("̊".to_string())),       // unicode-math
-        "candra" => Some(MathNode::Identifier("̐".to_string())),      // unicode-math
-        "oturnedcomma" => Some(MathNode::Identifier("̒".to_string())), // unicode-math
-        "ocommatopright" => Some(MathNode::Identifier("̕".to_string())), // unicode-math
-        "droang" => Some(MathNode::Identifier("̚".to_string())),      // unicode-math
-        "wideutilde" => Some(MathNode::Identifier("̰".to_string())),  // unicode-math
-        "upAlpha" => Some(MathNode::Identifier("Α".to_string())),    // unicode-math
-        "upBeta" => Some(MathNode::Identifier("Β".to_string())),     // unicode-math
-        "upGamma" => Some(MathNode::Identifier("Γ".to_string())),    // unicode-math
-        "upDelta" => Some(MathNode::Identifier("Δ".to_string())),    // unicode-math
-        "upEpsilon" => Some(MathNode::Identifier("Ε".to_string())),  // unicode-math
-        "upZeta" => Some(MathNode::Identifier("Ζ".to_string())),     // unicode-math
-        "upEta" => Some(MathNode::Identifier("Η".to_string())),      // unicode-math
-        "upTheta" => Some(MathNode::Identifier("Θ".to_string())),    // unicode-math
-        "upIota" => Some(MathNode::Identifier("Ι".to_string())),     // unicode-math
-        "upKappa" => Some(MathNode::Identifier("Κ".to_string())),    // unicode-math
-        "upLambda" => Some(MathNode::Identifier("Λ".to_string())),   // unicode-math
-        "upMu" => Some(MathNode::Identifier("Μ".to_string())),       // unicode-math
-        "upNu" => Some(MathNode::Identifier("Ν".to_string())),       // unicode-math
-        "upXi" => Some(MathNode::Identifier("Ξ".to_string())),       // unicode-math
-        "upOmicron" => Some(MathNode::Identifier("Ο".to_string())),  // unicode-math
-        "upPi" => Some(MathNode::Identifier("Π".to_string())),       // unicode-math
-        "upRho" => Some(MathNode::Identifier("Ρ".to_string())),      // unicode-math
-        "upSigma" => Some(MathNode::Identifier("Σ".to_string())),    // unicode-math
-        "upTau" => Some(MathNode::Identifier("Τ".to_string())),      // unicode-math
-        "upUpsilon" => Some(MathNode::Identifier("Υ".to_string())),  // unicode-math
-        "upPhi" => Some(MathNode::Identifier("Φ".to_string())),      // unicode-math
-        "upChi" => Some(MathNode::Identifier("Χ".to_string())),      // unicode-math
-        "upPsi" => Some(MathNode::Identifier("Ψ".to_string())),      // unicode-math
-        "upOmega" => Some(MathNode::Identifier("Ω".to_string())),    // unicode-math
-        "upalpha" => Some(MathNode::Identifier("α".to_string())),    // unicode-math
-        "upbeta" => Some(MathNode::Identifier("β".to_string())),     // unicode-math
-        "upgamma" => Some(MathNode::Identifier("γ".to_string())),    // unicode-math
-        "updelta" => Some(MathNode::Identifier("δ".to_string())),    // unicode-math
-        "upepsilon" => Some(MathNode::Identifier("ε".to_string())),  // unicode-math
-        "upzeta" => Some(MathNode::Identifier("ζ".to_string())),     // unicode-math
-        "upeta" => Some(MathNode::Identifier("η".to_string())),      // unicode-math
-        "uptheta" => Some(MathNode::Identifier("θ".to_string())),    // unicode-math
-        "upiota" => Some(MathNode::Identifier("ι".to_string())),     // unicode-math
-        "upkappa" => Some(MathNode::Identifier("κ".to_string())),    // unicode-math
-        "uplambda" => Some(MathNode::Identifier("λ".to_string())),   // unicode-math
-        "upmu" => Some(MathNode::Identifier("μ".to_string())),       // unicode-math
-        "upnu" => Some(MathNode::Identifier("ν".to_string())),       // unicode-math
-        "upxi" => Some(MathNode::Identifier("ξ".to_string())),       // unicode-math
-        "upomicron" => Some(MathNode::Identifier("ο".to_string())),  // unicode-math
-        "uppi" => Some(MathNode::Identifier("π".to_string())),       // unicode-math
-        "uprho" => Some(MathNode::Identifier("ρ".to_string())),      // unicode-math
-        "upvarsigma" => Some(MathNode::Identifier("ς".to_string())), // unicode-math
-        "upsigma" => Some(MathNode::Identifier("σ".to_string())),    // unicode-math
-        "uptau" => Some(MathNode::Identifier("τ".to_string())),      // unicode-math
-        "upupsilon" => Some(MathNode::Identifier("υ".to_string())),  // unicode-math
-        "upvarphi" => Some(MathNode::Identifier("φ".to_string())),   // unicode-math
-        "upchi" => Some(MathNode::Identifier("χ".to_string())),      // unicode-math
-        "uppsi" => Some(MathNode::Identifier("ψ".to_string())),      // unicode-math
-        "upomega" => Some(MathNode::Identifier("ω".to_string())),    // unicode-math
-        "upvarbeta" => Some(MathNode::Identifier("ϐ".to_string())),  // unicode-math
-        "upvartheta" => Some(MathNode::Identifier("ϑ".to_string())), // unicode-math
-        "upphi" => Some(MathNode::Identifier("ϕ".to_string())),      // unicode-math
-        "upvarpi" => Some(MathNode::Identifier("ϖ".to_string())),    // unicode-math
-        "upoldKoppa" => Some(MathNode::Identifier("Ϙ".to_string())), // unicode-math
-        "upoldkoppa" => Some(MathNode::Identifier("ϙ".to_string())), // unicode-math
-        "upStigma" => Some(MathNode::Identifier("Ϛ".to_string())),   // unicode-math
-        "upstigma" => Some(MathNode::Identifier("ϛ".to_string())),   // unicode-math
-        "upDigamma" => Some(MathNode::Identifier("Ϝ".to_string())),  // unicode-math
-        "updigamma" => Some(MathNode::Identifier("ϝ".to_string())),  // unicode-math
-        "upKoppa" => Some(MathNode::Identifier("Ϟ".to_string())),    // unicode-math
-        "upkoppa" => Some(MathNode::Identifier("ϟ".to_string())),    // unicode-math
-        "upSampi" => Some(MathNode::Identifier("Ϡ".to_string())),    // unicode-math
-        "upsampi" => Some(MathNode::Identifier("ϡ".to_string())),    // unicode-math
-        "upvarkappa" => Some(MathNode::Identifier("ϰ".to_string())), // unicode-math
-        "upvarrho" => Some(MathNode::Identifier("ϱ".to_string())),   // unicode-math
-        "upvarTheta" => Some(MathNode::Identifier("ϴ".to_string())), // unicode-math
-        "upvarepsilon" => Some(MathNode::Identifier("ϵ".to_string())), // unicode-math
-        "upbackepsilon" => Some(MathNode::Identifier("϶".to_string())), // unicode-math
-        "horizbar" => Some(MathNode::Identifier("―".to_string())),   // unicode-math
-        "twolowline" => Some(MathNode::Identifier("‗".to_string())), // unicode-math
-        "smblkcircle" => Some(MathNode::Operator("•".to_string())),  // unicode-math
-        "enleadertwodots" => Some(MathNode::Identifier("‥".to_string())), // unicode-math
-        "unicodeellipsis" => Some(MathNode::Identifier("…".to_string())), // unicode-math
-        "dprime" => Some(MathNode::Identifier("″".to_string())),     // unicode-math
-        "trprime" => Some(MathNode::Identifier("‴".to_string())),    // unicode-math
-        "backdprime" => Some(MathNode::Identifier("‶".to_string())), // unicode-math
-        "backtrprime" => Some(MathNode::Identifier("‷".to_string())), // unicode-math
-        "caretinsert" => Some(MathNode::Identifier("‸".to_string())), // unicode-math
-        "Exclam" => Some(MathNode::Identifier("‼".to_string())),     // unicode-math
-        "tieconcat" => Some(MathNode::Operator("⁀".to_string())),    // unicode-math
-        "hyphenbullet" => Some(MathNode::Identifier("⁃".to_string())), // unicode-math
-        "fracslash" => Some(MathNode::Operator("⁄".to_string())),    // unicode-math
-        "Question" => Some(MathNode::Identifier("⁇".to_string())),   // unicode-math
-        "closure" => Some(MathNode::Operator("⁐".to_string())),      // unicode-math
-        "qprime" => Some(MathNode::Identifier("⁗".to_string())),     // unicode-math
-        "euro" => Some(MathNode::Identifier("€".to_string())),       // unicode-math
-        "leftharpoonaccent" => Some(MathNode::Identifier("⃐".to_string())), // unicode-math
-        "rightharpoonaccent" => Some(MathNode::Identifier("⃑".to_string())), // unicode-math
-        "vertoverlay" => Some(MathNode::Identifier("⃒".to_string())), // unicode-math
-        "enclosecircle" => Some(MathNode::Identifier("⃝".to_string())), // unicode-math
-        "enclosesquare" => Some(MathNode::Identifier("⃞".to_string())), // unicode-math
-        "enclosediamond" => Some(MathNode::Identifier("⃟".to_string())), // unicode-math
-        "enclosetriangle" => Some(MathNode::Identifier("⃤".to_string())), // unicode-math
-        "annuity" => Some(MathNode::Identifier("⃧".to_string())),     // unicode-math
-        "threeunderdot" => Some(MathNode::Identifier("⃨".to_string())), // unicode-math
-        "widebridgeabove" => Some(MathNode::Identifier("⃩".to_string())), // unicode-math
-        "underleftharpoondown" => Some(MathNode::Identifier("⃭".to_string())), // unicode-math
-        "asteraccent" => Some(MathNode::Identifier("⃰".to_string())), // unicode-math
-        "BbbC" => Some(MathNode::Identifier("ℂ".to_string())),       // unicode-math
-        "Eulerconst" => Some(MathNode::Identifier("ℇ".to_string())), // unicode-math
-        "mscrg" => Some(MathNode::Identifier("ℊ".to_string())),      // unicode-math
-        "mscrH" => Some(MathNode::Identifier("ℋ".to_string())),      // unicode-math
-        "mfrakH" => Some(MathNode::Identifier("ℌ".to_string())),     // unicode-math
-        "BbbH" => Some(MathNode::Identifier("ℍ".to_string())),       // unicode-math
-        "Planckconst" => Some(MathNode::Identifier("ℎ".to_string())), // unicode-math
-        "mscrI" => Some(MathNode::Identifier("ℐ".to_string())),      // unicode-math
-        "mscrL" => Some(MathNode::Identifier("ℒ".to_string())),      // unicode-math
-        "BbbN" => Some(MathNode::Identifier("ℕ".to_string())),       // unicode-math
-        "BbbP" => Some(MathNode::Identifier("ℙ".to_string())),       // unicode-math
-        "BbbQ" => Some(MathNode::Identifier("ℚ".to_string())),       // unicode-math
-        "mscrR" => Some(MathNode::Identifier("ℛ".to_string())),      // unicode-math
-        "BbbR" => Some(MathNode::Identifier("ℝ".to_string())),       // unicode-math
-        "BbbZ" => Some(MathNode::Identifier("ℤ".to_string())),       // unicode-math
-        "mfrakZ" => Some(MathNode::Identifier("ℨ".to_string())),     // unicode-math
-        "turnediota" => Some(MathNode::Identifier("℩".to_string())), // unicode-math
-        "Angstrom" => Some(MathNode::Identifier("Å".to_string())),   // unicode-math
-        "mscrB" => Some(MathNode::Identifier("ℬ".to_string())),      // unicode-math
-        "mfrakC" => Some(MathNode::Identifier("ℭ".to_string())),     // unicode-math
-        "mscre" => Some(MathNode::Identifier("ℯ".to_string())),      // unicode-math
-        "mscrE" => Some(MathNode::Identifier("ℰ".to_string())),      // unicode-math
-        "mscrF" => Some(MathNode::Identifier("ℱ".to_string())),      // unicode-math
-        "mscrM" => Some(MathNode::Identifier("ℳ".to_string())),      // unicode-math
-        "mscro" => Some(MathNode::Identifier("ℴ".to_string())),      // unicode-math
-        "Bbbpi" => Some(MathNode::Identifier("ℼ".to_string())),      // unicode-math
-        "Bbbgamma" => Some(MathNode::Identifier("ℽ".to_string())),   // unicode-math
-        "BbbGamma" => Some(MathNode::Identifier("ℾ".to_string())),   // unicode-math
-        "BbbPi" => Some(MathNode::Identifier("ℿ".to_string())),      // unicode-math
-        "Bbbsum" => Some(MathNode::Operator("⅀".to_string())),       // unicode-math
-        "sansLturned" => Some(MathNode::Identifier("⅂".to_string())), // unicode-math
-        "sansLmirrored" => Some(MathNode::Identifier("⅃".to_string())), // unicode-math
-        "mitBbbD" => Some(MathNode::Identifier("ⅅ".to_string())),    // unicode-math
-        "mitBbbd" => Some(MathNode::Identifier("ⅆ".to_string())),    // unicode-math
-        "mitBbbe" => Some(MathNode::Identifier("ⅇ".to_string())),    // unicode-math
-        "mitBbbi" => Some(MathNode::Identifier("ⅈ".to_string())),    // unicode-math
-        "mitBbbj" => Some(MathNode::Identifier("ⅉ".to_string())),    // unicode-math
-        "PropertyLine" => Some(MathNode::Identifier("⅊".to_string())), // unicode-math
-        "upand" => Some(MathNode::Operator("⅋".to_string())),        // unicode-math
-        "leftwavearrow" => Some(MathNode::Operator("↜".to_string())), // unicode-math
-        "rightwavearrow" => Some(MathNode::Operator("↝".to_string())), // unicode-math
-        "twoheaduparrow" => Some(MathNode::Operator("↟".to_string())), // unicode-math
-        "twoheaddownarrow" => Some(MathNode::Operator("↡".to_string())), // unicode-math
-        "mapsup" => Some(MathNode::Operator("↥".to_string())),       // unicode-math
-        "mapsdown" => Some(MathNode::Operator("↧".to_string())),     // unicode-math
-        "updownarrowbar" => Some(MathNode::Identifier("↨".to_string())), // unicode-math
-        "downzigzagarrow" => Some(MathNode::Operator("↯".to_string())), // unicode-math
-        "Ldsh" => Some(MathNode::Operator("↲".to_string())),         // unicode-math
-        "Rdsh" => Some(MathNode::Operator("↳".to_string())),         // unicode-math
-        "linefeed" => Some(MathNode::Identifier("↴".to_string())),   // unicode-math
-        "carriagereturn" => Some(MathNode::Identifier("↵".to_string())), // unicode-math
-        "acwopencirclearrow" => Some(MathNode::Identifier("↺".to_string())), // unicode-math
-        "cwopencirclearrow" => Some(MathNode::Identifier("↻".to_string())), // unicode-math
-        "nHuparrow" => Some(MathNode::Identifier("⇞".to_string())),  // unicode-math
-        "nHdownarrow" => Some(MathNode::Identifier("⇟".to_string())), // unicode-math
-        "leftdasharrow" => Some(MathNode::Identifier("⇠".to_string())), // unicode-math
-        "updasharrow" => Some(MathNode::Identifier("⇡".to_string())), // unicode-math
-        "rightdasharrow" => Some(MathNode::Identifier("⇢".to_string())), // unicode-math
-        "downdasharrow" => Some(MathNode::Identifier("⇣".to_string())), // unicode-math
-        "barleftarrow" => Some(MathNode::Operator("⇤".to_string())), // unicode-math
-        "rightarrowbar" => Some(MathNode::Operator("⇥".to_string())), // unicode-math
-        "leftwhitearrow" => Some(MathNode::Identifier("⇦".to_string())), // unicode-math
-        "upwhitearrow" => Some(MathNode::Identifier("⇧".to_string())), // unicode-math
-        "rightwhitearrow" => Some(MathNode::Identifier("⇨".to_string())), // unicode-math
-        "downwhitearrow" => Some(MathNode::Identifier("⇩".to_string())), // unicode-math
-        "whitearrowupfrombar" => Some(MathNode::Identifier("⇪".to_string())), // unicode-math
-        "circleonrightarrow" => Some(MathNode::Operator("⇴".to_string())), // unicode-math
-        "rightthreearrows" => Some(MathNode::Operator("⇶".to_string())), // unicode-math
-        "nvleftarrow" => Some(MathNode::Operator("⇷".to_string())),  // unicode-math
-        "nvrightarrow" => Some(MathNode::Operator("⇸".to_string())), // unicode-math
-        "nvleftrightarrow" => Some(MathNode::Operator("⇹".to_string())), // unicode-math
-        "nVleftarrow" => Some(MathNode::Operator("⇺".to_string())),  // unicode-math
-        "nVrightarrow" => Some(MathNode::Operator("⇻".to_string())), // unicode-math
-        "nVleftrightarrow" => Some(MathNode::Operator("⇼".to_string())), // unicode-math
-        "increment" => Some(MathNode::Identifier("∆".to_string())),  // unicode-math
-        "smallin" => Some(MathNode::Operator("∊".to_string())),      // unicode-math
-        "smallni" => Some(MathNode::Operator("∍".to_string())),      // unicode-math
-        "minus" => Some(MathNode::Operator("−".to_string())),        // unicode-math
-        "divslash" => Some(MathNode::Operator("∕".to_string())),     // unicode-math
-        "vysmwhtcircle" => Some(MathNode::Operator("∘".to_string())), // unicode-math
-        "vysmblkcircle" => Some(MathNode::Operator("∙".to_string())), // unicode-math
-        "intclockwise" => Some(MathNode::Operator("∱".to_string())), // unicode-math
-        "mathratio" => Some(MathNode::Operator("∶".to_string())),    // unicode-math
-        "Colon" => Some(MathNode::Operator("∷".to_string())),        // unicode-math
-        "dotminus" => Some(MathNode::Operator("∸".to_string())),     // unicode-math
-        "dashcolon" => Some(MathNode::Operator("∹".to_string())),    // unicode-math
-        "dotsminusdots" => Some(MathNode::Operator("∺".to_string())), // unicode-math
-        "kernelcontraction" => Some(MathNode::Operator("∻".to_string())), // unicode-math
-        "invlazys" => Some(MathNode::Operator("∾".to_string())),     // unicode-math
-        "sinewave" => Some(MathNode::Identifier("∿".to_string())),   // unicode-math
-        "nsime" => Some(MathNode::Operator("≄".to_string())),        // unicode-math
-        "simneqq" => Some(MathNode::Operator("≆".to_string())),      // unicode-math
-        "approxident" => Some(MathNode::Operator("≋".to_string())),  // unicode-math
-        "backcong" => Some(MathNode::Operator("≌".to_string())),     // unicode-math
-        "arceq" => Some(MathNode::Operator("≘".to_string())),        // unicode-math
-        "wedgeq" => Some(MathNode::Operator("≙".to_string())),       // unicode-math
-        "veeeq" => Some(MathNode::Operator("≚".to_string())),        // unicode-math
-        "stareq" => Some(MathNode::Operator("≛".to_string())),       // unicode-math
-        "eqdef" => Some(MathNode::Operator("≝".to_string())),        // unicode-math
-        "measeq" => Some(MathNode::Operator("≞".to_string())),       // unicode-math
-        "questeq" => Some(MathNode::Operator("≟".to_string())),      // unicode-math
-        "Equiv" => Some(MathNode::Operator("≣".to_string())),        // unicode-math
-        "nlesssim" => Some(MathNode::Operator("≴".to_string())),     // unicode-math
-        "ngtrsim" => Some(MathNode::Operator("≵".to_string())),      // unicode-math
-        "nlessgtr" => Some(MathNode::Operator("≸".to_string())),     // unicode-math
-        "ngtrless" => Some(MathNode::Operator("≹".to_string())),     // unicode-math
-        "cupleftarrow" => Some(MathNode::Operator("⊌".to_string())), // unicode-math
-        "cupdot" => Some(MathNode::Operator("⊍".to_string())),       // unicode-math
-        "circledequal" => Some(MathNode::Operator("⊜".to_string())), // unicode-math
-        "assert" => Some(MathNode::Operator("⊦".to_string())),       // unicode-math
-        "prurel" => Some(MathNode::Operator("⊰".to_string())),       // unicode-math
-        "scurel" => Some(MathNode::Operator("⊱".to_string())),       // unicode-math
-        "hermitmatrix" => Some(MathNode::Identifier("⊹".to_string())), // unicode-math
-        "barvee" => Some(MathNode::Operator("⊽".to_string())),       // unicode-math
-        "measuredrightangle" => Some(MathNode::Identifier("⊾".to_string())), // unicode-math
-        "varlrtriangle" => Some(MathNode::Identifier("⊿".to_string())), // unicode-math
-        "smwhtdiamond" => Some(MathNode::Operator("⋄".to_string())), // unicode-math
-        "equalparallel" => Some(MathNode::Operator("⋕".to_string())), // unicode-math
-        "eqless" => Some(MathNode::Operator("⋜".to_string())),       // unicode-math
-        "eqgtr" => Some(MathNode::Operator("⋝".to_string())),        // unicode-math
-        "npreccurlyeq" => Some(MathNode::Operator("⋠".to_string())), // unicode-math
-        "nsucccurlyeq" => Some(MathNode::Operator("⋡".to_string())), // unicode-math
-        "sqsubsetneq" => Some(MathNode::Operator("⋤".to_string())),  // unicode-math
-        "sqsupsetneq" => Some(MathNode::Operator("⋥".to_string())),  // unicode-math
-        "unicodecdots" => Some(MathNode::Identifier("⋯".to_string())), // unicode-math
-        "disin" => Some(MathNode::Operator("⋲".to_string())),        // unicode-math
-        "varisins" => Some(MathNode::Operator("⋳".to_string())),     // unicode-math
-        "isins" => Some(MathNode::Operator("⋴".to_string())),        // unicode-math
-        "isindot" => Some(MathNode::Operator("⋵".to_string())),      // unicode-math
-        "varisinobar" => Some(MathNode::Operator("⋶".to_string())),  // unicode-math
-        "isinobar" => Some(MathNode::Operator("⋷".to_string())),     // unicode-math
-        "isinvb" => Some(MathNode::Operator("⋸".to_string())),       // unicode-math
-        "isinE" => Some(MathNode::Operator("⋹".to_string())),        // unicode-math
-        "nisd" => Some(MathNode::Operator("⋺".to_string())),         // unicode-math
-        "varnis" => Some(MathNode::Operator("⋻".to_string())),       // unicode-math
-        "varniobar" => Some(MathNode::Operator("⋽".to_string())),    // unicode-math
-        "niobar" => Some(MathNode::Operator("⋾".to_string())),       // unicode-math
-        "bagmember" => Some(MathNode::Operator("⋿".to_string())),    // unicode-math
-        "house" => Some(MathNode::Identifier("⌂".to_string())),      // unicode-math
-        "varbarwedge" => Some(MathNode::Operator("⌅".to_string())),  // unicode-math
-        "vardoublebarwedge" => Some(MathNode::Operator("⌆".to_string())), // unicode-math
-        "invnot" => Some(MathNode::Identifier("⌐".to_string())),     // unicode-math
-        "sqlozenge" => Some(MathNode::Identifier("⌑".to_string())),  // unicode-math
-        "profline" => Some(MathNode::Identifier("⌒".to_string())),   // unicode-math
-        "profsurf" => Some(MathNode::Identifier("⌓".to_string())),   // unicode-math
-        "viewdata" => Some(MathNode::Identifier("⌗".to_string())),   // unicode-math
-        "turnednot" => Some(MathNode::Identifier("⌙".to_string())),  // unicode-math
-        "inttop" => Some(MathNode::Identifier("⌠".to_string())),     // unicode-math
-        "intbottom" => Some(MathNode::Identifier("⌡".to_string())),  // unicode-math
-        "varhexagonlrbonds" => Some(MathNode::Identifier("⌬".to_string())), // unicode-math
-        "conictaper" => Some(MathNode::Identifier("⌲".to_string())), // unicode-math
-        "topbot" => Some(MathNode::Identifier("⌶".to_string())),     // unicode-math
-        "obar" => Some(MathNode::Operator("⌽".to_string())),         // unicode-math
-        "APLnotslash" => Some(MathNode::Operator("⌿".to_string())),  // unicode-math
-        "APLnotbackslash" => Some(MathNode::Identifier("⍀".to_string())), // unicode-math
-        "lparenuend" => Some(MathNode::Identifier("⎛".to_string())), // unicode-math
-        "lparenextender" => Some(MathNode::Identifier("⎜".to_string())), // unicode-math
-        "lparenlend" => Some(MathNode::Identifier("⎝".to_string())), // unicode-math
-        "rparenuend" => Some(MathNode::Identifier("⎞".to_string())), // unicode-math
-        "rparenextender" => Some(MathNode::Identifier("⎟".to_string())), // unicode-math
-        "rparenlend" => Some(MathNode::Identifier("⎠".to_string())), // unicode-math
-        "lbrackuend" => Some(MathNode::Identifier("⎡".to_string())), // unicode-math
-        "lbrackextender" => Some(MathNode::Identifier("⎢".to_string())), // unicode-math
-        "lbracklend" => Some(MathNode::Identifier("⎣".to_string())), // unicode-math
-        "rbrackuend" => Some(MathNode::Identifier("⎤".to_string())), // unicode-math
-        "rbrackextender" => Some(MathNode::Identifier("⎥".to_string())), // unicode-math
-        "rbracklend" => Some(MathNode::Identifier("⎦".to_string())), // unicode-math
-        "lbraceuend" => Some(MathNode::Identifier("⎧".to_string())), // unicode-math
-        "lbracemid" => Some(MathNode::Identifier("⎨".to_string())),  // unicode-math
-        "lbracelend" => Some(MathNode::Identifier("⎩".to_string())), // unicode-math
-        "vbraceextender" => Some(MathNode::Identifier("⎪".to_string())), // unicode-math
-        "rbraceuend" => Some(MathNode::Identifier("⎫".to_string())), // unicode-math
-        "rbracemid" => Some(MathNode::Identifier("⎬".to_string())),  // unicode-math
-        "rbracelend" => Some(MathNode::Identifier("⎭".to_string())), // unicode-math
-        "intextender" => Some(MathNode::Identifier("⎮".to_string())), // unicode-math
-        "harrowextender" => Some(MathNode::Identifier("⎯".to_string())), // unicode-math
-        "sumtop" => Some(MathNode::Identifier("⎲".to_string())),     // unicode-math
-        "sumbottom" => Some(MathNode::Identifier("⎳".to_string())),  // unicode-math
-        "overbracket" => Some(MathNode::Identifier("⎴".to_string())), // unicode-math
-        "underbracket" => Some(MathNode::Identifier("⎵".to_string())), // unicode-math
-        "bbrktbrk" => Some(MathNode::Identifier("⎶".to_string())),   // unicode-math
-        "sqrtbottom" => Some(MathNode::Identifier("⎷".to_string())), // unicode-math
-        "lvboxline" => Some(MathNode::Identifier("⎸".to_string())),  // unicode-math
-        "rvboxline" => Some(MathNode::Identifier("⎹".to_string())),  // unicode-math
-        "smwhtcircle" => Some(MathNode::Identifier("◦".to_string())), // unicode-math
 
-        _ => None,
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SymbolKind {
+    Operator,
+    Identifier,
+}
+
+const SYMBOLS: &[(&str, SymbolKind, &str)] = &[
+    (" ", SymbolKind::Operator, " "),
+    ("#", SymbolKind::Identifier, "#"),
+    ("$", SymbolKind::Identifier, "$"),
+    ("%", SymbolKind::Identifier, "%"),
+    ("&", SymbolKind::Identifier, "&"),
+    ("APLnotbackslash", SymbolKind::Identifier, "⍀"),
+    ("APLnotslash", SymbolKind::Operator, "⌿"),
+    ("Alpha", SymbolKind::Identifier, "Α"),
+    ("And", SymbolKind::Operator, "&"),
+    ("Angstrom", SymbolKind::Identifier, "Å"),
+    ("Aries", SymbolKind::Identifier, "♈"),
+    ("BbbC", SymbolKind::Identifier, "ℂ"),
+    ("BbbGamma", SymbolKind::Identifier, "ℾ"),
+    ("BbbH", SymbolKind::Identifier, "ℍ"),
+    ("BbbN", SymbolKind::Identifier, "ℕ"),
+    ("BbbP", SymbolKind::Identifier, "ℙ"),
+    ("BbbPi", SymbolKind::Identifier, "ℿ"),
+    ("BbbQ", SymbolKind::Identifier, "ℚ"),
+    ("BbbR", SymbolKind::Identifier, "ℝ"),
+    ("BbbZ", SymbolKind::Identifier, "ℤ"),
+    ("Bbbgamma", SymbolKind::Identifier, "ℽ"),
+    ("Bbbk", SymbolKind::Identifier, "𝕜"),
+    ("Bbbpi", SymbolKind::Identifier, "ℼ"),
+    ("Bbbsum", SymbolKind::Operator, "⅀"),
+    ("Beta", SymbolKind::Identifier, "Β"),
+    ("Bot", SymbolKind::Operator, "⫫"),
+    ("Box", SymbolKind::Identifier, "□"),
+    ("Bumpeq", SymbolKind::Operator, "≎"),
+    ("Cap", SymbolKind::Operator, "⋒"),
+    ("Chi", SymbolKind::Identifier, "Χ"),
+    ("Colon", SymbolKind::Operator, "∷"),
+    ("Coloneqq", SymbolKind::Operator, "⩴"),
+    ("Cup", SymbolKind::Operator, "⋓"),
+    ("Dagger", SymbolKind::Operator, "‡"),
+    ("Darr", SymbolKind::Operator, "⇓"),
+    ("Delta", SymbolKind::Identifier, "Δ"),
+    ("Diamond", SymbolKind::Identifier, "◊"),
+    ("Diamondblack", SymbolKind::Identifier, "◆"),
+    ("Diamonddot", SymbolKind::Identifier, "⟐"),
+    ("Doteq", SymbolKind::Operator, "≑"),
+    ("Downarrow", SymbolKind::Operator, "⇓"),
+    ("Epsilon", SymbolKind::Identifier, "Ε"),
+    ("Equiv", SymbolKind::Operator, "≣"),
+    ("Eta", SymbolKind::Identifier, "Η"),
+    ("Eulerconst", SymbolKind::Identifier, "ℇ"),
+    ("Exclam", SymbolKind::Identifier, "‼"),
+    ("Finv", SymbolKind::Identifier, "Ⅎ"),
+    ("Game", SymbolKind::Identifier, "⅁"),
+    ("Gamma", SymbolKind::Identifier, "Γ"),
+    ("Gemini", SymbolKind::Identifier, "♊"),
+    ("Harr", SymbolKind::Operator, "⇔"),
+    ("Im", SymbolKind::Identifier, "ℑ"),
+    ("Iota", SymbolKind::Identifier, "Ι"),
+    ("Join", SymbolKind::Operator, "⋈"),
+    ("Jupiter", SymbolKind::Identifier, "♃"),
+    ("Kappa", SymbolKind::Identifier, "Κ"),
+    ("Lambda", SymbolKind::Identifier, "Λ"),
+    ("Larr", SymbolKind::Operator, "⇐"),
+    ("Lbag", SymbolKind::Operator, "⟅"),
+    ("Ldsh", SymbolKind::Operator, "↲"),
+    ("Leftarrow", SymbolKind::Operator, "⇐"),
+    ("Leftrightarrow", SymbolKind::Operator, "⇔"),
+    ("Leo", SymbolKind::Identifier, "♌"),
+    ("Libra", SymbolKind::Identifier, "♎"),
+    ("Lleftarrow", SymbolKind::Operator, "⇚"),
+    ("Longleftarrow", SymbolKind::Operator, "⟸"),
+    ("Longleftrightarrow", SymbolKind::Operator, "⟺"),
+    ("Longmapsfrom", SymbolKind::Operator, "⟽"),
+    ("Longmapsto", SymbolKind::Operator, "⟾"),
+    ("Longrightarrow", SymbolKind::Operator, "⟹"),
+    ("Lrarr", SymbolKind::Operator, "⇔"),
+    ("Lsh", SymbolKind::Operator, "↰"),
+    ("Mapsfrom", SymbolKind::Operator, "⤆"),
+    ("Mapsto", SymbolKind::Operator, "⤇"),
+    ("Mars", SymbolKind::Identifier, "♂"),
+    ("Mercury", SymbolKind::Identifier, "☿"),
+    ("Mu", SymbolKind::Identifier, "Μ"),
+    ("Nearrow", SymbolKind::Operator, "⇗"),
+    ("Neptune", SymbolKind::Identifier, "♆"),
+    ("Nu", SymbolKind::Identifier, "Ν"),
+    ("Nwarrow", SymbolKind::Operator, "⇖"),
+    ("Omega", SymbolKind::Identifier, "Ω"),
+    ("Omicron", SymbolKind::Identifier, "Ο"),
+    ("P", SymbolKind::Identifier, "¶"),
+    ("Perp", SymbolKind::Operator, "⫫"),
+    ("Phi", SymbolKind::Identifier, "Φ"),
+    ("Pi", SymbolKind::Identifier, "Π"),
+    ("Planckconst", SymbolKind::Identifier, "ℎ"),
+    ("Pluto", SymbolKind::Identifier, "♇"),
+    ("PropertyLine", SymbolKind::Identifier, "⅊"),
+    ("Psi", SymbolKind::Identifier, "Ψ"),
+    ("Question", SymbolKind::Identifier, "⁇"),
+    ("Rarr", SymbolKind::Operator, "⇒"),
+    ("Rbag", SymbolKind::Operator, "⟆"),
+    ("Rdsh", SymbolKind::Operator, "↳"),
+    ("Re", SymbolKind::Identifier, "ℜ"),
+    ("Rho", SymbolKind::Identifier, "Ρ"),
+    ("Rightarrow", SymbolKind::Operator, "⇒"),
+    ("Rrightarrow", SymbolKind::Operator, "⇛"),
+    ("Rsh", SymbolKind::Operator, "↱"),
+    ("S", SymbolKind::Identifier, "§"),
+    ("Saturn", SymbolKind::Identifier, "♄"),
+    ("Scorpio", SymbolKind::Identifier, "♏"),
+    ("Searrow", SymbolKind::Operator, "⇘"),
+    ("Sigma", SymbolKind::Identifier, "Σ"),
+    ("Subset", SymbolKind::Operator, "⋐"),
+    ("Sun", SymbolKind::Identifier, "☉"),
+    ("Supset", SymbolKind::Operator, "⋑"),
+    ("Swarrow", SymbolKind::Operator, "⇙"),
+    ("Tau", SymbolKind::Identifier, "Τ"),
+    ("Taurus", SymbolKind::Identifier, "♉"),
+    ("Theta", SymbolKind::Identifier, "Θ"),
+    ("Top", SymbolKind::Operator, "⫪"),
+    ("Uarr", SymbolKind::Operator, "⇑"),
+    ("Uparrow", SymbolKind::Operator, "⇑"),
+    ("Updownarrow", SymbolKind::Operator, "⇕"),
+    ("Upsilon", SymbolKind::Identifier, "Υ"),
+    ("Uranus", SymbolKind::Identifier, "♅"),
+    ("VDash", SymbolKind::Operator, "⊫"),
+    ("Vdash", SymbolKind::Operator, "⊩"),
+    ("Venus", SymbolKind::Identifier, "♀"),
+    ("Vert", SymbolKind::Identifier, "∥"),
+    ("Vvdash", SymbolKind::Operator, "⊪"),
+    ("Xi", SymbolKind::Identifier, "Ξ"),
+    ("Yup", SymbolKind::Identifier, "⅄"),
+    ("Zbar", SymbolKind::Identifier, "Ƶ"),
+    ("Zeta", SymbolKind::Identifier, "Ζ"),
+    ("_", SymbolKind::Identifier, "_"),
+    ("acute", SymbolKind::Operator, "ˊ"),
+    ("acwopencirclearrow", SymbolKind::Identifier, "↺"),
+    ("alef", SymbolKind::Identifier, "ℵ"),
+    ("alefsym", SymbolKind::Identifier, "ℵ"),
+    ("aleph", SymbolKind::Identifier, "ℵ"),
+    ("alpha", SymbolKind::Identifier, "α"),
+    ("amalg", SymbolKind::Operator, "⨿"),
+    ("ampersand", SymbolKind::Identifier, "&"),
+    ("angle", SymbolKind::Identifier, "∠"),
+    ("annuity", SymbolKind::Identifier, "⃧"),
+    ("approx", SymbolKind::Operator, "≈"),
+    ("approxeq", SymbolKind::Operator, "≊"),
+    ("approxident", SymbolKind::Operator, "≋"),
+    ("arceq", SymbolKind::Operator, "≘"),
+    ("assert", SymbolKind::Operator, "⊦"),
+    ("ast", SymbolKind::Operator, "∗"),
+    ("asteraccent", SymbolKind::Identifier, "⃰"),
+    ("asymp", SymbolKind::Operator, "≍"),
+    ("atsign", SymbolKind::Identifier, "@"),
+    ("backcong", SymbolKind::Operator, "≌"),
+    ("backdprime", SymbolKind::Identifier, "‶"),
+    ("backepsilon", SymbolKind::Operator, "∍"),
+    ("backprime", SymbolKind::Identifier, "‵"),
+    ("backsim", SymbolKind::Operator, "∽"),
+    ("backsimeq", SymbolKind::Operator, "⋍"),
+    ("backslash", SymbolKind::Identifier, "\\\\"),
+    ("backtrprime", SymbolKind::Identifier, "‷"),
+    ("bagmember", SymbolKind::Operator, "⋿"),
+    ("barin", SymbolKind::Operator, "⋶"),
+    ("barleftarrow", SymbolKind::Operator, "⇤"),
+    ("barleftharpoon", SymbolKind::Operator, "⥫"),
+    ("barrightharpoon", SymbolKind::Operator, "⥭"),
+    ("barvee", SymbolKind::Operator, "⊽"),
+    ("barwedge", SymbolKind::Operator, "⊼"),
+    ("bbrktbrk", SymbolKind::Identifier, "⎶"),
+    ("because", SymbolKind::Operator, "∵"),
+    ("beta", SymbolKind::Identifier, "β"),
+    ("beth", SymbolKind::Identifier, "ℶ"),
+    ("between", SymbolKind::Operator, "≬"),
+    ("bigcap", SymbolKind::Operator, "⋂"),
+    ("bigcirc", SymbolKind::Operator, "◯"),
+    ("bigcup", SymbolKind::Operator, "⋃"),
+    ("biginterleave", SymbolKind::Operator, "⫼"),
+    ("bigodot", SymbolKind::Operator, "⨀"),
+    ("bigoplus", SymbolKind::Operator, "⨁"),
+    ("bigotimes", SymbolKind::Operator, "⨂"),
+    ("bigsqcap", SymbolKind::Operator, "⨅"),
+    ("bigsqcup", SymbolKind::Operator, "⨆"),
+    ("bigstar", SymbolKind::Identifier, "★"),
+    ("bigtriangledown", SymbolKind::Operator, "▽"),
+    ("bigtriangleup", SymbolKind::Operator, "△"),
+    ("biguplus", SymbolKind::Operator, "⨄"),
+    ("bigvee", SymbolKind::Operator, "⋁"),
+    ("bigwedge", SymbolKind::Operator, "⋀"),
+    ("bij", SymbolKind::Operator, "⤖"),
+    ("binampersand", SymbolKind::Identifier, "&"),
+    ("bindnasrepma", SymbolKind::Operator, "⅋"),
+    ("blacklozenge", SymbolKind::Identifier, "⧫"),
+    ("blacksquare", SymbolKind::Identifier, "■"),
+    ("blacktriangle", SymbolKind::Identifier, "▲"),
+    ("blacktriangledown", SymbolKind::Identifier, "▼"),
+    ("blacktriangleleft", SymbolKind::Operator, "◀"),
+    ("blacktriangleright", SymbolKind::Operator, "▶"),
+    ("blacktriangleup", SymbolKind::Operator, "▴"),
+    ("bot", SymbolKind::Identifier, "⊥"),
+    ("bowtie", SymbolKind::Operator, "⋈"),
+    ("boxast", SymbolKind::Operator, "⧆"),
+    ("boxbar", SymbolKind::Operator, "◫"),
+    ("boxbox", SymbolKind::Operator, "⧈"),
+    ("boxbslash", SymbolKind::Operator, "⧅"),
+    ("boxcircle", SymbolKind::Operator, "⧇"),
+    ("boxdot", SymbolKind::Operator, "⊡"),
+    ("boxminus", SymbolKind::Operator, "⊟"),
+    ("boxplus", SymbolKind::Operator, "⊞"),
+    ("boxslash", SymbolKind::Operator, "⧄"),
+    ("boxtimes", SymbolKind::Operator, "⊠"),
+    ("breve", SymbolKind::Operator, "˘"),
+    ("bull", SymbolKind::Operator, "∙"),
+    ("bullet", SymbolKind::Operator, "∙"),
+    ("bumpeq", SymbolKind::Operator, "≏"),
+    ("buni", SymbolKind::Operator, "⊎"),
+    ("candra", SymbolKind::Identifier, "̐"),
+    ("cap", SymbolKind::Operator, "∩"),
+    ("caretinsert", SymbolKind::Identifier, "‸"),
+    ("carriagereturn", SymbolKind::Identifier, "↵"),
+    ("cat", SymbolKind::Operator, "⁀"),
+    ("cdot", SymbolKind::Operator, "⋅"),
+    ("cdotp", SymbolKind::Operator, "⋅"),
+    ("cdots", SymbolKind::Operator, "⋯"),
+    ("centerdot", SymbolKind::Operator, "⋅"),
+    ("check", SymbolKind::Operator, "ˇ"),
+    ("checkmark", SymbolKind::Identifier, "✓"),
+    ("chi", SymbolKind::Identifier, "χ"),
+    ("circ", SymbolKind::Operator, "∘"),
+    ("circeq", SymbolKind::Operator, "≗"),
+    ("circlearrowleft", SymbolKind::Operator, "↺"),
+    ("circlearrowright", SymbolKind::Operator, "↻"),
+    ("circledR", SymbolKind::Identifier, "®"),
+    ("circledS", SymbolKind::Identifier, "Ⓢ"),
+    ("circledast", SymbolKind::Operator, "⊛"),
+    ("circledbslash", SymbolKind::Operator, "⦸"),
+    ("circledcirc", SymbolKind::Operator, "⊚"),
+    ("circleddash", SymbolKind::Operator, "⊝"),
+    ("circledequal", SymbolKind::Operator, "⊜"),
+    ("circledgtr", SymbolKind::Operator, "⧁"),
+    ("circledless", SymbolKind::Operator, "⧀"),
+    ("circleonrightarrow", SymbolKind::Operator, "⇴"),
+    ("closure", SymbolKind::Operator, "⁐"),
+    ("clubs", SymbolKind::Identifier, "♣"),
+    ("clubsuit", SymbolKind::Identifier, "♣"),
+    ("coloneq", SymbolKind::Operator, "≔"),
+    ("coloneqq", SymbolKind::Operator, "≔"),
+    ("colonequals", SymbolKind::Operator, "≔"),
+    ("comma", SymbolKind::Operator, ","),
+    ("comp", SymbolKind::Operator, "⨾"),
+    ("complement", SymbolKind::Identifier, "∁"),
+    ("cong", SymbolKind::Operator, "≅"),
+    ("conictaper", SymbolKind::Identifier, "⌲"),
+    ("coprod", SymbolKind::Operator, "∐"),
+    ("corresponds", SymbolKind::Operator, "≙"),
+    ("cup", SymbolKind::Operator, "∪"),
+    ("cupdot", SymbolKind::Operator, "⊍"),
+    ("cupleftarrow", SymbolKind::Operator, "⊌"),
+    ("curlyeqprec", SymbolKind::Operator, "⋞"),
+    ("curlyeqsucc", SymbolKind::Operator, "⋟"),
+    ("curlyvee", SymbolKind::Operator, "⋎"),
+    ("curlywedge", SymbolKind::Operator, "⋏"),
+    ("curvearrowleft", SymbolKind::Operator, "↶"),
+    ("curvearrowright", SymbolKind::Operator, "↷"),
+    ("cwopencirclearrow", SymbolKind::Identifier, "↻"),
+    ("dArr", SymbolKind::Operator, "⇓"),
+    ("dag", SymbolKind::Identifier, "†"),
+    ("dagger", SymbolKind::Operator, "†"),
+    ("daleth", SymbolKind::Identifier, "ℸ"),
+    ("darr", SymbolKind::Operator, "↓"),
+    ("dashcolon", SymbolKind::Operator, "∹"),
+    ("dashleftarrow", SymbolKind::Operator, "⇠"),
+    ("dashrightarrow", SymbolKind::Operator, "⇢"),
+    ("dashv", SymbolKind::Operator, "⊣"),
+    ("ddag", SymbolKind::Identifier, "‡"),
+    ("ddagger", SymbolKind::Operator, "‡"),
+    ("ddots", SymbolKind::Operator, "⋱"),
+    ("degree", SymbolKind::Identifier, "°"),
+    ("delta", SymbolKind::Identifier, "δ"),
+    ("diagdown", SymbolKind::Identifier, "╲"),
+    ("diagup", SymbolKind::Identifier, "╱"),
+    ("diameter", SymbolKind::Identifier, "⌀"),
+    ("diamond", SymbolKind::Operator, "⋄"),
+    ("diamonds", SymbolKind::Identifier, "♢"),
+    ("diamondsuit", SymbolKind::Identifier, "♢"),
+    ("digamma", SymbolKind::Identifier, "ϝ"),
+    ("dint", SymbolKind::Operator, "⋂"),
+    ("disin", SymbolKind::Operator, "⋲"),
+    ("div", SymbolKind::Operator, "÷"),
+    ("divideontimes", SymbolKind::Operator, "⋇"),
+    ("divslash", SymbolKind::Operator, "∕"),
+    ("dlsh", SymbolKind::Operator, "↲"),
+    ("doteq", SymbolKind::Operator, "≐"),
+    ("doteqdot", SymbolKind::Operator, "≑"),
+    ("dotminus", SymbolKind::Operator, "∸"),
+    ("dotplus", SymbolKind::Operator, "∔"),
+    ("dots", SymbolKind::Operator, "…"),
+    ("dotsb", SymbolKind::Operator, "⋯"),
+    ("dotsc", SymbolKind::Operator, "…"),
+    ("dotsi", SymbolKind::Operator, "⋯"),
+    ("dotsm", SymbolKind::Operator, "⋯"),
+    ("dotsminusdots", SymbolKind::Operator, "∺"),
+    ("dotso", SymbolKind::Operator, "…"),
+    ("dotsx", SymbolKind::Operator, "…"),
+    ("doublebarwedge", SymbolKind::Operator, "⩞"),
+    ("doublecap", SymbolKind::Operator, "⋒"),
+    ("doublecup", SymbolKind::Operator, "⋓"),
+    ("downarrow", SymbolKind::Operator, "↓"),
+    ("downdasharrow", SymbolKind::Identifier, "⇣"),
+    ("downdownarrows", SymbolKind::Operator, "⇊"),
+    ("downdownharpoons", SymbolKind::Operator, "⥥"),
+    ("downharpoonleft", SymbolKind::Operator, "⇃"),
+    ("downharpoonright", SymbolKind::Operator, "⇂"),
+    ("downuparrows", SymbolKind::Operator, "⇵"),
+    ("downupharpoons", SymbolKind::Operator, "⥯"),
+    ("downwhitearrow", SymbolKind::Identifier, "⇩"),
+    ("downzigzagarrow", SymbolKind::Operator, "↯"),
+    ("dprime", SymbolKind::Identifier, "″"),
+    ("dres", SymbolKind::Operator, "◁"),
+    ("droang", SymbolKind::Identifier, "̚"),
+    ("drsh", SymbolKind::Operator, "↳"),
+    ("dsub", SymbolKind::Operator, "⩤"),
+    ("duni", SymbolKind::Operator, "⋃"),
+    ("ell", SymbolKind::Identifier, "ℓ"),
+    ("empty", SymbolKind::Identifier, "∅"),
+    ("emptyset", SymbolKind::Identifier, "∅"),
+    ("enclosecircle", SymbolKind::Identifier, "⃝"),
+    ("enclosediamond", SymbolKind::Identifier, "⃟"),
+    ("enclosesquare", SymbolKind::Identifier, "⃞"),
+    ("enclosetriangle", SymbolKind::Identifier, "⃤"),
+    ("enleadertwodots", SymbolKind::Identifier, "‥"),
+    ("epsilon", SymbolKind::Identifier, "ϵ"),
+    ("eqcirc", SymbolKind::Operator, "≖"),
+    ("eqcolon", SymbolKind::Operator, "∹"),
+    ("eqdef", SymbolKind::Operator, "≝"),
+    ("eqgtr", SymbolKind::Operator, "⋝"),
+    ("eqless", SymbolKind::Operator, "⋜"),
+    ("eqqcolon", SymbolKind::Operator, "≕"),
+    ("eqsim", SymbolKind::Operator, "≂"),
+    ("eqslantgtr", SymbolKind::Operator, "⪖"),
+    ("eqslantless", SymbolKind::Operator, "⪕"),
+    ("equal", SymbolKind::Operator, "="),
+    ("equalparallel", SymbolKind::Operator, "⋕"),
+    ("equalscolon", SymbolKind::Operator, "≕"),
+    ("equiv", SymbolKind::Operator, "≡"),
+    ("eta", SymbolKind::Identifier, "η"),
+    ("eth", SymbolKind::Identifier, "ð"),
+    ("euro", SymbolKind::Identifier, "€"),
+    ("exclam", SymbolKind::Operator, "!"),
+    ("exi", SymbolKind::Identifier, "∃"),
+    ("exist", SymbolKind::Identifier, "∃"),
+    ("exists", SymbolKind::Identifier, "∃"),
+    ("fallingdotseq", SymbolKind::Operator, "≒"),
+    ("fcmp", SymbolKind::Operator, "⨾"),
+    ("ffun", SymbolKind::Operator, "⇻"),
+    ("finj", SymbolKind::Operator, "⤕"),
+    ("flat", SymbolKind::Identifier, "♭"),
+    ("forall", SymbolKind::Identifier, "∀"),
+    ("fourth", SymbolKind::Identifier, "⁗"),
+    ("fracslash", SymbolKind::Operator, "⁄"),
+    ("frown", SymbolKind::Operator, "⌢"),
+    ("gamma", SymbolKind::Identifier, "γ"),
+    ("ge", SymbolKind::Operator, "≥"),
+    ("geq", SymbolKind::Operator, "≥"),
+    ("geqq", SymbolKind::Operator, "≧"),
+    ("geqslant", SymbolKind::Operator, "⩾"),
+    ("gets", SymbolKind::Operator, "←"),
+    ("gg", SymbolKind::Operator, "≫"),
+    ("ggcurly", SymbolKind::Operator, "⪼"),
+    ("ggg", SymbolKind::Operator, "⋙"),
+    ("gggtr", SymbolKind::Operator, "⋙"),
+    ("gimel", SymbolKind::Identifier, "ℷ"),
+    ("gnapprox", SymbolKind::Operator, "⪊"),
+    ("gneq", SymbolKind::Operator, "⪈"),
+    ("gneqq", SymbolKind::Operator, "≩"),
+    ("gnsim", SymbolKind::Operator, "⋧"),
+    ("grave", SymbolKind::Operator, "ˋ"),
+    ("greater", SymbolKind::Operator, ">"),
+    ("gt", SymbolKind::Operator, ">"),
+    ("gtrapprox", SymbolKind::Operator, "⪆"),
+    ("gtrdot", SymbolKind::Operator, "⋗"),
+    ("gtreqless", SymbolKind::Operator, "⋛"),
+    ("gtreqqless", SymbolKind::Operator, "⪌"),
+    ("gtrless", SymbolKind::Operator, "≷"),
+    ("gtrsim", SymbolKind::Operator, "≳"),
+    ("hArr", SymbolKind::Operator, "⇔"),
+    ("harr", SymbolKind::Operator, "↔"),
+    ("harrowextender", SymbolKind::Identifier, "⎯"),
+    ("hash", SymbolKind::Operator, "⋕"),
+    ("hbar", SymbolKind::Identifier, "ℏ"),
+    ("hearts", SymbolKind::Identifier, "♡"),
+    ("heartsuit", SymbolKind::Identifier, "♡"),
+    ("hermitmatrix", SymbolKind::Identifier, "⊹"),
+    ("hide", SymbolKind::Operator, "⧹"),
+    ("hookleftarrow", SymbolKind::Operator, "↩"),
+    ("hookrightarrow", SymbolKind::Operator, "↪"),
+    ("horizbar", SymbolKind::Identifier, "―"),
+    ("house", SymbolKind::Identifier, "⌂"),
+    ("hslash", SymbolKind::Identifier, "ℏ"),
+    ("hyphenbullet", SymbolKind::Identifier, "⁃"),
+    ("iddots", SymbolKind::Operator, "⋰"),
+    ("iff", SymbolKind::Operator, "⟺"),
+    ("iiiint", SymbolKind::Operator, "⨌"),
+    ("iiint", SymbolKind::Operator, "∭"),
+    ("iint", SymbolKind::Operator, "∬"),
+    ("image", SymbolKind::Identifier, "ℑ"),
+    ("imageof", SymbolKind::Operator, "⊷"),
+    ("imath", SymbolKind::Identifier, "ı"),
+    ("impliedby", SymbolKind::Operator, "⟸"),
+    ("implies", SymbolKind::Operator, "⟹"),
+    ("in", SymbolKind::Operator, "∈"),
+    ("increment", SymbolKind::Identifier, "∆"),
+    ("infin", SymbolKind::Identifier, "∞"),
+    ("infty", SymbolKind::Identifier, "∞"),
+    ("int", SymbolKind::Operator, "∫"),
+    ("intbottom", SymbolKind::Identifier, "⌡"),
+    ("intclockwise", SymbolKind::Operator, "∱"),
+    ("intercal", SymbolKind::Operator, "⊺"),
+    ("interleave", SymbolKind::Operator, "⫴"),
+    ("intextender", SymbolKind::Identifier, "⎮"),
+    ("intop", SymbolKind::Operator, "∫"),
+    ("inttop", SymbolKind::Identifier, "⌠"),
+    ("invamp", SymbolKind::Operator, "⅋"),
+    ("invlazys", SymbolKind::Operator, "∾"),
+    ("invnot", SymbolKind::Identifier, "⌐"),
+    ("iota", SymbolKind::Identifier, "ι"),
+    ("isin", SymbolKind::Operator, "∈"),
+    ("isinE", SymbolKind::Operator, "⋹"),
+    ("isindot", SymbolKind::Operator, "⋵"),
+    ("isinobar", SymbolKind::Operator, "⋷"),
+    ("isins", SymbolKind::Operator, "⋴"),
+    ("isinvb", SymbolKind::Operator, "⋸"),
+    ("jmath", SymbolKind::Identifier, "ȷ"),
+    ("kappa", SymbolKind::Identifier, "κ"),
+    ("kernelcontraction", SymbolKind::Operator, "∻"),
+    ("lArr", SymbolKind::Operator, "⇐"),
+    ("lVert", SymbolKind::Operator, "∥"),
+    ("lambda", SymbolKind::Identifier, "λ"),
+    ("land", SymbolKind::Operator, "∧"),
+    ("lang", SymbolKind::Operator, "⟨"),
+    ("langle", SymbolKind::Operator, "⟨"),
+    ("larr", SymbolKind::Operator, "←"),
+    ("lblot", SymbolKind::Operator, "⦉"),
+    ("lbrace", SymbolKind::Operator, "{"),
+    ("lbracelend", SymbolKind::Identifier, "⎩"),
+    ("lbracemid", SymbolKind::Identifier, "⎨"),
+    ("lbraceuend", SymbolKind::Identifier, "⎧"),
+    ("lbrack", SymbolKind::Operator, "["),
+    ("lbrackextender", SymbolKind::Identifier, "⎢"),
+    ("lbracklend", SymbolKind::Identifier, "⎣"),
+    ("lbrackuend", SymbolKind::Identifier, "⎡"),
+    ("lceil", SymbolKind::Operator, "⌈"),
+    ("ldotp", SymbolKind::Operator, "."),
+    ("ldots", SymbolKind::Operator, "…"),
+    ("le", SymbolKind::Operator, "≤"),
+    ("leadsto", SymbolKind::Operator, "⇝"),
+    ("leftarrow", SymbolKind::Operator, "←"),
+    ("leftarrowtail", SymbolKind::Operator, "↢"),
+    ("leftarrowtriangle", SymbolKind::Operator, "⇽"),
+    ("leftbarharpoon", SymbolKind::Operator, "⥪"),
+    ("leftdasharrow", SymbolKind::Identifier, "⇠"),
+    ("leftharpoonaccent", SymbolKind::Identifier, "⃐"),
+    ("leftharpoondown", SymbolKind::Operator, "↽"),
+    ("leftharpoonup", SymbolKind::Operator, "↼"),
+    ("leftleftarrows", SymbolKind::Operator, "⇇"),
+    ("leftleftharpoons", SymbolKind::Operator, "⥢"),
+    ("leftrightarrow", SymbolKind::Operator, "↔"),
+    ("leftrightarrows", SymbolKind::Operator, "⇆"),
+    ("leftrightharpoon", SymbolKind::Operator, "⥊"),
+    ("leftrightharpoons", SymbolKind::Operator, "⇋"),
+    ("leftrightsquigarrow", SymbolKind::Operator, "↭"),
+    ("leftslice", SymbolKind::Operator, "⪦"),
+    ("leftsquigarrow", SymbolKind::Operator, "⇜"),
+    ("leftthreetimes", SymbolKind::Operator, "⋋"),
+    ("leftwavearrow", SymbolKind::Operator, "↜"),
+    ("leftwhitearrow", SymbolKind::Identifier, "⇦"),
+    ("leq", SymbolKind::Operator, "≤"),
+    ("leqq", SymbolKind::Operator, "≦"),
+    ("leqslant", SymbolKind::Operator, "⩽"),
+    ("less", SymbolKind::Operator, "<"),
+    ("lessapprox", SymbolKind::Operator, "⪅"),
+    ("lessdot", SymbolKind::Operator, "⋖"),
+    ("lesseqgtr", SymbolKind::Operator, "⋚"),
+    ("lesseqqgtr", SymbolKind::Operator, "⪋"),
+    ("lessgtr", SymbolKind::Operator, "≶"),
+    ("lesssim", SymbolKind::Operator, "≲"),
+    ("lfloor", SymbolKind::Operator, "⌊"),
+    ("lgroup", SymbolKind::Operator, "⟮"),
+    ("lhd", SymbolKind::Operator, "⊲"),
+    ("lightning", SymbolKind::Operator, "↯"),
+    ("limg", SymbolKind::Operator, "⦇"),
+    ("linefeed", SymbolKind::Identifier, "↴"),
+    ("ll", SymbolKind::Operator, "≪"),
+    ("llbracket", SymbolKind::Operator, "⟦"),
+    ("llcurly", SymbolKind::Operator, "⪻"),
+    ("lll", SymbolKind::Operator, "⋘"),
+    ("llless", SymbolKind::Operator, "⋘"),
+    ("llparenthesis", SymbolKind::Operator, "⦇"),
+    ("lmoustache", SymbolKind::Operator, "⎰"),
+    ("lnapprox", SymbolKind::Operator, "⪉"),
+    ("lneq", SymbolKind::Operator, "⪇"),
+    ("lneqq", SymbolKind::Operator, "≨"),
+    ("lnot", SymbolKind::Identifier, "¬"),
+    ("lnsim", SymbolKind::Operator, "⋦"),
+    ("longleftarrow", SymbolKind::Operator, "⟵"),
+    ("longleftrightarrow", SymbolKind::Operator, "⟷"),
+    ("longmapsfrom", SymbolKind::Operator, "⟻"),
+    ("longmapsto", SymbolKind::Operator, "⟼"),
+    ("longrightarrow", SymbolKind::Operator, "⟶"),
+    ("looparrowleft", SymbolKind::Operator, "↫"),
+    ("looparrowright", SymbolKind::Operator, "↬"),
+    ("lor", SymbolKind::Operator, "∨"),
+    ("lozenge", SymbolKind::Identifier, "◊"),
+    ("lparen", SymbolKind::Operator, "("),
+    ("lparenextender", SymbolKind::Identifier, "⎜"),
+    ("lparenlend", SymbolKind::Identifier, "⎝"),
+    ("lparenuend", SymbolKind::Identifier, "⎛"),
+    ("lrArr", SymbolKind::Operator, "⇔"),
+    ("lrarr", SymbolKind::Operator, "↔"),
+    ("lrtimes", SymbolKind::Operator, "⋈"),
+    ("lt", SymbolKind::Operator, "<"),
+    ("ltimes", SymbolKind::Operator, "⋉"),
+    ("lvboxline", SymbolKind::Identifier, "⎸"),
+    ("lvert", SymbolKind::Operator, "∣"),
+    ("maltese", SymbolKind::Identifier, "✠"),
+    ("mapsdown", SymbolKind::Operator, "↧"),
+    ("mapsfrom", SymbolKind::Operator, "↤"),
+    ("mapsto", SymbolKind::Operator, "↦"),
+    ("mapsup", SymbolKind::Operator, "↥"),
+    ("mathcent", SymbolKind::Identifier, "¢"),
+    ("mathcolon", SymbolKind::Operator, ":"),
+    ("mathdollar", SymbolKind::Identifier, "$"),
+    ("mathellipsis", SymbolKind::Operator, "…"),
+    ("matheth", SymbolKind::Identifier, "ð"),
+    ("mathratio", SymbolKind::Operator, "∶"),
+    ("mathring", SymbolKind::Operator, "˚"),
+    ("mathslash", SymbolKind::Identifier, "/"),
+    ("mathsterling", SymbolKind::Identifier, "£"),
+    ("measeq", SymbolKind::Operator, "≞"),
+    ("measuredangle", SymbolKind::Identifier, "∡"),
+    ("measuredrightangle", SymbolKind::Identifier, "⊾"),
+    ("medbullet", SymbolKind::Identifier, "⚫"),
+    ("medcirc", SymbolKind::Identifier, "⚪"),
+    ("mfrakC", SymbolKind::Identifier, "ℭ"),
+    ("mfrakH", SymbolKind::Identifier, "ℌ"),
+    ("mfrakZ", SymbolKind::Identifier, "ℨ"),
+    ("mho", SymbolKind::Identifier, "℧"),
+    ("mid", SymbolKind::Operator, "∣"),
+    ("minus", SymbolKind::Operator, "−"),
+    ("mitBbbD", SymbolKind::Identifier, "ⅅ"),
+    ("mitBbbd", SymbolKind::Identifier, "ⅆ"),
+    ("mitBbbe", SymbolKind::Identifier, "ⅇ"),
+    ("mitBbbi", SymbolKind::Identifier, "ⅈ"),
+    ("mitBbbj", SymbolKind::Identifier, "ⅉ"),
+    ("models", SymbolKind::Operator, "⊨"),
+    ("mp", SymbolKind::Operator, "∓"),
+    ("mscrB", SymbolKind::Identifier, "ℬ"),
+    ("mscrE", SymbolKind::Identifier, "ℰ"),
+    ("mscrF", SymbolKind::Identifier, "ℱ"),
+    ("mscrH", SymbolKind::Identifier, "ℋ"),
+    ("mscrI", SymbolKind::Identifier, "ℐ"),
+    ("mscrL", SymbolKind::Identifier, "ℒ"),
+    ("mscrM", SymbolKind::Identifier, "ℳ"),
+    ("mscrR", SymbolKind::Identifier, "ℛ"),
+    ("mscre", SymbolKind::Identifier, "ℯ"),
+    ("mscrg", SymbolKind::Identifier, "ℊ"),
+    ("mscro", SymbolKind::Identifier, "ℴ"),
+    ("mu", SymbolKind::Identifier, "μ"),
+    ("multimap", SymbolKind::Operator, "⊸"),
+    ("multimapboth", SymbolKind::Operator, "⧟"),
+    ("multimapdotbothA", SymbolKind::Operator, "⊶"),
+    ("multimapdotbothB", SymbolKind::Operator, "⊷"),
+    ("multimapinv", SymbolKind::Operator, "⟜"),
+    ("nHdownarrow", SymbolKind::Identifier, "⇟"),
+    ("nHuparrow", SymbolKind::Identifier, "⇞"),
+    ("nLeftarrow", SymbolKind::Operator, "⇍"),
+    ("nLeftrightarrow", SymbolKind::Operator, "⇎"),
+    ("nRightarrow", SymbolKind::Operator, "⇏"),
+    ("nVDash", SymbolKind::Operator, "⊯"),
+    ("nVdash", SymbolKind::Operator, "⊮"),
+    ("nVleftarrow", SymbolKind::Operator, "⇺"),
+    ("nVleftrightarrow", SymbolKind::Operator, "⇼"),
+    ("nVrightarrow", SymbolKind::Operator, "⇻"),
+    ("nabla", SymbolKind::Identifier, "∇"),
+    ("natural", SymbolKind::Identifier, "♮"),
+    ("ncong", SymbolKind::Operator, "≆"),
+    ("ndres", SymbolKind::Operator, "⩤"),
+    ("ne", SymbolKind::Operator, "≠"),
+    ("nearrow", SymbolKind::Operator, "↗"),
+    ("neg", SymbolKind::Identifier, "¬"),
+    ("neq", SymbolKind::Operator, "≠"),
+    ("nexi", SymbolKind::Identifier, "∄"),
+    ("nexists", SymbolKind::Identifier, "∄"),
+    ("ngeq", SymbolKind::Operator, "≱"),
+    ("ngtr", SymbolKind::Operator, "≯"),
+    ("ngtrless", SymbolKind::Operator, "≹"),
+    ("ngtrsim", SymbolKind::Operator, "≵"),
+    ("ni", SymbolKind::Operator, "∋"),
+    ("niobar", SymbolKind::Operator, "⋾"),
+    ("nisd", SymbolKind::Operator, "⋺"),
+    ("nleftarrow", SymbolKind::Operator, "↚"),
+    ("nleftrightarrow", SymbolKind::Operator, "↮"),
+    ("nleq", SymbolKind::Operator, "≰"),
+    ("nless", SymbolKind::Operator, "≮"),
+    ("nlessgtr", SymbolKind::Operator, "≸"),
+    ("nlesssim", SymbolKind::Operator, "≴"),
+    ("nmid", SymbolKind::Operator, "∤"),
+    ("nobreakspace", SymbolKind::Operator, " "),
+    ("notasymp", SymbolKind::Operator, "≭"),
+    ("notin", SymbolKind::Operator, "∉"),
+    ("notni", SymbolKind::Operator, "∌"),
+    ("nparallel", SymbolKind::Operator, "∦"),
+    ("nprec", SymbolKind::Operator, "⊀"),
+    ("npreccurlyeq", SymbolKind::Operator, "⋠"),
+    ("npreceq", SymbolKind::Operator, "⋠"),
+    ("nrightarrow", SymbolKind::Operator, "↛"),
+    ("nrres", SymbolKind::Operator, "⩥"),
+    ("nsim", SymbolKind::Operator, "≁"),
+    ("nsime", SymbolKind::Operator, "≄"),
+    ("nsimeq", SymbolKind::Operator, "≄"),
+    ("nsubseteq", SymbolKind::Operator, "⊈"),
+    ("nsucc", SymbolKind::Operator, "⊁"),
+    ("nsucccurlyeq", SymbolKind::Operator, "⋡"),
+    ("nsucceq", SymbolKind::Operator, "⋡"),
+    ("nsupseteq", SymbolKind::Operator, "⊉"),
+    ("ntriangleleft", SymbolKind::Operator, "⋪"),
+    ("ntrianglelefteq", SymbolKind::Operator, "⋬"),
+    ("ntriangleright", SymbolKind::Operator, "⋫"),
+    ("ntrianglerighteq", SymbolKind::Operator, "⋭"),
+    ("nu", SymbolKind::Identifier, "ν"),
+    ("nvDash", SymbolKind::Operator, "⊭"),
+    ("nvdash", SymbolKind::Operator, "⊬"),
+    ("nvleftarrow", SymbolKind::Operator, "⇷"),
+    ("nvleftrightarrow", SymbolKind::Operator, "⇹"),
+    ("nvrightarrow", SymbolKind::Operator, "⇸"),
+    ("nwarrow", SymbolKind::Operator, "↖"),
+    ("obar", SymbolKind::Operator, "⌽"),
+    ("ocirc", SymbolKind::Identifier, "̊"),
+    ("ocommatopright", SymbolKind::Identifier, "̕"),
+    ("octothorpe", SymbolKind::Identifier, "#"),
+    ("odot", SymbolKind::Operator, "⊙"),
+    ("oiiint", SymbolKind::Operator, "∰"),
+    ("oiint", SymbolKind::Operator, "∯"),
+    ("oint", SymbolKind::Operator, "∮"),
+    ("omega", SymbolKind::Identifier, "ω"),
+    ("omicron", SymbolKind::Identifier, "ο"),
+    ("ominus", SymbolKind::Operator, "⊖"),
+    ("oplus", SymbolKind::Operator, "⊕"),
+    ("origof", SymbolKind::Operator, "⊶"),
+    ("oslash", SymbolKind::Operator, "⊘"),
+    ("otimes", SymbolKind::Operator, "⊗"),
+    ("oturnedcomma", SymbolKind::Identifier, "̒"),
+    ("overbar", SymbolKind::Identifier, "̅"),
+    ("overbracket", SymbolKind::Identifier, "⎴"),
+    ("overleftarrow", SymbolKind::Identifier, "⃖"),
+    ("ovhook", SymbolKind::Identifier, "̉"),
+    ("owns", SymbolKind::Operator, "∋"),
+    ("parallel", SymbolKind::Operator, "∥"),
+    ("partial", SymbolKind::Identifier, "∂"),
+    ("percent", SymbolKind::Identifier, "%"),
+    ("period", SymbolKind::Identifier, "."),
+    ("perp", SymbolKind::Operator, "⊥"),
+    ("pfun", SymbolKind::Operator, "⇸"),
+    ("phi", SymbolKind::Identifier, "ϕ"),
+    ("pi", SymbolKind::Identifier, "π"),
+    ("pinj", SymbolKind::Operator, "⤔"),
+    ("pitchfork", SymbolKind::Operator, "⋔"),
+    ("plus", SymbolKind::Operator, "+"),
+    ("plusmn", SymbolKind::Operator, "±"),
+    ("pm", SymbolKind::Operator, "±"),
+    ("pounds", SymbolKind::Identifier, "£"),
+    ("prec", SymbolKind::Operator, "≺"),
+    ("precapprox", SymbolKind::Operator, "⪷"),
+    ("preccurlyeq", SymbolKind::Operator, "≼"),
+    ("preceq", SymbolKind::Operator, "⪯"),
+    ("preceqq", SymbolKind::Operator, "⪳"),
+    ("precnapprox", SymbolKind::Operator, "⪹"),
+    ("precneqq", SymbolKind::Operator, "⪵"),
+    ("precnsim", SymbolKind::Operator, "⋨"),
+    ("precsim", SymbolKind::Operator, "≾"),
+    ("prime", SymbolKind::Identifier, "′"),
+    ("prod", SymbolKind::Operator, "∏"),
+    ("profline", SymbolKind::Identifier, "⌒"),
+    ("profsurf", SymbolKind::Identifier, "⌓"),
+    ("project", SymbolKind::Operator, "⨡"),
+    ("propto", SymbolKind::Operator, "∝"),
+    ("prurel", SymbolKind::Operator, "⊰"),
+    ("psi", SymbolKind::Identifier, "ψ"),
+    ("psur", SymbolKind::Operator, "⤀"),
+    ("psurj", SymbolKind::Operator, "⤀"),
+    ("qprime", SymbolKind::Identifier, "⁗"),
+    ("questeq", SymbolKind::Operator, "≟"),
+    ("question", SymbolKind::Identifier, "?"),
+    ("rArr", SymbolKind::Operator, "⇒"),
+    ("rVert", SymbolKind::Operator, "∥"),
+    ("rang", SymbolKind::Operator, "⟩"),
+    ("rangle", SymbolKind::Operator, "⟩"),
+    ("rarr", SymbolKind::Operator, "→"),
+    ("rblot", SymbolKind::Operator, "⦊"),
+    ("rbrace", SymbolKind::Operator, "}"),
+    ("rbracelend", SymbolKind::Identifier, "⎭"),
+    ("rbracemid", SymbolKind::Identifier, "⎬"),
+    ("rbraceuend", SymbolKind::Identifier, "⎫"),
+    ("rbrack", SymbolKind::Operator, "]"),
+    ("rbrackextender", SymbolKind::Identifier, "⎥"),
+    ("rbracklend", SymbolKind::Identifier, "⎦"),
+    ("rbrackuend", SymbolKind::Identifier, "⎤"),
+    ("rceil", SymbolKind::Operator, "⌉"),
+    ("real", SymbolKind::Identifier, "ℜ"),
+    ("rel", SymbolKind::Operator, "↔"),
+    ("restriction", SymbolKind::Operator, "↾"),
+    ("rfloor", SymbolKind::Operator, "⌋"),
+    ("rgroup", SymbolKind::Operator, "⟯"),
+    ("rhd", SymbolKind::Operator, "⊳"),
+    ("rho", SymbolKind::Identifier, "ρ"),
+    ("rightarrow", SymbolKind::Operator, "→"),
+    ("rightarrowbar", SymbolKind::Operator, "⇥"),
+    ("rightarrowtail", SymbolKind::Operator, "↣"),
+    ("rightarrowtriangle", SymbolKind::Operator, "⇾"),
+    ("rightbarharpoon", SymbolKind::Operator, "⥬"),
+    ("rightdasharrow", SymbolKind::Identifier, "⇢"),
+    ("rightharpoonaccent", SymbolKind::Identifier, "⃑"),
+    ("rightharpoondown", SymbolKind::Operator, "⇁"),
+    ("rightharpoonup", SymbolKind::Operator, "⇀"),
+    ("rightleftarrows", SymbolKind::Operator, "⇄"),
+    ("rightleftharpoon", SymbolKind::Operator, "⥋"),
+    ("rightleftharpoons", SymbolKind::Operator, "⇌"),
+    ("rightrightarrows", SymbolKind::Operator, "⇉"),
+    ("rightrightharpoons", SymbolKind::Operator, "⥤"),
+    ("rightslice", SymbolKind::Operator, "⪧"),
+    ("rightsquigarrow", SymbolKind::Operator, "⇝"),
+    ("rightthreearrows", SymbolKind::Operator, "⇶"),
+    ("rightthreetimes", SymbolKind::Operator, "⋌"),
+    ("rightwavearrow", SymbolKind::Operator, "↝"),
+    ("rightwhitearrow", SymbolKind::Identifier, "⇨"),
+    ("rimg", SymbolKind::Operator, "⦈"),
+    ("risingdotseq", SymbolKind::Operator, "≓"),
+    ("rmoustache", SymbolKind::Operator, "⎱"),
+    ("rparen", SymbolKind::Operator, ")"),
+    ("rparenextender", SymbolKind::Identifier, "⎟"),
+    ("rparenlend", SymbolKind::Identifier, "⎠"),
+    ("rparenuend", SymbolKind::Identifier, "⎞"),
+    ("rrbracket", SymbolKind::Operator, "⟧"),
+    ("rres", SymbolKind::Operator, "▷"),
+    ("rrparenthesis", SymbolKind::Operator, "⦈"),
+    ("rsub", SymbolKind::Operator, "⩥"),
+    ("rtimes", SymbolKind::Operator, "⋊"),
+    ("rvboxline", SymbolKind::Identifier, "⎹"),
+    ("rvert", SymbolKind::Operator, "∣"),
+    ("sansLmirrored", SymbolKind::Identifier, "⅃"),
+    ("sansLturned", SymbolKind::Identifier, "⅂"),
+    ("scurel", SymbolKind::Operator, "⊱"),
+    ("sdef", SymbolKind::Operator, "≙"),
+    ("sdot", SymbolKind::Operator, "⋅"),
+    ("searrow", SymbolKind::Operator, "↘"),
+    ("second", SymbolKind::Identifier, "″"),
+    ("sect", SymbolKind::Identifier, "§"),
+    ("semi", SymbolKind::Operator, "⨟"),
+    ("semicolon", SymbolKind::Operator, ";"),
+    ("setminus", SymbolKind::Operator, "∖"),
+    ("sharp", SymbolKind::Identifier, "♯"),
+    ("shortmid", SymbolKind::Operator, "∣"),
+    ("shortparallel", SymbolKind::Operator, "∥"),
+    ("sigma", SymbolKind::Identifier, "σ"),
+    ("sim", SymbolKind::Operator, "∼"),
+    ("simeq", SymbolKind::Operator, "≃"),
+    ("simneqq", SymbolKind::Operator, "≆"),
+    ("sinewave", SymbolKind::Identifier, "∿"),
+    ("slash", SymbolKind::Identifier, "/"),
+    ("smallfrown", SymbolKind::Operator, "⌢"),
+    ("smallin", SymbolKind::Operator, "∊"),
+    ("smallint", SymbolKind::Operator, "∫"),
+    ("smallni", SymbolKind::Operator, "∍"),
+    ("smallsetminus", SymbolKind::Operator, "∖"),
+    ("smallsmile", SymbolKind::Operator, "⌣"),
+    ("smalltriangledown", SymbolKind::Operator, "▿"),
+    ("smalltriangleleft", SymbolKind::Operator, "◃"),
+    ("smalltriangleright", SymbolKind::Operator, "▹"),
+    ("smalltriangleup", SymbolKind::Operator, "▵"),
+    ("smblkcircle", SymbolKind::Operator, "•"),
+    ("smile", SymbolKind::Operator, "⌣"),
+    ("smwhtcircle", SymbolKind::Identifier, "◦"),
+    ("smwhtdiamond", SymbolKind::Operator, "⋄"),
+    ("space", SymbolKind::Operator, " "),
+    ("spades", SymbolKind::Identifier, "♠"),
+    ("spadesuit", SymbolKind::Identifier, "♠"),
+    ("sphat", SymbolKind::Identifier, "^"),
+    ("sphericalangle", SymbolKind::Identifier, "∢"),
+    ("spot", SymbolKind::Identifier, "⦁"),
+    ("sqcap", SymbolKind::Operator, "⊓"),
+    ("sqcup", SymbolKind::Operator, "⊔"),
+    ("sqlozenge", SymbolKind::Identifier, "⌑"),
+    ("sqrtbottom", SymbolKind::Identifier, "⎷"),
+    ("sqsubset", SymbolKind::Operator, "⊏"),
+    ("sqsubseteq", SymbolKind::Operator, "⊑"),
+    ("sqsubsetneq", SymbolKind::Operator, "⋤"),
+    ("sqsupset", SymbolKind::Operator, "⊐"),
+    ("sqsupseteq", SymbolKind::Operator, "⊒"),
+    ("sqsupsetneq", SymbolKind::Operator, "⋥"),
+    ("square", SymbolKind::Identifier, "□"),
+    ("sslash", SymbolKind::Operator, "⫽"),
+    ("star", SymbolKind::Operator, "⋆"),
+    ("stareq", SymbolKind::Operator, "≛"),
+    ("sterling", SymbolKind::Identifier, "£"),
+    ("strictfi", SymbolKind::Operator, "⥼"),
+    ("strictif", SymbolKind::Operator, "⥽"),
+    ("sub", SymbolKind::Operator, "⊂"),
+    ("sube", SymbolKind::Operator, "⊆"),
+    ("subset", SymbolKind::Operator, "⊂"),
+    ("subseteq", SymbolKind::Operator, "⊆"),
+    ("subseteqq", SymbolKind::Operator, "⫅"),
+    ("subsetneq", SymbolKind::Operator, "⊊"),
+    ("subsetneqq", SymbolKind::Operator, "⫋"),
+    ("succ", SymbolKind::Operator, "≻"),
+    ("succapprox", SymbolKind::Operator, "⪸"),
+    ("succcurlyeq", SymbolKind::Operator, "≽"),
+    ("succeq", SymbolKind::Operator, "⪰"),
+    ("succeqq", SymbolKind::Operator, "⪴"),
+    ("succnapprox", SymbolKind::Operator, "⪺"),
+    ("succneqq", SymbolKind::Operator, "⪶"),
+    ("succnsim", SymbolKind::Operator, "⋩"),
+    ("succsim", SymbolKind::Operator, "≿"),
+    ("sum", SymbolKind::Operator, "∑"),
+    ("sumbottom", SymbolKind::Identifier, "⎳"),
+    ("sumtop", SymbolKind::Identifier, "⎲"),
+    ("supe", SymbolKind::Operator, "⊇"),
+    ("supset", SymbolKind::Operator, "⊃"),
+    ("supseteq", SymbolKind::Operator, "⊇"),
+    ("supseteqq", SymbolKind::Operator, "⫆"),
+    ("supsetneq", SymbolKind::Operator, "⊋"),
+    ("supsetneqq", SymbolKind::Operator, "⫌"),
+    ("surd", SymbolKind::Identifier, "√"),
+    ("swarrow", SymbolKind::Operator, "↙"),
+    ("talloblong", SymbolKind::Operator, "⫾"),
+    ("tau", SymbolKind::Identifier, "τ"),
+    ("therefore", SymbolKind::Operator, "∴"),
+    ("theta", SymbolKind::Identifier, "θ"),
+    ("thetasym", SymbolKind::Identifier, "ϑ"),
+    ("thickapprox", SymbolKind::Operator, "≈"),
+    ("thicksim", SymbolKind::Operator, "∼"),
+    ("third", SymbolKind::Identifier, "‴"),
+    ("threeunderdot", SymbolKind::Identifier, "⃨"),
+    ("tieconcat", SymbolKind::Operator, "⁀"),
+    ("times", SymbolKind::Operator, "×"),
+    ("tinj", SymbolKind::Operator, "↣"),
+    ("to", SymbolKind::Operator, "→"),
+    ("top", SymbolKind::Identifier, "⊤"),
+    ("topbot", SymbolKind::Identifier, "⌶"),
+    ("triangle", SymbolKind::Identifier, "△"),
+    ("triangledown", SymbolKind::Identifier, "▽"),
+    ("triangleleft", SymbolKind::Operator, "◃"),
+    ("trianglelefteq", SymbolKind::Operator, "⊴"),
+    ("triangleq", SymbolKind::Operator, "≜"),
+    ("triangleright", SymbolKind::Operator, "▹"),
+    ("trianglerighteq", SymbolKind::Operator, "⊵"),
+    ("trprime", SymbolKind::Identifier, "‴"),
+    ("tsur", SymbolKind::Operator, "↠"),
+    ("turnediota", SymbolKind::Identifier, "℩"),
+    ("turnednot", SymbolKind::Identifier, "⌙"),
+    ("twoheaddownarrow", SymbolKind::Operator, "↡"),
+    ("twoheadleftarrow", SymbolKind::Operator, "↞"),
+    ("twoheadrightarrow", SymbolKind::Operator, "↠"),
+    ("twoheaduparrow", SymbolKind::Operator, "↟"),
+    ("twolowline", SymbolKind::Identifier, "‗"),
+    ("uArr", SymbolKind::Operator, "⇑"),
+    ("uarr", SymbolKind::Operator, "↑"),
+    ("underbracket", SymbolKind::Identifier, "⎵"),
+    ("underleftarrow", SymbolKind::Identifier, "⃮"),
+    ("underleftharpoondown", SymbolKind::Identifier, "⃭"),
+    ("underrightarrow", SymbolKind::Identifier, "⃯"),
+    ("unicodecdots", SymbolKind::Identifier, "⋯"),
+    ("unicodeellipsis", SymbolKind::Identifier, "…"),
+    ("unlhd", SymbolKind::Operator, "⊴"),
+    ("unrhd", SymbolKind::Operator, "⊵"),
+    ("upAlpha", SymbolKind::Identifier, "Α"),
+    ("upBeta", SymbolKind::Identifier, "Β"),
+    ("upChi", SymbolKind::Identifier, "Χ"),
+    ("upDelta", SymbolKind::Identifier, "Δ"),
+    ("upDigamma", SymbolKind::Identifier, "Ϝ"),
+    ("upEpsilon", SymbolKind::Identifier, "Ε"),
+    ("upEta", SymbolKind::Identifier, "Η"),
+    ("upGamma", SymbolKind::Identifier, "Γ"),
+    ("upIota", SymbolKind::Identifier, "Ι"),
+    ("upKappa", SymbolKind::Identifier, "Κ"),
+    ("upKoppa", SymbolKind::Identifier, "Ϟ"),
+    ("upLambda", SymbolKind::Identifier, "Λ"),
+    ("upMu", SymbolKind::Identifier, "Μ"),
+    ("upNu", SymbolKind::Identifier, "Ν"),
+    ("upOmega", SymbolKind::Identifier, "Ω"),
+    ("upOmicron", SymbolKind::Identifier, "Ο"),
+    ("upPhi", SymbolKind::Identifier, "Φ"),
+    ("upPi", SymbolKind::Identifier, "Π"),
+    ("upPsi", SymbolKind::Identifier, "Ψ"),
+    ("upRho", SymbolKind::Identifier, "Ρ"),
+    ("upSampi", SymbolKind::Identifier, "Ϡ"),
+    ("upSigma", SymbolKind::Identifier, "Σ"),
+    ("upStigma", SymbolKind::Identifier, "Ϛ"),
+    ("upTau", SymbolKind::Identifier, "Τ"),
+    ("upTheta", SymbolKind::Identifier, "Θ"),
+    ("upUpsilon", SymbolKind::Identifier, "Υ"),
+    ("upXi", SymbolKind::Identifier, "Ξ"),
+    ("upZeta", SymbolKind::Identifier, "Ζ"),
+    ("upalpha", SymbolKind::Identifier, "α"),
+    ("upand", SymbolKind::Operator, "⅋"),
+    ("uparrow", SymbolKind::Operator, "↑"),
+    ("upbackepsilon", SymbolKind::Identifier, "϶"),
+    ("upbeta", SymbolKind::Identifier, "β"),
+    ("upchi", SymbolKind::Identifier, "χ"),
+    ("updasharrow", SymbolKind::Identifier, "⇡"),
+    ("updelta", SymbolKind::Identifier, "δ"),
+    ("updigamma", SymbolKind::Identifier, "ϝ"),
+    ("updownarrow", SymbolKind::Operator, "↕"),
+    ("updownarrowbar", SymbolKind::Identifier, "↨"),
+    ("updownarrows", SymbolKind::Operator, "⇅"),
+    ("updownharpoons", SymbolKind::Operator, "⥮"),
+    ("upepsilon", SymbolKind::Identifier, "ε"),
+    ("upeta", SymbolKind::Identifier, "η"),
+    ("upgamma", SymbolKind::Identifier, "γ"),
+    ("upharpoonleft", SymbolKind::Operator, "↿"),
+    ("upharpoonright", SymbolKind::Operator, "↾"),
+    ("upiota", SymbolKind::Identifier, "ι"),
+    ("upkappa", SymbolKind::Identifier, "κ"),
+    ("upkoppa", SymbolKind::Identifier, "ϟ"),
+    ("uplambda", SymbolKind::Identifier, "λ"),
+    ("uplus", SymbolKind::Operator, "⊎"),
+    ("upmu", SymbolKind::Identifier, "μ"),
+    ("upnu", SymbolKind::Identifier, "ν"),
+    ("upoldKoppa", SymbolKind::Identifier, "Ϙ"),
+    ("upoldkoppa", SymbolKind::Identifier, "ϙ"),
+    ("upomega", SymbolKind::Identifier, "ω"),
+    ("upomicron", SymbolKind::Identifier, "ο"),
+    ("upphi", SymbolKind::Identifier, "ϕ"),
+    ("uppi", SymbolKind::Identifier, "π"),
+    ("uppsi", SymbolKind::Identifier, "ψ"),
+    ("uprho", SymbolKind::Identifier, "ρ"),
+    ("upsampi", SymbolKind::Identifier, "ϡ"),
+    ("upsigma", SymbolKind::Identifier, "σ"),
+    ("upsilon", SymbolKind::Identifier, "υ"),
+    ("upstigma", SymbolKind::Identifier, "ϛ"),
+    ("uptau", SymbolKind::Identifier, "τ"),
+    ("uptheta", SymbolKind::Identifier, "θ"),
+    ("upuparrows", SymbolKind::Operator, "⇈"),
+    ("upupharpoons", SymbolKind::Operator, "⥣"),
+    ("upupsilon", SymbolKind::Identifier, "υ"),
+    ("upvarTheta", SymbolKind::Identifier, "ϴ"),
+    ("upvarbeta", SymbolKind::Identifier, "ϐ"),
+    ("upvarepsilon", SymbolKind::Identifier, "ϵ"),
+    ("upvarkappa", SymbolKind::Identifier, "ϰ"),
+    ("upvarphi", SymbolKind::Identifier, "φ"),
+    ("upvarpi", SymbolKind::Identifier, "ϖ"),
+    ("upvarrho", SymbolKind::Identifier, "ϱ"),
+    ("upvarsigma", SymbolKind::Identifier, "ς"),
+    ("upvartheta", SymbolKind::Identifier, "ϑ"),
+    ("upwhitearrow", SymbolKind::Identifier, "⇧"),
+    ("upxi", SymbolKind::Identifier, "ξ"),
+    ("upzeta", SymbolKind::Identifier, "ζ"),
+    ("vDash", SymbolKind::Operator, "⊨"),
+    ("varEarth", SymbolKind::Identifier, "♁"),
+    ("varbarwedge", SymbolKind::Operator, "⌅"),
+    ("varclubsuit", SymbolKind::Identifier, "♧"),
+    ("vardiamondsuit", SymbolKind::Identifier, "♦"),
+    ("vardoublebarwedge", SymbolKind::Operator, "⌆"),
+    ("varepsilon", SymbolKind::Identifier, "ε"),
+    ("varheartsuit", SymbolKind::Identifier, "♥"),
+    ("varhexagonlrbonds", SymbolKind::Identifier, "⌬"),
+    ("varisinobar", SymbolKind::Operator, "⋶"),
+    ("varisins", SymbolKind::Operator, "⋳"),
+    ("varkappa", SymbolKind::Identifier, "ϰ"),
+    ("varlrtriangle", SymbolKind::Identifier, "⊿"),
+    ("varniobar", SymbolKind::Operator, "⋽"),
+    ("varnis", SymbolKind::Operator, "⋻"),
+    ("varnothing", SymbolKind::Identifier, "∅"),
+    ("varparallel", SymbolKind::Operator, "⫽"),
+    ("varphi", SymbolKind::Identifier, "φ"),
+    ("varpi", SymbolKind::Identifier, "ϖ"),
+    ("varprod", SymbolKind::Operator, "⨉"),
+    ("varpropto", SymbolKind::Operator, "∝"),
+    ("varrho", SymbolKind::Identifier, "ϱ"),
+    ("varsdef", SymbolKind::Operator, "≜"),
+    ("varsigma", SymbolKind::Identifier, "ς"),
+    ("varspadesuit", SymbolKind::Identifier, "♤"),
+    ("vartheta", SymbolKind::Identifier, "ϑ"),
+    ("vartriangle", SymbolKind::Operator, "△"),
+    ("vartriangleleft", SymbolKind::Operator, "⊲"),
+    ("vartriangleright", SymbolKind::Operator, "⊳"),
+    ("varvdots", SymbolKind::Identifier, "⋮"),
+    ("vbraceextender", SymbolKind::Identifier, "⎪"),
+    ("vdash", SymbolKind::Operator, "⊢"),
+    ("vdots", SymbolKind::Operator, "⋮"),
+    ("vee", SymbolKind::Operator, "∨"),
+    ("veebar", SymbolKind::Operator, "⊻"),
+    ("veeeq", SymbolKind::Operator, "≚"),
+    ("vert", SymbolKind::Identifier, "∣"),
+    ("vertoverlay", SymbolKind::Identifier, "⃒"),
+    ("viewdata", SymbolKind::Identifier, "⌗"),
+    ("vysmblkcircle", SymbolKind::Operator, "∙"),
+    ("vysmwhtcircle", SymbolKind::Operator, "∘"),
+    ("wedge", SymbolKind::Operator, "∧"),
+    ("wedgeq", SymbolKind::Operator, "≙"),
+    ("weierp", SymbolKind::Identifier, "℘"),
+    ("whitearrowupfrombar", SymbolKind::Identifier, "⇪"),
+    ("widebridgeabove", SymbolKind::Identifier, "⃩"),
+    ("widehat", SymbolKind::Identifier, "̂"),
+    ("wideutilde", SymbolKind::Identifier, "̰"),
+    ("wp", SymbolKind::Identifier, "℘"),
+    ("wr", SymbolKind::Operator, "≀"),
+    ("xi", SymbolKind::Identifier, "ξ"),
+    ("yen", SymbolKind::Identifier, "¥"),
+    ("zcmp", SymbolKind::Operator, "⨟"),
+    ("zeta", SymbolKind::Identifier, "ζ"),
+    ("zhide", SymbolKind::Operator, "⧹"),
+    ("zpipe", SymbolKind::Operator, "⨠"),
+    ("zproject", SymbolKind::Operator, "⨡"),
+    ("{", SymbolKind::Operator, "{"),
+    ("|", SymbolKind::Identifier, "∥"),
+    ("}", SymbolKind::Operator, "}"),
+];
+
+/// Looks up a LaTeX command name and maps it to a specific `MathNode` (Identifier or Operator).
+///
+/// Contains over 400 common Greek letters, arrows, and mathematical symbols defined by KaTeX.
+pub fn lookup_symbol(cmd: &str) -> Option<MathNode> {
+    if let Ok(idx) = SYMBOLS.binary_search_by_key(&cmd, |&(k, _, _)| k) {
+        let (_, kind, ch) = SYMBOLS[idx];
+        match kind {
+            SymbolKind::Operator => Some(MathNode::Operator(ch.to_string())),
+            SymbolKind::Identifier => Some(MathNode::Identifier(ch.to_string())),
+        }
+    } else {
+        None
     }
 }
+
 
 pub fn is_large_op_symbol(op: &str) -> bool {
     matches!(
