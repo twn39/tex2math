@@ -1299,3 +1299,32 @@ fn test_multiline_max_with_bullet() {
     let expected = r#"<mtable columnalign="right"><mtr><mtd><mrow><mtext>max</mtext><mspace width="1em"/><mn>0.25</mn><mi>L</mi><mo>•</mo><mi>X</mi></mrow></mtd></mtr><mtr><mtd><mrow><mtext>    s.t.</mtext><mspace width="1em"/><mstyle mathvariant="normal"><mrow><mi>d</mi><mi>i</mi><mi>a</mi><mi>g</mi></mrow></mstyle><mo>(</mo><mi>X</mi><mo>)</mo><mo>=</mo><mi>e</mi></mrow></mtd></mtr><mtr><mtd><mrow><mspace width="2em"/><mi>X</mi><mo>⪰</mo><mn>0</mn></mrow></mtd></mtr></mtable>"#;
     assert_eq!(mathml, expected);
 }
+
+// === 回归测试：嵌套 \begin{aligned} 在 \left[...\right] 中不得卡死 ===
+
+#[test]
+fn test_nested_aligned_in_left_right_no_freeze() {
+    // 此公式之前导致无限循环（程序卡死），根本原因链：
+    // Bug1: take_until 停在内层 \end{aligned}，截断外层 inner_str
+    // Bug2: parse_left_right 失败回溯后 \left 成为不可解析原子
+    // Bug3: separated(0..) / repeat(0..) 零消耗永远成功
+    // Bug4: 空行守卫 inner_str.trim().is_empty() 永为 false → 无限循环
+    let input = "\\begin{aligned}\n\
+\\min & \\mathbf{1}^{T} u \\\\\n\
+\\text{subject to} & \\left[\\begin{aligned}{\\sum_{i=1}^{p} \\lambda_{i} v_{i} v_{i}^{T}} & {e_{k}} \\\\ {e_{k}^{T}} & {u_{k}}\\end{aligned}\\right] \\succeq 0, \\quad k=1, \\ldots, n \\\\\n\
+& \\lambda \\succeq 0 \\\\\n\
+&  \\mathbf{1}^{T} \\lambda=1\n\
+\\end{aligned}";
+
+    let mut s = input;
+    let ast = parse_math.parse_next(&mut s).expect("parse must not hang");
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+
+    // 必须产生 mtable（多行环境）
+    assert!(mathml.contains("<mtable"), "Expected mtable, got: {}", &mathml[..200.min(mathml.len())]);
+    // 关键符号可见
+    assert!(mathml.contains("min"), "Expected 'min' in output");
+    assert!(mathml.contains("mtext"), "Expected mtext for \\\\text{{subject to}}");
+    // 输出实质性内容，不是空壳
+    assert!(mathml.len() > 200, "Output too short ({} chars), likely empty parse", mathml.len());
+}

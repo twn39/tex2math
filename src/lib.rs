@@ -310,8 +310,18 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         let _ = literal("\\left").parse_next(input)?;
         let open = parse_fence_delim.parse_next(input)?;
         let content = delimited(space0, parse_row, space0).parse_next(input)?;
-        let _ = literal("\\right").parse_next(input)?;
-        let close = parse_fence_delim.parse_next(input)?;
+        // Fix 3: graceful recovery when \right is missing
+        // (e.g. caused by a mis-nested \begin/\end truncating the environment body).
+        // Instead of backtracking and leaving \left as an unresolvable stuck atom,
+        // we emit a Fenced node with an implicit empty close delimiter '.'.
+        let close = if literal::<&str, &str, winnow::error::ContextError>("\\right")
+            .parse_next(input)
+            .is_ok()
+        {
+            parse_fence_delim.parse_next(input)?
+        } else {
+            ".".to_string() // implicit empty close, same as \left. \right.
+        };
         Ok(MathNode::Fenced {
             open,
             content: Box::new(content),
@@ -875,18 +885,62 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             }
         }
 
+        let begin_pattern = format!("\\begin{{{}}}", name);
         let end_pattern = format!("\\end{{{}}}", name);
-        let inner_str_result: ModalResult<&str> =
-            take_until(0.., end_pattern.as_str()).parse_next(input);
 
-        let (mut inner_str, is_closed) = match inner_str_result {
-            Ok(s) => {
-                let _ = literal(end_pattern.as_str()).parse_next(input)?;
-                (s, true)
+        // Fix 1 (root cause): nesting-aware body extraction.
+        // The naive take_until(0.., end_pattern) is a flat substring search that stops
+        // at the FIRST \end{name} it finds, even when that token belongs to a nested
+        // same-name environment (e.g. \begin{aligned} inside \left[\begin{aligned}...\end{aligned}\right]).
+        // This fix manually scans the input, counting \begin{name}/\end{name} depth,
+        // and only stops when depth returns to zero — i.e. the truly matching \end.
+        let (mut inner_str, is_closed) = {
+            let full = *input;
+            let mut depth = 1usize;
+            let mut scanned = 0usize;
+            let mut remaining = full;
+            let mut matched_end_pos: Option<usize> = None;
+
+            'scan: loop {
+                let next_begin = remaining.find(begin_pattern.as_str());
+                let next_end = remaining.find(end_pattern.as_str());
+
+                match (next_begin, next_end) {
+                    (_, None) => {
+                        // No \end{name} found anywhere: unclosed environment
+                        break 'scan;
+                    }
+                    (Some(b), Some(e)) if b < e => {
+                        // A nested \begin{name} appears before the next \end{name}: push depth
+                        depth += 1;
+                        let skip = b + begin_pattern.len();
+                        scanned += skip;
+                        remaining = &remaining[skip..];
+                    }
+                    (_, Some(e)) => {
+                        // \end{name} comes next (or no \begin{name} left): pop depth
+                        depth -= 1;
+                        if depth == 0 {
+                            // Found the truly matching \end{name}
+                            matched_end_pos = Some(scanned + e);
+                            break 'scan;
+                        }
+                        let skip = e + end_pattern.len();
+                        scanned += skip;
+                        remaining = &remaining[skip..];
+                    }
+                }
             }
-            Err(_) => {
-                let s = winnow::token::rest.parse_next(input)?;
-                (s, false)
+
+            if let Some(end_pos) = matched_end_pos {
+                let inner = &full[..end_pos];
+                *input = &full[end_pos + end_pattern.len()..];
+                (inner, true)
+            } else {
+                // Unclosed: consume all remaining input
+                let inner = full;
+                *input = &full[full.len()..];
+                (inner, false)
             }
         };
 
@@ -915,6 +969,12 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             if inner_str.is_empty() {
                 break;
             }
+            // Fix 2: zero-progress guard — record position after consuming leading whitespace.
+            // parse_cells_in_row uses separated(0..) and parse_row uses repeat(0..),
+            // both of which always succeed even when consuming zero bytes. If a character
+            // cannot be parsed as any atom (e.g. a stuck \left[...] after body truncation),
+            // the loop would spin forever without this guard.
+            let progress_mark = inner_str.len();
 
             if let Ok(cells) = parse_cells_in_row.parse_next(&mut inner_str) {
                 let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str) {
@@ -940,6 +1000,11 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             }
 
             if inner_str.is_empty() {
+                break;
+            }
+            // Zero-progress guard: if neither parse_cells_in_row nor parse_newline_opt
+            // consumed any input, there is an irrecoverable stuck token — exit cleanly.
+            if inner_str.len() == progress_mark {
                 break;
             }
         }
@@ -1167,6 +1232,8 @@ pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         if input.is_empty() {
             break;
         }
+        // Fix 2 (parse_math): same zero-progress guard as parse_environment.
+        let progress_mark = input.len();
 
         if let Ok(cells) = parse_cells_in_row.parse_next(input) {
             let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(input) {
@@ -1190,6 +1257,10 @@ pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         }
 
         if input.is_empty() {
+            break;
+        }
+        // If no input was consumed in this iteration, break to avoid infinite loop
+        if input.len() == progress_mark {
             break;
         }
     }
