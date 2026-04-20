@@ -2,6 +2,35 @@ use super::*;
 
 // ... (省略之前的 29 个测试，完整保留) ...
 #[test]
+fn test_parse_operator_with_scripts() {
+    let mut input = "W = V V^* \\quad \\iff \\quad W_{ii} = | V_i |^2, \\quad W_{ik} = V_i \\; \\overline{V_k}, \\quad \\forall i, \\, k \\in \\{ 1, \\ldots, N \\}";
+    let result = parse_row.parse_next(&mut input).unwrap();
+    // 确保包含 ^*
+    if let MathNode::Row(ref nodes) = result {
+        assert!(nodes.len() > 5);
+    } else {
+        panic!("Expected Row");
+    }
+    
+    let mathml = generate_mathml(&result, RenderMode::Display);
+    let expected = r#"<mrow><mi>W</mi><mo>=</mo><mi>V</mi><msup><mi>V</mi><mo>*</mo></msup><mspace width="1em"/><mo>⟺</mo><mspace width="1em"/><msub><mi>W</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub><mo>=</mo><mo>|</mo><msub><mi>V</mi><mi>i</mi></msub><msup><mo>|</mo><mn>2</mn></msup><mo>,</mo><mspace width="1em"/><msub><mi>W</mi><mrow><mi>i</mi><mi>k</mi></mrow></msub><mo>=</mo><msub><mi>V</mi><mi>i</mi></msub><mspace width="0.2778em"/><mover><msub><mi>V</mi><mi>k</mi></msub><mo stretchy="true">¯</mo></mover><mo>,</mo><mspace width="1em"/><mi>∀</mi><mi>i</mi><mo>,</mo><mspace width="0.1667em"/><mi>k</mi><mo>∈</mo><mo>{</mo><mn>1</mn><mo>,</mo><mo>…</mo><mo>,</mo><mi>N</mi><mo>}</mo></mrow>"#;
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_environment_trailing_row() {
+    let mut input = "\\begin{bmatrix} a & b \\\\ c & d \\\\ \\end{bmatrix}";
+    let result = parse_environment.parse_next(&mut input).unwrap();
+    if let MathNode::Environment { name, rows, .. } = result {
+        assert_eq!(name, "bmatrix");
+        // Trailing empty row should be skipped, so only 2 rows
+        assert_eq!(rows.len(), 2);
+    } else {
+        panic!("Expected Environment");
+    }
+}
+
+#[test]
 fn test_parse_number() {
     let mut input = "123";
     let result = parse_number.parse_next(&mut input).unwrap();
@@ -1212,4 +1241,52 @@ fn test_complex_formula_with_new_features() {
     // dfrac
     assert!(mathml.contains("<mstyle displaystyle=\"true\">"));
     assert!(mathml.contains("<mfrac>"));
+}
+
+#[test]
+fn test_parse_matrix_with_trailing_newline() {
+    let mut input = "\\begin{bmatrix} 1 & V_i^* \\\\ V_i & W_{ii} \\\\ \\end{bmatrix} \\succeq 0";
+    let result = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&result, RenderMode::Display);
+    let expected = r#"<mrow><mrow><mo stretchy="true">[</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><msubsup><mi>V</mi><mi>i</mi><mo>*</mo></msubsup></mtd></mtr><mtr><mtd><msub><mi>V</mi><mi>i</mi></msub></mtd><mtd><msub><mi>W</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub></mtd></mtr></mtable><mo stretchy="true">]</mo></mrow><mo>⪰</mo><mn>0</mn></mrow>"#;
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_parse_left_right_angle_brackets() {
+    let mut input = "\\left< a, b \\right>";
+    let result = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&result, RenderMode::Display);
+    let expected = r#"<mrow><mo stretchy="true">⟨</mo><mrow><mrow><mi>a</mi><mo>,</mo><mi>b</mi></mrow></mrow><mo stretchy="true">⟩</mo></mrow>"#;
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_parse_multiline_formula() {
+    let mut input = "k \\; : \\; \\mathbb{R}^n \\times \\mathbb{R}^n \\; \\rightarrow \\mathbb{R}, \\qquad\n(s, t) \\mapsto \\left< \\Phi(s), \\Phi(t) \\right>";
+    let result = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&result, RenderMode::Display);
+    println!("MATHML: {}", mathml);
+    println!("REMAINING: {}", input);
+    assert_eq!(input, "");
+}
+
+#[test]
+fn test_nabla_parens() {
+    let mut input = "\\nabla f(x) = \\begin{bmatrix} 1 & 1 & 1 \\\\ 2x_1 & 2x_2 & -2x_3 \\\\ 2x_1 & -x_3 & -x_2 \\end{bmatrix}";
+    let result = parse_row.parse_next(&mut input).unwrap();
+    println!("{:?}", result);
+    let mathml = generate_mathml(&result, RenderMode::Display);
+    println!("{}", mathml);
+}
+
+#[test]
+fn test_nested_environments_no_cross_boundary() {
+    let mut input = "\\begin{align} a \\\\ \\begin{bmatrix} 1 \\\\ 2 \\end{bmatrix} \\\\ b \\end{align}";
+    let result = parse_row.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&result, RenderMode::Display);
+    // Outer align should have 3 rows.
+    // The middle row has a bmatrix with 2 rows.
+    println!("{}", mathml);
+    assert!(mathml.contains("<mtr><mtd><mrow><mo stretchy=\"true\">[</mo><mtable><mtr><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr></mtable><mo stretchy=\"true\">]</mo></mrow></mtd></mtr>"));
 }

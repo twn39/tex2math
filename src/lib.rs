@@ -1,7 +1,7 @@
 #![allow(clippy::needless_lifetimes)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::redundant_pattern_matching)]
-use winnow::ascii::{alpha1, digit1, space0};
+use winnow::ascii::{alpha1, digit1, multispace0 as space0};
 use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated, trace};
 use winnow::prelude::*;
 use winnow::token::{literal, one_of, take_till, take_until};
@@ -290,7 +290,13 @@ fn parse_fence_delim<'s>(input: &mut &'s str) -> ModalResult<String> {
                 .to_string()
             }),
             // 单字符定界符
-            one_of(['(', ')', '[', ']', '{', '}', '|']).map(|c: char| c.to_string()),
+            one_of(['(', ')', '[', ']', '{', '}', '|', '<', '>']).map(|c: char| {
+                match c {
+                    '<' => "\u{27E8}".to_string(), // ⟨
+                    '>' => "\u{27E9}".to_string(), // ⟩
+                    _ => c.to_string(),
+                }
+            }),
         )),
     )
     .parse_next(input)
@@ -883,7 +889,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             }
         };
 
-        let mut parse_cells_in_row = |row_input: &mut &str| -> ModalResult<Vec<MathNode>> {
+        let mut parse_cells_in_row = |row_input: &mut &'s str| -> ModalResult<Vec<MathNode>> {
             separated(
                 0..,
                 delimited(space0, parse_row, space0),
@@ -904,25 +910,32 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         let mut rows: Vec<(Vec<MathNode>, Option<String>)> = Vec::new();
 
         loop {
-            let row_content_res: ModalResult<&str> =
-                take_until(0.., "\\\\").parse_next(&mut inner_str);
-            let mut row_content: &str = if let Ok(content) = row_content_res {
-                content
-            } else {
-                winnow::token::rest.parse_next(&mut inner_str)?
-            };
+            let _ = space0.parse_next(&mut inner_str)?;
+            if inner_str.is_empty() {
+                break;
+            }
 
-            if let Ok(cells) = parse_cells_in_row.parse_next(&mut row_content) {
-                let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str)
-                {
+            if let Ok(cells) = parse_cells_in_row.parse_next(&mut inner_str) {
+                let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str) {
                     opt_spacing.map(|s: &str| s.to_string())
                 } else {
                     None
                 };
 
-                if !cells.is_empty() || spacing.is_some() || rows.is_empty() {
+                let is_empty_row = cells.len() == 1 && match &cells[0] {
+                    MathNode::Row(nodes) => nodes.is_empty(),
+                    _ => false,
+                };
+
+                // Ignore trailing empty rows caused by a final `\\` before `\end`
+                if is_empty_row && spacing.is_none() && inner_str.trim().is_empty() && !rows.is_empty() {
+                    // Do not push this empty row
+                } else {
                     rows.push((cells, spacing));
                 }
+            } else {
+                // Should not happen as separated(0..) always matches something, but fallback
+                break;
             }
 
             if inner_str.is_empty() {
@@ -961,6 +974,7 @@ pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             parse_command, // 将通用命令解析器加入！
             parse_ident,
             parse_number,
+            parse_operator, // 允许单字符操作符作为 atom（例如为它添加上下标 V^* 或 \lim_{x \to 0}^+）
         )),
     )
     .parse_next(input)
