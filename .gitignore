@@ -22,4 +22,5 @@ Cargo.lock
 ehthumbs.db
 Thumbs.db
 .idea
+pkg
 

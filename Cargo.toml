@@ -21,6 +21,7 @@ exclude = [
 [lib]
 name = "tex2math"
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "tex2math"
@@ -29,6 +30,7 @@ required-features = ["cli"]
 
 [dependencies]
 winnow = "0.6.26"
+wasm-bindgen = { version = "0.2.118", optional = true }
 
 [dependencies.clap]
 version = "4.6.0"
@@ -41,3 +43,5 @@ optional = true
 default = []
 cli = ["clap"]
 debug-trace = ["winnow/debug"]
+wasm = ["wasm-bindgen"]
+wasm-bindgen = ["dep:wasm-bindgen"]
