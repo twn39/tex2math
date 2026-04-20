@@ -33,6 +33,16 @@ pub enum LimitBehavior {
     NoLimits, // 强制 \nolimits (总是生成 msubsup)
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum PhantomKind {
+    /// \phantom: 不可见，但占据完整的原始宽度、高度和深度
+    Invisible,
+    /// \vphantom: 不可见，保留高度和深度，但将宽度压缩为 0
+    Vertical,
+    /// \hphantom: 不可见，保留宽度，但将高度和深度压缩为 0
+    Horizontal,
+}
+
 /// The Abstract Syntax Tree (AST) node representing a mathematical structure parsed from LaTeX.
 ///
 /// This enum is the core representation of all mathematical elements, including numbers, identifiers,
@@ -102,7 +112,10 @@ pub enum MathNode {
     Boxed(Box<MathNode>), // 边框
 
     // == 新增：隐形占位符与约分划线 ==
-    Phantom(Box<MathNode>),
+    Phantom {
+        kind: PhantomKind,
+        content: Box<MathNode>,
+    },
     Cancel {
         mode: String, // 对应 notation 的属性值
         content: Box<MathNode>,
@@ -430,14 +443,16 @@ fn parse_over_under_set_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<M
 
 fn parse_phantom_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
     let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-    if cmd == "phantom" {
-        Ok(MathNode::Phantom(Box::new(content)))
-    } else {
-        Ok(MathNode::Style {
-            variant: cmd.to_string(), // "vphantom" or "hphantom"
-            content: Box::new(content),
-        })
-    }
+    let kind = match cmd {
+        "phantom" => PhantomKind::Invisible,
+        "vphantom" => PhantomKind::Vertical,
+        "hphantom" => PhantomKind::Horizontal,
+        _ => unreachable!(),
+    };
+    Ok(MathNode::Phantom {
+        kind,
+        content: Box::new(content),
+    })
 }
 
 fn parse_cancel_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
@@ -1633,8 +1648,19 @@ impl MathRenderer for MathMLRenderer {
                     self.render(content, mode)
                 )
             }
-            MathNode::Phantom(content) => {
-                format!("<mphantom>{}</mphantom>", self.render(content, mode))
+            MathNode::Phantom { kind, content } => {
+                let rendered = self.render(content, mode);
+                match kind {
+                    PhantomKind::Invisible => format!("<mphantom>{}</mphantom>", rendered),
+                    PhantomKind::Vertical => format!(
+                        "<mpadded width=\"0px\"><mphantom>{}</mphantom></mpadded>",
+                        rendered
+                    ),
+                    PhantomKind::Horizontal => format!(
+                        "<mpadded height=\"0px\" depth=\"0px\"><mphantom>{}</mphantom></mpadded>",
+                        rendered
+                    ),
+                }
             }
             MathNode::Cancel {
                 mode: notation_mode,
