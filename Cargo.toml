@@ -45,3 +45,10 @@ cli = ["clap"]
 debug-trace = ["winnow/debug"]
 wasm = ["wasm-bindgen"]
 wasm-bindgen = ["dep:wasm-bindgen"]
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "math_parser_bench"
+harness = false
