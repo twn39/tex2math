@@ -1018,3 +1018,32 @@ pub fn lookup_symbol(cmd: &str) -> Option<MathNode> {
         _ => None,
     }
 }
+
+pub fn is_large_op_symbol(op: &str) -> bool {
+    matches!(
+        op,
+        "∑" | "∏" | "∐" | "⋁" | "⋀" | "⋃" | "⋂" | "⨆" | "⨅" | "⨀" | "⨁" | "⨂" | "⨄"
+    )
+}
+
+pub fn is_integral_symbol(op: &str) -> bool {
+    matches!(op, "∫" | "∬" | "∭" | "⨌" | "∮" | "∯" | "∰")
+}
+
+pub fn is_large_math_function(f: &str) -> bool {
+    matches!(
+        f,
+        "lim"
+            | "limsup"
+            | "liminf"
+            | "max"
+            | "min"
+            | "sup"
+            | "inf"
+            | "det"
+            | "injlim"
+            | "projlim"
+            | "varinjlim"
+            | "varprojlim"
+    )
+}

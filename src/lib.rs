@@ -977,19 +977,25 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             let progress_mark = inner_str.len();
 
             if let Ok(cells) = parse_cells_in_row.parse_next(&mut inner_str) {
-                let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str) {
+                let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str)
+                {
                     opt_spacing.map(|s: &str| s.to_string())
                 } else {
                     None
                 };
 
-                let is_empty_row = cells.len() == 1 && match &cells[0] {
-                    MathNode::Row(nodes) => nodes.is_empty(),
-                    _ => false,
-                };
+                let is_empty_row = cells.len() == 1
+                    && match &cells[0] {
+                        MathNode::Row(nodes) => nodes.is_empty(),
+                        _ => false,
+                    };
 
                 // Ignore trailing empty rows caused by a final `\\` before `\end`
-                if is_empty_row && spacing.is_none() && inner_str.trim().is_empty() && !rows.is_empty() {
+                if is_empty_row
+                    && spacing.is_none()
+                    && inner_str.trim().is_empty()
+                    && !rows.is_empty()
+                {
                     // Do not push this empty row
                 } else {
                     rows.push((cells, spacing));
@@ -1051,18 +1057,16 @@ pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 pub fn parse_fallback_char<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_fallback_char",
-        winnow::token::one_of(|c: char| {
-            !c.is_ascii_whitespace() && !"\\{}_^&%$#~".contains(c)
-        })
-        .map(|c: char| {
-            if c.is_alphabetic() {
-                MathNode::Identifier(c.to_string())
-            } else if c.is_numeric() {
-                MathNode::Number(c.to_string())
-            } else {
-                MathNode::Operator(c.to_string())
-            }
-        }),
+        winnow::token::one_of(|c: char| !c.is_ascii_whitespace() && !"\\{}_^&%$#~".contains(c))
+            .map(|c: char| {
+                if c.is_alphabetic() {
+                    MathNode::Identifier(c.to_string())
+                } else if c.is_numeric() {
+                    MathNode::Number(c.to_string())
+                } else {
+                    MathNode::Operator(c.to_string())
+                }
+            }),
     )
     .parse_next(input)
 }
@@ -1138,40 +1142,9 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         }
 
         // 判断 base 是否是要求使用 limits 渲染的大运算符或极限函数
-        // 所有在 Display 模式下需要把 sub/sup 渲染为上下界的大型运算符 (默认 \limits)
-        const LARGE_OP_SYMBOLS: &[&str] = &[
-            "∑", "∏", "∐", // \sum, \prod, \coprod
-            "⋁", "⋀", // bigvee, bigwedge
-            "⋃", "⋂", // bigcup, bigcap
-            "⨆", "⨅", // bigsqcup, bigsqcap
-            "⨀", "⨁", "⨂", // bigodot, bigoplus, bigotimes
-            "⨄", // biguplus
-        ];
-
-        // 积分符号虽然是大型运算符，但即使在 Display 模式下，它们的默认行为也是 \nolimits (挂在右下/右上)
-        const INTEGRAL_SYMBOLS: &[&str] = &[
-            "∫", "∬", "∭", "⨌", // 单/双/三/四重积分
-            "∮", "∯", "∰", // 曲面积分
-        ];
-
-        const LARGE_OP_FUNS: &[&str] = &[
-            "lim",
-            "limsup",
-            "liminf",
-            "max",
-            "min",
-            "sup",
-            "inf",
-            "det",
-            "injlim",
-            "projlim",
-            "varinjlim",
-            "varprojlim",
-        ];
-
         let is_large_operator = match &base {
-            MathNode::Operator(op) => LARGE_OP_SYMBOLS.contains(&op.as_str()),
-            MathNode::Function(f) => LARGE_OP_FUNS.contains(&f.as_str()),
+            MathNode::Operator(op) => crate::symbols::is_large_op_symbol(op),
+            MathNode::Function(f) => crate::symbols::is_large_math_function(f),
             MathNode::StretchOp { .. } => true, // 拉伸修饰符（underbrace 等）把附着物当 limits
             _ => false,
         };
@@ -1180,7 +1153,7 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         // 除非用户显式写了 \limits，则保留 LimitBehavior::Limits。
         let final_behavior = if behavior == LimitBehavior::Default {
             match &base {
-                MathNode::Operator(op) if INTEGRAL_SYMBOLS.contains(&op.as_str()) => {
+                MathNode::Operator(op) if crate::symbols::is_integral_symbol(op) => {
                     LimitBehavior::NoLimits
                 }
                 _ => behavior,
@@ -1242,10 +1215,11 @@ pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                 None
             };
 
-            let is_empty_row = cells.len() == 1 && match &cells[0] {
-                MathNode::Row(nodes) => nodes.is_empty(),
-                _ => false,
-            };
+            let is_empty_row = cells.len() == 1
+                && match &cells[0] {
+                    MathNode::Row(nodes) => nodes.is_empty(),
+                    _ => false,
+                };
 
             if is_empty_row && spacing.is_none() && input.trim().is_empty() && !rows.is_empty() {
                 // Ignore trailing empty row
@@ -1373,6 +1347,8 @@ fn escape_xml(input: &str) -> String {
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+        .replace('\'', "&apos;")
+        .replace('\"', "&quot;")
 }
 
 // ==========================================

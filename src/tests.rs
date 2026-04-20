@@ -11,7 +11,7 @@ fn test_parse_operator_with_scripts() {
     } else {
         panic!("Expected Row");
     }
-    
+
     let mathml = generate_mathml(&result, RenderMode::Display);
     let expected = r#"<mrow><mi>W</mi><mo>=</mo><mi>V</mi><msup><mi>V</mi><mo>*</mo></msup><mspace width="1em"/><mo>⟺</mo><mspace width="1em"/><msub><mi>W</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub><mo>=</mo><mo>|</mo><msub><mi>V</mi><mi>i</mi></msub><msup><mo>|</mo><mn>2</mn></msup><mo>,</mo><mspace width="1em"/><msub><mi>W</mi><mrow><mi>i</mi><mi>k</mi></mrow></msub><mo>=</mo><msub><mi>V</mi><mi>i</mi></msub><mspace width="0.2778em"/><mover><msub><mi>V</mi><mi>k</mi></msub><mo stretchy="true">¯</mo></mover><mo>,</mo><mspace width="1em"/><mi>∀</mi><mi>i</mi><mo>,</mo><mspace width="0.1667em"/><mi>k</mi><mo>∈</mo><mo>{</mo><mn>1</mn><mo>,</mo><mo>…</mo><mo>,</mo><mi>N</mi><mo>}</mo></mrow>"#;
     assert_eq!(mathml, expected);
@@ -1001,7 +1001,8 @@ fn test_bar_is_accent() {
 
 #[test]
 fn test_iint_display_limits() {
-    // \iint (∬) 在 display 模式下应该使用 munderover
+    // \iint (∬) 即使在 display 模式下，默认也是 \nolimits 行为，因此应该生成 <msub> (右下角标)
+    // 若要强制上下限，用户需显式使用 \limits。
     let mut input = "\\iint_D f";
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
@@ -1282,7 +1283,8 @@ fn test_nabla_parens() {
 
 #[test]
 fn test_nested_environments_no_cross_boundary() {
-    let mut input = "\\begin{align} a \\\\ \\begin{bmatrix} 1 \\\\ 2 \\end{bmatrix} \\\\ b \\end{align}";
+    let mut input =
+        "\\begin{align} a \\\\ \\begin{bmatrix} 1 \\\\ 2 \\end{bmatrix} \\\\ b \\end{align}";
     let result = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&result, RenderMode::Display);
     // Outer align should have 3 rows.
@@ -1321,10 +1323,21 @@ fn test_nested_aligned_in_left_right_no_freeze() {
     let mathml = generate_mathml(&ast, RenderMode::Display);
 
     // 必须产生 mtable（多行环境）
-    assert!(mathml.contains("<mtable"), "Expected mtable, got: {}", &mathml[..200.min(mathml.len())]);
+    assert!(
+        mathml.contains("<mtable"),
+        "Expected mtable, got: {}",
+        &mathml[..200.min(mathml.len())]
+    );
     // 关键符号可见
     assert!(mathml.contains("min"), "Expected 'min' in output");
-    assert!(mathml.contains("mtext"), "Expected mtext for \\\\text{{subject to}}");
+    assert!(
+        mathml.contains("mtext"),
+        "Expected mtext for \\\\text{{subject to}}"
+    );
     // 输出实质性内容，不是空壳
-    assert!(mathml.len() > 200, "Output too short ({} chars), likely empty parse", mathml.len());
+    assert!(
+        mathml.len() > 200,
+        "Output too short ({} chars), likely empty parse",
+        mathml.len()
+    );
 }
