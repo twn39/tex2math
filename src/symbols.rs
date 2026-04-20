@@ -1037,7 +1037,6 @@ pub fn lookup_symbol(cmd: &str) -> Option<MathNode> {
     }
 }
 
-
 pub fn is_large_op_symbol(op: &str) -> bool {
     matches!(
         op,

@@ -58,13 +58,29 @@ impl MathRenderer for MathMLRenderer {
                     buf.push_str("<mmultiscripts>");
                     self.render_into(base, mode, buf)?;
 
-                    if let Some(s) = sub { self.render_into(s, mode, buf)?; } else { buf.push_str("<none/>"); }
-                    if let Some(s) = sup { self.render_into(s, mode, buf)?; } else { buf.push_str("<none/>"); }
+                    if let Some(s) = sub {
+                        self.render_into(s, mode, buf)?;
+                    } else {
+                        buf.push_str("<none/>");
+                    }
+                    if let Some(s) = sup {
+                        self.render_into(s, mode, buf)?;
+                    } else {
+                        buf.push_str("<none/>");
+                    }
 
                     buf.push_str("<mprescripts/>");
-                    
-                    if let Some(s) = pre_sub { self.render_into(s, mode, buf)?; } else { buf.push_str("<none/>"); }
-                    if let Some(s) = pre_sup { self.render_into(s, mode, buf)?; } else { buf.push_str("<none/>"); }
+
+                    if let Some(s) = pre_sub {
+                        self.render_into(s, mode, buf)?;
+                    } else {
+                        buf.push_str("<none/>");
+                    }
+                    if let Some(s) = pre_sup {
+                        self.render_into(s, mode, buf)?;
+                    } else {
+                        buf.push_str("<none/>");
+                    }
 
                     buf.push_str("</mmultiscripts>");
                     return Ok(());
@@ -91,8 +107,12 @@ impl MathRenderer for MathMLRenderer {
 
                 write!(buf, "<{}>", tag)?;
                 self.render_into(base, mode, buf)?;
-                if let Some(s) = sub { self.render_into(s, mode, buf)?; }
-                if let Some(s) = sup { self.render_into(s, mode, buf)?; }
+                if let Some(s) = sub {
+                    self.render_into(s, mode, buf)?;
+                }
+                if let Some(s) = sup {
+                    self.render_into(s, mode, buf)?;
+                }
                 write!(buf, "</{}>", tag)?;
                 Ok(())
             }
@@ -259,7 +279,11 @@ impl MathRenderer for MathMLRenderer {
                     "projlim" => "proj lim",
                     _ => f.as_str(),
                 };
-                write!(buf, "<mi mathvariant=\"normal\">{}</mi>", escape_xml(func_text))
+                write!(
+                    buf,
+                    "<mi mathvariant=\"normal\">{}</mi>",
+                    escape_xml(func_text)
+                )
             }
             MathNode::OperatorName(content) => {
                 buf.push_str("<mrow><mstyle mathvariant=\"normal\">");
@@ -301,7 +325,9 @@ impl MathRenderer for MathMLRenderer {
                 match kind {
                     PhantomKind::Invisible => buf.push_str("<mphantom>"),
                     PhantomKind::Vertical => buf.push_str("<mpadded width=\"0px\"><mphantom>"),
-                    PhantomKind::Horizontal => buf.push_str("<mpadded height=\"0px\" depth=\"0px\"><mphantom>"),
+                    PhantomKind::Horizontal => {
+                        buf.push_str("<mpadded height=\"0px\" depth=\"0px\"><mphantom>")
+                    }
                 }
                 self.render_into(content, mode, buf)?;
                 match kind {

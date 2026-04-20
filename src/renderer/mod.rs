@@ -1,7 +1,7 @@
 use crate::ast::*;
 
 pub mod mathml;
-pub use mathml::{MathMLRenderer, generate_mathml};
+pub use mathml::{generate_mathml, MathMLRenderer};
 
 /// An abstract backend interface for rendering a `MathNode` abstract syntax tree into an output format.
 ///
@@ -14,7 +14,8 @@ pub trait MathRenderer {
     /// This provides backward compatibility and ease of use.
     fn render(&self, node: &MathNode, mode: RenderMode) -> String {
         let mut buf = String::with_capacity(256);
-        self.render_into(node, mode, &mut buf).expect("Formatting to String should never fail");
+        self.render_into(node, mode, &mut buf)
+            .expect("Formatting to String should never fail");
         buf
     }
 }
