@@ -283,7 +283,6 @@ fn parse_sideset_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         pre_sub,
         pre_sup,
         behavior: LimitBehavior::Default,
-        is_large_op: false,
     })
 }
 
@@ -302,7 +301,6 @@ fn parse_over_under_set_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<M
         pre_sub: None,
         pre_sup: None,
         behavior: LimitBehavior::Limits,
-        is_large_op: false,
     })
 }
 
@@ -368,7 +366,6 @@ fn parse_extensible_arrow_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult
         pre_sub: None,
         pre_sup: None,
         behavior: LimitBehavior::Limits,
-        is_large_op: true,
     })
 }
 
@@ -418,7 +415,6 @@ fn parse_operatorname_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<Mat
             pre_sub: None,
             pre_sup: None,
             behavior: LimitBehavior::Limits,
-            is_large_op: true,
         })
     } else {
         Ok(MathNode::OperatorName(Box::new(content)))
@@ -554,7 +550,6 @@ fn parse_special_limit_arrow_cmd(cmd: &str) -> ModalResult<MathNode> {
         pre_sub: None,
         pre_sup: None,
         behavior: LimitBehavior::Limits,
-        is_large_op: true,
     })
 }
 
@@ -989,12 +984,6 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         }
 
         // 判断 base 是否是要求使用 limits 渲染的大运算符或极限函数
-        let is_large_operator = match &base {
-            MathNode::Operator(op) => crate::symbols::is_large_op_symbol(op),
-            MathNode::Function(f) => crate::symbols::is_large_math_function(f),
-            MathNode::StretchOp { .. } => true, // 拉伸修饰符（underbrace 等）把附着物当 limits
-            _ => false,
-        };
 
         // 如果没有显式指定 \limits，且它是积分符号，我们覆盖为 NoLimits 行为 (右下/右上角标)
         // 除非用户显式写了 \limits，则保留 LimitBehavior::Limits。
@@ -1018,7 +1007,6 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             sub: sub.map(Box::new),
             sup: sup.map(Box::new),
             behavior: final_behavior,
-            is_large_op: is_large_operator,
             pre_sub: None,
             pre_sup: None,
         })
@@ -1116,7 +1104,6 @@ pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                                         sub: next_sub,
                                         sup: next_sup,
                                         behavior,
-                                        is_large_op,
                                         ..
                                     } => MathNode::Scripts {
                                         base: next_base,
@@ -1125,7 +1112,6 @@ pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                                         pre_sub: sub.clone(),
                                         pre_sup: sup.clone(),
                                         behavior,
-                                        is_large_op,
                                     },
                                     _ => MathNode::Scripts {
                                         base: Box::new(next_node),
@@ -1134,7 +1120,6 @@ pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                                         pre_sub: sub.clone(),
                                         pre_sup: sup.clone(),
                                         behavior: LimitBehavior::Default,
-                                        is_large_op: false,
                                     },
                                 };
 

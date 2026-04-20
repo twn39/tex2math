@@ -26,7 +26,6 @@ fn test_parse_superscript() {
         sub: None,
         sup: Some(Box::new(MathNode::Number("2".to_string()))),
         behavior: LimitBehavior::Default,
-        is_large_op: false,
         pre_sub: None,
         pre_sup: None,
     };
@@ -42,7 +41,6 @@ fn test_parse_subscript() {
         sub: Some(Box::new(MathNode::Identifier("i".to_string()))),
         sup: None,
         behavior: LimitBehavior::Default,
-        is_large_op: false,
         pre_sub: None,
         pre_sup: None,
     };
@@ -61,7 +59,6 @@ fn test_parse_subsup() {
         sub: Some(Box::new(MathNode::Identifier("i".to_string()))),
         sup: Some(Box::new(MathNode::Number("2".to_string()))),
         behavior: LimitBehavior::Default,
-        is_large_op: false,
         pre_sub: None,
         pre_sup: None,
     };

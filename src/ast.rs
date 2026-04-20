@@ -54,7 +54,6 @@ pub enum MathNode {
         pre_sub: Option<Box<MathNode>>,
         pre_sup: Option<Box<MathNode>>,
         behavior: LimitBehavior,
-        is_large_op: bool,
     },
 
     Row(Vec<MathNode>),
@@ -126,4 +125,15 @@ pub enum MathNode {
 
     Error(String),
     NewLine,
+}
+
+impl MathNode {
+    pub fn is_large_op(&self) -> bool {
+        match self {
+            MathNode::Operator(op) => crate::symbols::is_large_op_symbol(op),
+            MathNode::Function(f) => crate::symbols::is_large_math_function(f),
+            MathNode::StretchOp { .. } => true,
+            _ => false,
+        }
+    }
 }

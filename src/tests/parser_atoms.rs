@@ -68,7 +68,6 @@ fn test_parse_group() {
         sub: None,
         sup: Some(Box::new(MathNode::Number("2".to_string()))),
         behavior: LimitBehavior::Default,
-        is_large_op: false,
         pre_sub: None,
         pre_sup: None,
     };

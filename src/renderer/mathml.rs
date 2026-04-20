@@ -53,7 +53,6 @@ impl MathRenderer for MathMLRenderer {
                 pre_sub,
                 pre_sup,
                 behavior,
-                is_large_op,
             } => {
                 if pre_sub.is_some() || pre_sup.is_some() {
                     buf.push_str("<mmultiscripts>");
@@ -74,7 +73,7 @@ impl MathRenderer for MathMLRenderer {
                 let render_as_limits = match behavior {
                     LimitBehavior::Limits => true,
                     LimitBehavior::NoLimits => false,
-                    LimitBehavior::Default => *is_large_op && mode == RenderMode::Display,
+                    LimitBehavior::Default => base.is_large_op() && mode == RenderMode::Display,
                 };
 
                 let tag = match (render_as_limits, sub.is_some(), sup.is_some()) {
