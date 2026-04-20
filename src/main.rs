@@ -1,6 +1,6 @@
 use clap::Parser;
 use std::io::{self, Read};
-use tex2math::{generate_mathml, parse_row, RenderMode};
+use tex2math::{generate_mathml, parse_math, RenderMode};
 use winnow::Parser as WinnowParser; // 需要引入 traits 才能调用 parse_next
 
 /// tex2math: A blazing fast, zero-copy LaTeX to MathML converter
@@ -52,7 +52,7 @@ fn main() {
     // 由于 winnow 的解析器要求一个可变引用（游标）
     let mut cursor = latex_input.as_str();
 
-    match parse_row.parse_next(&mut cursor) {
+    match parse_math.parse_next(&mut cursor) {
         Ok(ast) => {
             // 5. 生成 MathML
             let mathml = generate_mathml(&ast, mode);

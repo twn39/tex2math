@@ -1,4 +1,4 @@
-use crate::{generate_mathml, parse_row, RenderMode};
+use crate::{generate_mathml, parse_math, RenderMode};
 use wasm_bindgen::prelude::*;
 use winnow::Parser as WinnowParser;
 
@@ -13,7 +13,7 @@ pub fn convert_to_mathml(latex_input: &str, display_mode: bool) -> Result<String
 
     let mut cursor = latex_input;
 
-    match parse_row.parse_next(&mut cursor) {
+    match parse_math.parse_next(&mut cursor) {
         Ok(ast) => {
             let mathml = generate_mathml(&ast, mode);
             let display_attr = if display_mode {

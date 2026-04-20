@@ -122,6 +122,7 @@ pub enum MathNode {
     },
 
     Error(String),
+    NewLine,
 }
 // 2. Winnow 解析器 (Parser)
 // ==========================================
@@ -975,7 +976,28 @@ pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             parse_ident,
             parse_number,
             parse_operator, // 允许单字符操作符作为 atom（例如为它添加上下标 V^* 或 \lim_{x \to 0}^+）
+            parse_fallback_char, // 允许原生 Unicode 字符（如 • 或 α）
         )),
+    )
+    .parse_next(input)
+}
+
+/// Fallback for raw Unicode characters not explicitly matched as operators or identifiers.
+pub fn parse_fallback_char<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+    trace(
+        "parse_fallback_char",
+        winnow::token::one_of(|c: char| {
+            !c.is_ascii_whitespace() && !"\\{}_^&%$#~".contains(c)
+        })
+        .map(|c: char| {
+            if c.is_alphabetic() {
+                MathNode::Identifier(c.to_string())
+            } else if c.is_numeric() {
+                MathNode::Number(c.to_string())
+            } else {
+                MathNode::Operator(c.to_string())
+            }
+        }),
     )
     .parse_next(input)
 }
@@ -1120,6 +1142,72 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 /// The main parser for a single mathematical node, handling scripts, atoms, and other constructs.
+pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+    let mut parse_cells_in_row = |row_input: &mut &'s str| -> ModalResult<Vec<MathNode>> {
+        separated(
+            0..,
+            delimited(space0, parse_row, space0),
+            (space0, '&', space0),
+        )
+        .parse_next(row_input)
+    };
+
+    let mut parse_newline_opt = |input: &mut &'s str| -> ModalResult<Option<&str>> {
+        preceded(
+            literal("\\\\"),
+            opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')),
+        )
+        .parse_next(input)
+    };
+
+    let mut rows: Vec<(Vec<MathNode>, Option<String>)> = Vec::new();
+
+    loop {
+        let _ = space0.parse_next(input)?;
+        if input.is_empty() {
+            break;
+        }
+
+        if let Ok(cells) = parse_cells_in_row.parse_next(input) {
+            let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(input) {
+                opt_spacing.map(|s: &str| s.to_string())
+            } else {
+                None
+            };
+
+            let is_empty_row = cells.len() == 1 && match &cells[0] {
+                MathNode::Row(nodes) => nodes.is_empty(),
+                _ => false,
+            };
+
+            if is_empty_row && spacing.is_none() && input.trim().is_empty() && !rows.is_empty() {
+                // Ignore trailing empty row
+            } else {
+                rows.push((cells, spacing));
+            }
+        } else {
+            break;
+        }
+
+        if input.is_empty() {
+            break;
+        }
+    }
+
+    if rows.len() == 1 && rows[0].0.len() == 1 {
+        // Only 1 row and 1 cell
+        let (mut row_cells, _) = rows.into_iter().next().unwrap();
+        Ok(row_cells.remove(0))
+    } else {
+        // Multi-line or aligned top-level expression
+        Ok(MathNode::Environment {
+            name: "align*".to_string(), // use align* to support alternating right/left alignments without labels
+            format: None,
+            rows,
+        })
+    }
+}
+
 pub fn parse_node<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_node", alt((parse_script, parse_operator))).parse_next(input)
 }
@@ -1526,6 +1614,7 @@ impl MathRenderer for MathMLRenderer {
                 )
             }
             MathNode::Space(width) => format!("<mspace width=\"{}\"/>", escape_xml(width)),
+            MathNode::NewLine => "<mspace linebreak=\"newline\"/>".to_string(),
 
             MathNode::Color { color, content } => {
                 format!(
