@@ -44,3 +44,12 @@ fn test_render_mode_inline_vs_display() {
     let mathml_display = generate_mathml(&ast, RenderMode::Display);
     assert!(mathml_display.contains("<munderover>"));
 }
+
+#[test]
+fn test_mathml_contour_integral() {
+    let mut input = "\\oint_{(x,y)\\in C} x^3\\, dx + 4y^2\\, dy";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    let expected = "<mrow><msub><mo>∮</mo><mrow><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo><mo>∈</mo><mi>C</mi></mrow></msub><msup><mi>x</mi><mn>3</mn></msup><mspace width=\"0.1667em\"/><mi>d</mi><mi>x</mi><mo>+</mo><mn>4</mn><msup><mi>y</mi><mn>2</mn></msup><mspace width=\"0.1667em\"/><mi>d</mi><mi>y</mi></mrow>";
+    assert_eq!(mathml, expected);
+}
