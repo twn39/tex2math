@@ -62,3 +62,13 @@ fn test_mathml_colored_quadratic_formula() {
     let expected = "<mrow><mi>x</mi><mo>=</mo><mfrac><mrow><mstyle mathcolor=\"Blue\"><mrow><mo>-</mo><mi>b</mi></mrow></mstyle><mo>±</mo><msqrt><mstyle mathcolor=\"Red\"><mrow><msup><mi>b</mi><mn>2</mn></msup><mo>-</mo><mn>4</mn><mi>a</mi><mi>c</mi></mrow></mstyle></msqrt></mrow><mstyle mathcolor=\"Green\"><mrow><mn>2</mn><mi>a</mi></mrow></mstyle></mfrac></mrow>";
     assert_eq!(mathml, expected);
 }
+
+#[test]
+fn test_mathml_inline_color_changes() {
+    let mut input =
+        "\\color{Blue}x^2\\color{Black}+\\color{Orange}2x\\color{Black}-\\color{LimeGreen}1";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    let expected = "<mstyle mathcolor=\"Blue\"><mrow><msup><mi>x</mi><mn>2</mn></msup><mstyle mathcolor=\"Black\"><mrow><mo>+</mo><mstyle mathcolor=\"Orange\"><mrow><mn>2</mn><mi>x</mi><mstyle mathcolor=\"Black\"><mrow><mo>-</mo><mstyle mathcolor=\"LimeGreen\"><mn>1</mn></mstyle></mrow></mstyle></mrow></mstyle></mrow></mstyle></mrow></mstyle>";
+    assert_eq!(mathml, expected);
+}
