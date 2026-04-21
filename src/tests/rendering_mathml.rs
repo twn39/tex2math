@@ -53,3 +53,12 @@ fn test_mathml_contour_integral() {
     let expected = "<mrow><msub><mo>∮</mo><mrow><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo><mo>∈</mo><mi>C</mi></mrow></msub><msup><mi>x</mi><mn>3</mn></msup><mspace width=\"0.1667em\"/><mi>d</mi><mi>x</mi><mo>+</mo><mn>4</mn><msup><mi>y</mi><mn>2</mn></msup><mspace width=\"0.1667em\"/><mi>d</mi><mi>y</mi></mrow>";
     assert_eq!(mathml, expected);
 }
+
+#[test]
+fn test_mathml_colored_quadratic_formula() {
+    let mut input = "x=\\frac{{\\color{Blue}-b}\\pm\\sqrt{\\color{Red}b^2-4ac}}{\\color{Green}2a}";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    let expected = "<mrow><mi>x</mi><mo>=</mo><mfrac><mrow><mstyle mathcolor=\"Blue\"><mrow><mo>-</mo><mi>b</mi></mrow></mstyle><mo>±</mo><msqrt><mstyle mathcolor=\"Red\"><mrow><msup><mi>b</mi><mn>2</mn></msup><mo>-</mo><mn>4</mn><mi>a</mi><mi>c</mi></mrow></mstyle></msqrt></mrow><mstyle mathcolor=\"Green\"><mrow><mn>2</mn><mi>a</mi></mrow></mstyle></mfrac></mrow>";
+    assert_eq!(mathml, expected);
+}
