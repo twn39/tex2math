@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use tex2math::{parse_math, generate_mathml, RenderMode};
+use tex2math::{generate_mathml, parse_math, RenderMode};
 use winnow::Parser;
 
 fn bench_complex_formulas(c: &mut Criterion) {
