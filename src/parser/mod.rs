@@ -446,39 +446,55 @@ fn parse_operatorname_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<Mat
 
 fn parse_not_modifier_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     let _ = space0.parse_next(input)?;
-    let negated = if let Ok(next_cmd) =
+    let checkpoint = *input;
+
+    if let Ok(next_cmd) =
         preceded::<_, _, _, winnow::error::ContextError, _, _>('\\', alpha1).parse_next(input)
     {
-        match next_cmd {
-            "in" | "isin" => "\u{2209}",
-            "ni" | "owns" => "\u{220C}",
-            "subset" => "\u{2284}",
-            "supset" => "\u{2285}",
-            "subseteq" => "\u{2288}",
-            "supseteq" => "\u{2289}",
-            "sim" => "\u{2241}",
-            "approx" => "\u{2249}",
-            "equiv" => "\u{2262}",
-            "parallel" => "\u{2226}",
-            "mid" => "\u{2224}",
-            "vdash" => "\u{22AC}",
-            "prec" => "\u{2280}",
-            "succ" => "\u{2281}",
-            "le" | "leq" => "\u{2270}",
-            "ge" | "geq" => "\u{2271}",
-            "leftarrow" => "\u{219A}",
-            "rightarrow" => "\u{219B}",
-            other => return Ok(MathNode::Identifier(format!("\\not\\{}", other))),
+        let negated_opt = match next_cmd {
+            "in" | "isin" => Some("\u{2209}"),
+            "ni" | "owns" => Some("\u{220C}"),
+            "subset" => Some("\u{2284}"),
+            "supset" => Some("\u{2285}"),
+            "subseteq" => Some("\u{2288}"),
+            "supseteq" => Some("\u{2289}"),
+            "sim" => Some("\u{2241}"),
+            "approx" => Some("\u{2249}"),
+            "equiv" => Some("\u{2262}"),
+            "parallel" => Some("\u{2226}"),
+            "mid" => Some("\u{2224}"),
+            "vdash" => Some("\u{22AC}"),
+            "prec" => Some("\u{2280}"),
+            "succ" => Some("\u{2281}"),
+            "le" | "leq" => Some("\u{2270}"),
+            "ge" | "geq" => Some("\u{2271}"),
+            "leftarrow" => Some("\u{219A}"),
+            "rightarrow" => Some("\u{219B}"),
+            _ => None,
+        };
+
+        if let Some(negated) = negated_opt {
+            return Ok(MathNode::Operator(negated.to_string()));
         }
+
+        // 恢复游标，允许后续解析器正常处理未知命令
+        *input = checkpoint;
     } else if opt(one_of::<_, _, winnow::error::ContextError>('='))
         .parse_next(input)?
         .is_some()
     {
-        "\u{2260}"
+        return Ok(MathNode::Operator("\u{2260}".to_string()));
+    }
+
+    // 回退处理：正常解析下一个原子，并在其后跟随 U+0338 COMBINING LONG SOLIDUS OVERLAY
+    if let Ok(next_node) = parse_atom.parse_next(input) {
+        Ok(MathNode::Row(vec![
+            next_node,
+            MathNode::Operator("\u{0338}".to_string()),
+        ]))
     } else {
-        "\u{0338}"
-    };
-    Ok(MathNode::Operator(negated.to_string()))
+        Ok(MathNode::Operator("\u{0338}".to_string()))
+    }
 }
 
 fn parse_font_style_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
