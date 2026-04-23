@@ -8,3 +8,4 @@ mod styling_and_scripts;
 pub mod wasm_tests;
 pub mod not_test;
 pub mod not_test2;
+pub mod error_recovery_test;
