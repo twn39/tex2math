@@ -12,3 +12,4 @@ pub mod wasm_tests;
 pub mod number_test;
 pub mod depth_test;
 pub mod boundary_test;
+pub mod api_test;

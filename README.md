@@ -78,17 +78,13 @@ echo "\int_0^\infty f(x) \, dx" | tex2math
 ### 🦀 Using the Library
 
 ```rust
-use tex2math::{parse_row, MathMLRenderer, MathRenderer, RenderMode};
-use winnow::Parser; 
+use tex2math::{parse_latex, MathMLRenderer, MathRenderer, RenderMode};
 
 fn main() {
     let latex_input = "\\underbrace{a+b}_{=X} \\times \\mathbf{R}";
     
-    // The parser requires a mutable reference to the string slice (cursor)
-    let mut input = latex_input;
-
-    // 1. Parse the LaTeX string into an AST
-    match parse_row.parse_next(&mut input) {
+    // 1. Parse the LaTeX string into an AST using the high-level API
+    match parse_latex(latex_input) {
         Ok(ast) => {
             // 2. Initialize the backend renderer
             let renderer = MathMLRenderer::new();
