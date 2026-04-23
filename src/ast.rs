@@ -7,6 +7,7 @@
 /// `Inline` mode is used for math within text (`$...$`), often leading to smaller fonts and different operator limits.
 /// `Display` mode is used for standalone equations (`$$...$$`), often with limits displayed above and below operators.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum RenderMode {
     Inline,
     Display,
@@ -17,6 +18,7 @@ pub enum RenderMode {
 /// This determines whether limits are placed to the side of the operator (like `\nolimits`) or
 /// directly above and below (like `\limits`), or following the default rules for the operator.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum LimitBehavior {
     Default,
     Limits,   // 强制 \limits (总是生成 munderover)
@@ -24,6 +26,7 @@ pub enum LimitBehavior {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum PhantomKind {
     /// \phantom: 不可见，但占据完整的原始宽度、高度和深度
     Invisible,
@@ -38,6 +41,7 @@ pub enum PhantomKind {
 /// This enum is the core representation of all mathematical elements, including numbers, identifiers,
 /// operators, fractions, scripts, roots, matrices, and various styling configurations.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum MathNode {
     Number(String),
     Identifier(String),

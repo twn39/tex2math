@@ -31,6 +31,8 @@ required-features = ["cli"]
 [dependencies]
 winnow = "0.6.26"
 wasm-bindgen = { version = "0.2.118", optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
 
 [dependencies.clap]
 version = "4.6.0"
@@ -43,7 +45,7 @@ optional = true
 default = []
 cli = ["clap"]
 debug-trace = ["winnow/debug"]
-wasm = ["wasm-bindgen"]
+wasm = ["wasm-bindgen", "serde", "serde-wasm-bindgen"]
 wasm-bindgen = ["dep:wasm-bindgen"]
 
 [dev-dependencies]
