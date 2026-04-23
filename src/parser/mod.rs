@@ -619,8 +619,7 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                 alpha1,
                 one_of([
                     ',', ';', ':', '!', '%', '$', '#', '&', '_', ' ', '{', '}', '|',
-                ])
-                .map(|c: char| c.to_string().leak() as &str),
+                ]).recognize(),
             )),
         )
         .parse_next(input)?;
