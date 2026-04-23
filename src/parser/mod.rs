@@ -112,16 +112,39 @@ pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_sqrt", |input: &mut &'s str| {
         let _ = literal("\\sqrt").parse_next(input)?;
+        let _ = space0.parse_next(input)?;
 
-        // 提取 [ 和 ] 之间的纯字符串（不让内部的 parse_row 贪婪吃掉外面的 ]）
-        let index_str_opt =
-            opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')).parse_next(input)?;
+        let mut index_node_opt = None;
+
+        if opt(literal::<&str, &str, winnow::error::ContextError>("[")).parse_next(input)?.is_some() {
+            let mut index_nodes = Vec::new();
+            loop {
+                let _ = space0.parse_next(input)?;
+                if input.is_empty() || input.starts_with(']') {
+                    break;
+                }
+
+                let progress = input.len();
+                if let Ok(node) = parse_node.parse_next(input) {
+                    index_nodes.push(node);
+                } else {
+                    break;
+                }
+                if input.len() == progress {
+                    break;
+                }
+            }
+
+            // 消耗右侧的 ']'
+            let _ = opt(literal::<&str, &str, winnow::error::ContextError>("]")).parse_next(input)?;
+            
+            // 使用复用的 AST 折叠逻辑
+            index_node_opt = Some(fold_row_nodes(index_nodes));
+        }
 
         let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
 
-        if let Some(mut idx_str) = index_str_opt {
-            // 对提取出来的字符串进行 AST 解析
-            let index_node = parse_row.parse_next(&mut idx_str)?;
+        if let Some(index_node) = index_node_opt {
             Ok(MathNode::Root {
                 index: Box::new(index_node),
                 content: Box::new(content),
@@ -1075,71 +1098,73 @@ pub fn parse_node<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace("parse_node", alt((parse_script, parse_operator))).parse_next(input)
 }
 
+pub fn fold_row_nodes(nodes: Vec<MathNode>) -> MathNode {
+    // == AST 智能折叠 Pass: 张量与前置角标 ==
+    let mut folded_nodes: Vec<MathNode> = Vec::with_capacity(nodes.len());
+    let mut i = 0;
+
+    while i < nodes.len() {
+        if i + 1 < nodes.len() {
+            if let MathNode::Scripts {
+                base,
+                sub,
+                sup,
+                pre_sub: None,
+                pre_sup: None,
+                behavior: LimitBehavior::Default,
+                ..
+            } = &nodes[i]
+            {
+                if let MathNode::Row(inner) = &**base {
+                    if inner.is_empty() {
+                        let next_node = nodes[i + 1].clone();
+                        let merged_node = match next_node {
+                            MathNode::Scripts {
+                                base: next_base,
+                                sub: next_sub,
+                                sup: next_sup,
+                                behavior,
+                                ..
+                            } => MathNode::Scripts {
+                                base: next_base,
+                                sub: next_sub,
+                                sup: next_sup,
+                                pre_sub: sub.clone(),
+                                pre_sup: sup.clone(),
+                                behavior,
+                            },
+                            _ => MathNode::Scripts {
+                                base: Box::new(next_node),
+                                sub: None,
+                                sup: None,
+                                pre_sub: sub.clone(),
+                                pre_sup: sup.clone(),
+                                behavior: LimitBehavior::Default,
+                            },
+                        };
+
+                        folded_nodes.push(merged_node);
+                        i += 2;
+                        continue;
+                    }
+                }
+            }
+        }
+        folded_nodes.push(nodes[i].clone());
+        i += 1;
+    }
+
+    if folded_nodes.len() == 1 {
+        folded_nodes.into_iter().next().unwrap()
+    } else {
+        MathNode::Row(folded_nodes)
+    }
+}
+
 pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_row",
-        repeat(0.., preceded(space0, parse_node)).map(|nodes: Vec<MathNode>| {
-            // == AST 智能折叠 Pass: 张量与前置角标 ==
-            let mut folded_nodes: Vec<MathNode> = Vec::with_capacity(nodes.len());
-            let mut i = 0;
-
-            while i < nodes.len() {
-                if i + 1 < nodes.len() {
-                    if let MathNode::Scripts {
-                        base,
-                        sub,
-                        sup,
-                        pre_sub: None,
-                        pre_sup: None,
-                        behavior: LimitBehavior::Default,
-                        ..
-                    } = &nodes[i]
-                    {
-                        if let MathNode::Row(inner) = &**base {
-                            if inner.is_empty() {
-                                let next_node = nodes[i + 1].clone();
-                                let merged_node = match next_node {
-                                    MathNode::Scripts {
-                                        base: next_base,
-                                        sub: next_sub,
-                                        sup: next_sup,
-                                        behavior,
-                                        ..
-                                    } => MathNode::Scripts {
-                                        base: next_base,
-                                        sub: next_sub,
-                                        sup: next_sup,
-                                        pre_sub: sub.clone(),
-                                        pre_sup: sup.clone(),
-                                        behavior,
-                                    },
-                                    _ => MathNode::Scripts {
-                                        base: Box::new(next_node),
-                                        sub: None,
-                                        sup: None,
-                                        pre_sub: sub.clone(),
-                                        pre_sup: sup.clone(),
-                                        behavior: LimitBehavior::Default,
-                                    },
-                                };
-
-                                folded_nodes.push(merged_node);
-                                i += 2;
-                                continue;
-                            }
-                        }
-                    }
-                }
-                folded_nodes.push(nodes[i].clone());
-                i += 1;
-            }
-
-            if folded_nodes.len() == 1 {
-                folded_nodes.into_iter().next().unwrap()
-            } else {
-                MathNode::Row(folded_nodes)
-            }
-        }),
+        repeat(0.., preceded(space0, parse_node)).map(fold_row_nodes),
     )
     .parse_next(input)
 }
