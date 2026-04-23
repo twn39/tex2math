@@ -2,6 +2,22 @@
 // 1. AST (抽象语法树) 定义
 // ==========================================
 
+/// Error type returned when parsing fails. Contains the error message and byte offset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct ParseError {
+    pub message: String,
+    pub offset: usize,
+}
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Parse error at byte offset {}: {}", self.offset, self.message)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
 /// The rendering mode for the mathematical formula.
 ///
 /// `Inline` mode is used for math within text (`$...$`), often leading to smaller fonts and different operator limits.

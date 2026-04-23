@@ -36,8 +36,9 @@ use winnow::Parser;
 /// 
 /// let ast = parse_latex(r"\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}").expect("Failed to parse");
 /// ```
-pub fn parse_latex(input: &str) -> Result<MathNode, String> {
+pub fn parse_latex(input: &str) -> Result<MathNode, ParseError> {
     let mut cursor = input;
+    let initial_len = cursor.len();
     match parse_math.parse_next(&mut cursor) {
         Ok(ast) => {
             if !cursor.trim().is_empty() {
@@ -47,6 +48,9 @@ pub fn parse_latex(input: &str) -> Result<MathNode, String> {
             }
             Ok(ast)
         }
-        Err(e) => Err(format!("Parse error: {}", e)),
+        Err(e) => Err(ParseError {
+            message: e.to_string(),
+            offset: initial_len - cursor.len(),
+        }),
     }
 }

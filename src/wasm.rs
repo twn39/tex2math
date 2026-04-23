@@ -1,13 +1,7 @@
-use crate::{generate_mathml, parse_math, RenderMode};
+use crate::{generate_mathml, parse_math, RenderMode, ParseError};
 use wasm_bindgen::prelude::*;
 use winnow::Parser as WinnowParser;
 
-#[cfg(feature = "serde")]
-#[derive(serde::Serialize)]
-pub struct WasmParseError {
-    pub message: String,
-    pub offset: usize,
-}
 
 /// Convert a LaTeX string to MathML for use in JavaScript via WebAssembly.
 #[wasm_bindgen]
@@ -38,7 +32,7 @@ pub fn convert_to_mathml(latex_input: &str, display_mode: bool) -> Result<String
         Err(e) => {
             #[cfg(feature = "serde")]
             {
-                let err_obj = WasmParseError {
+                let err_obj = ParseError {
                     message: format!("Parse error: {}", e),
                     offset: initial_len - cursor.len(),
                 };
@@ -70,7 +64,7 @@ pub fn parse_to_ast(latex_input: &str) -> Result<JsValue, JsValue> {
             Ok(serde_wasm_bindgen::to_value(&ast).unwrap())
         }
         Err(e) => {
-            let err_obj = WasmParseError {
+            let err_obj = ParseError {
                 message: format!("Parse error: {}", e),
                 offset: initial_len - cursor.len(),
             };
@@ -84,7 +78,7 @@ pub fn parse_to_ast(latex_input: &str) -> Result<JsValue, JsValue> {
 pub struct WasmBatchResult {
     pub success: bool,
     pub result: Option<String>,
-    pub error: Option<WasmParseError>,
+    pub error: Option<ParseError>,
 }
 
 #[cfg(feature = "serde")]
@@ -118,7 +112,7 @@ pub fn convert_batch(inputs_js: &JsValue) -> Result<JsValue, JsValue> {
                 results.push(WasmBatchResult {
                     success: false,
                     result: None,
-                    error: Some(WasmParseError {
+                    error: Some(ParseError {
                         message: format!("Parse error: {}", e),
                         offset: initial_len - cursor.len(),
                     }),
