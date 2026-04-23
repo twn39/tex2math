@@ -286,9 +286,17 @@ impl MathRenderer for MathMLRenderer {
                 )
             }
             MathNode::OperatorName(content) => {
-                buf.push_str("<mrow><mstyle mathvariant=\"normal\">");
-                self.render_into(content, mode, buf)?;
-                buf.push_str("</mstyle></mrow>");
+                if let Some(text) = try_extract_operator_text(content) {
+                    write!(
+                        buf,
+                        "<mi mathvariant=\"normal\">{}</mi>",
+                        escape_xml(&text)
+                    )?;
+                } else {
+                    buf.push_str("<mrow><mstyle mathvariant=\"normal\">");
+                    self.render_into(content, mode, buf)?;
+                    buf.push_str("</mstyle></mrow>");
+                }
                 Ok(())
             }
             MathNode::SizedDelimiter { size, delim } => {
@@ -398,4 +406,29 @@ impl MathRenderer for MathMLRenderer {
 /// A `String` containing the generated MathML XML.
 pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
     MathMLRenderer::new().render(node, mode)
+}
+
+
+fn try_extract_operator_text(node: &MathNode) -> Option<String> {
+    match node {
+        MathNode::Identifier(s) | MathNode::Number(s) | MathNode::Operator(s) | MathNode::Function(s) => Some(s.clone()),
+        MathNode::Space(s) => {
+            Some(match s.as_str() {
+                "0.1667em" => " ".to_string(), //   (thin space, ,)
+                "0.2222em" => " ".to_string(), //   (medium space, :)
+                "0.2778em" => " ".to_string(), //   (thick space, ;)
+                "1em" => " ".to_string(),      //   (quad)
+                "2em" => " ".to_string(),      //   (qquad)
+                _ => " ".to_string(),
+            })
+        }
+        MathNode::Row(nodes) => {
+            let mut text = String::new();
+            for n in nodes {
+                text.push_str(&try_extract_operator_text(n)?);
+            }
+            Some(text)
+        }
+        _ => None,
+    }
 }

@@ -325,7 +325,7 @@ fn test_operatorname_renders_as_function() {
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
     // rank 应该渲染为 mathvariant="normal" 的 mi 标签（与函数相同）
-    assert!(mathml.contains("<mrow><mstyle mathvariant=\"normal\"><mrow><mi>r</mi><mi>a</mi><mi>n</mi><mi>k</mi></mrow></mstyle></mrow>"));
+    assert!(mathml.contains("<mi mathvariant=\"normal\">rank</mi>"));
 }
 
 #[test]

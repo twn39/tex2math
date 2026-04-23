@@ -389,9 +389,7 @@ fn test_operatorname_with_subscript() {
     let mut input = "\\operatorname{tr}(A)";
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    assert!(mathml.contains(
-        "<mrow><mstyle mathvariant=\"normal\"><mrow><mi>t</mi><mi>r</mi></mrow></mstyle></mrow>"
-    ));
+    assert!(mathml.contains("<mi mathvariant=\"normal\">tr</mi>"));
 }
 
 // --- Fix 11: \mathrm 作为 Style 而非 Text ---
