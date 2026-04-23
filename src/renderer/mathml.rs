@@ -2,13 +2,27 @@ use crate::ast::*;
 use crate::renderer::MathRenderer;
 use std::fmt::Write;
 
-fn escape_xml(input: &str) -> String {
-    input
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('\'', "&apos;")
-        .replace('\"', "&quot;")
+struct EscapedXml<'a>(&'a str);
+
+impl<'a> std::fmt::Display for EscapedXml<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for c in self.0.chars() {
+            match c {
+                '&' => f.write_str("&amp;")?,
+                '<' => f.write_str("&lt;")?,
+                '>' => f.write_str("&gt;")?,
+                '\'' => f.write_str("&apos;")?,
+                '"' => f.write_str("&quot;")?,
+                _ => f.write_char(c)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+#[inline]
+fn escape_xml(input: &str) -> EscapedXml<'_> {
+    EscapedXml(input)
 }
 
 /// The standard MathML rendering backend provided by tex2math.

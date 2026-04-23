@@ -6,3 +6,5 @@ mod parser_atoms;
 mod rendering_mathml;
 mod styling_and_scripts;
 pub mod wasm_tests;
+pub mod not_test;
+pub mod not_test2;
