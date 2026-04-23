@@ -1,11 +1,14 @@
 mod e2e_compatibility;
 mod environments;
 mod error_recovery;
+pub mod error_recovery_test;
 mod limits_and_spacing;
+pub mod not_test;
+pub mod not_test2;
 mod parser_atoms;
 mod rendering_mathml;
 mod styling_and_scripts;
 pub mod wasm_tests;
-pub mod not_test;
-pub mod not_test2;
-pub mod error_recovery_test;
+pub mod number_test;
+pub mod depth_test;
+pub mod boundary_test;

@@ -5,14 +5,17 @@ use winnow::token::{literal, one_of, take_till, take_until};
 
 use crate::ast::*;
 
-/// Parses a numeric literal (e.g., `123`, `3.14`) into a `MathNode::Number`.
+/// Parses a numeric literal (e.g., `123`, `3.14`, `.14`, `10.`) into a `MathNode::Number`.
 pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     trace(
         "parse_number",
-        // 支持整数和小数，如 42、3.14。使用 take() 捕获整个匹配区间作为字符串。
-        (digit1, opt(('.', digit1)))
-            .take()
-            .map(|s: &str| MathNode::Number(s.to_string())),
+        alt((
+            // Format 1: Normal decimal or integer (e.g., "123", "3.14", "10.")
+            (digit1, opt(('.', opt(digit1)))).take(),
+            // Format 2: Leading decimal (e.g., ".14")
+            ('.', digit1).take(),
+        ))
+        .map(|s: &str| MathNode::Number(s.to_string())),
     )
     .parse_next(input)
 }
