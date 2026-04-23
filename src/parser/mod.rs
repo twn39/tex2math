@@ -116,7 +116,10 @@ pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         let mut index_node_opt = None;
 
-        if opt(literal::<&str, &str, winnow::error::ContextError>("[")).parse_next(input)?.is_some() {
+        if opt(literal::<&str, &str, winnow::error::ContextError>("["))
+            .parse_next(input)?
+            .is_some()
+        {
             let mut index_nodes = Vec::new();
             loop {
                 let _ = space0.parse_next(input)?;
@@ -136,8 +139,9 @@ pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             }
 
             // 消耗右侧的 ']'
-            let _ = opt(literal::<&str, &str, winnow::error::ContextError>("]")).parse_next(input)?;
-            
+            let _ =
+                opt(literal::<&str, &str, winnow::error::ContextError>("]")).parse_next(input)?;
+
             // 使用复用的 AST 折叠逻辑
             index_node_opt = Some(fold_row_nodes(index_nodes));
         }
@@ -635,7 +639,8 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                 alpha1,
                 one_of([
                     ',', ';', ':', '!', '%', '$', '#', '&', '_', ' ', '{', '}', '|',
-                ]).recognize(),
+                ])
+                .take(),
             )),
         )
         .parse_next(input)?;
