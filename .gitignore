@@ -23,4 +23,6 @@ ehthumbs.db
 Thumbs.db
 .idea
 pkg
+!README.md
+*.md
 
