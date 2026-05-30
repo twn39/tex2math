@@ -1,7 +1,7 @@
+use crate::ast::RenderMode;
 use crate::parser::parse_math;
 use crate::renderer::mathml::MathMLRenderer;
 use crate::renderer::MathRenderer;
-use crate::ast::RenderMode;
 use std::time::Instant;
 
 // ==========================================
@@ -21,8 +21,12 @@ fn test_boundary_ultra_long_sequence() {
     let duration = start.elapsed();
 
     // 必须能够迅速完成，绝不能指数级退化
-    assert!(duration.as_millis() < 500, "Parsing took too long: {} ms", duration.as_millis());
-    
+    assert!(
+        duration.as_millis() < 500,
+        "Parsing took too long: {} ms",
+        duration.as_millis()
+    );
+
     // 渲染结果应包含超过两万个节点
     let renderer = MathMLRenderer::new();
     let mathml = renderer.render(&ast, RenderMode::Inline);
@@ -48,9 +52,12 @@ fn test_boundary_ultra_deep_nesting() {
 
     let mut i = input.as_str();
     let res = parse_math(&mut i);
-    
+
     // 我们期望的是一个优雅的 Error (例如 Recursion Limit Exceeded)，而不是内核段错误
-    assert!(res.is_err(), "Deep nesting should eventually hit a recursion limit gracefully.");
+    assert!(
+        res.is_err(),
+        "Deep nesting should eventually hit a recursion limit gracefully."
+    );
 }
 
 // ==========================================
@@ -60,7 +67,7 @@ fn test_boundary_ultra_deep_nesting() {
 fn test_boundary_full_unicode_text() {
     let mut input = "\\text{你好，世界！🙋‍♂️ 123 α} + \\sum_{i=1}^n x_i";
     let ast = parse_math(&mut input).expect("Should parse full unicode successfully");
-    
+
     let renderer = MathMLRenderer::new();
     let mathml = renderer.render(&ast, RenderMode::Display);
 
@@ -87,9 +94,14 @@ fn test_boundary_decimal_formats() {
         let mut input = math;
         let ast = parse_math(&mut input).unwrap();
         let mathml = renderer.render(&ast, RenderMode::Inline);
-        assert!(mathml.contains(expected), "Failed on input '{}', got MathML: {}", math, mathml);
+        assert!(
+            mathml.contains(expected),
+            "Failed on input '{}', got MathML: {}",
+            math,
+            mathml
+        );
     }
-    
+
     // 单独的 . 仍然应该被解析为操作符，而不是数字
     let mut input_dot = ".";
     let ast_dot = parse_math(&mut input_dot).unwrap();

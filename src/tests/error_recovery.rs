@@ -44,7 +44,9 @@ fn test_error_recovery_missing_denominator() {
 
     // 分母缺失应当触发一个 Missing denominator block 的错误节点，并且嵌在 mfrac 中
     assert!(mathml.contains("<mfrac>"));
-    assert!(mathml.contains("<merror><mtext mathcolor=\"red\">Syntax Error: Missing denominator block</mtext></merror>"));
+    assert!(mathml.contains(
+        "<merror><mtext mathcolor=\"red\">Syntax Error: Missing denominator block</mtext></merror>"
+    ));
 }
 
 #[test]
@@ -69,7 +71,9 @@ fn test_error_recovery_unclosed_environment_complex() {
 
     // 解析器依然将其作为未闭合矩阵渲染，但追加一个错误提示节点，而不丢失矩阵内容
     assert!(mathml.contains("<mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable>"));
-    assert!(mathml.contains("<merror><mtext mathcolor=\"red\">Syntax Error: Missing \\end{bmatrix}</mtext></merror>"));
+    assert!(mathml.contains(
+        "<merror><mtext mathcolor=\"red\">Syntax Error: Missing \\end{bmatrix}</mtext></merror>"
+    ));
 }
 
 #[test]
@@ -84,4 +88,48 @@ fn test_error_recovery_orphan_commands() {
     let mut input2 = "\\nolimits^2";
     let ast2 = parse_math.parse_next(&mut input2);
     assert!(ast2.is_ok());
+}
+
+#[test]
+fn test_nested_braces_in_text() {
+    let mut input = "\\text{hello {world} nested}";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert_eq!(mathml, "<mtext>hello {world} nested</mtext>");
+}
+
+#[test]
+fn test_escaped_braces_in_text() {
+    let mut input = "\\text{hello \\{world\\} nested}";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert_eq!(mathml, "<mtext>hello \\{world\\} nested</mtext>");
+}
+
+#[test]
+fn test_unclosed_braces_in_text_recovery() {
+    let mut input = "\\text{unclosed";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mtext>unclosed</mtext>"));
+    assert!(mathml.contains("<merror><mtext mathcolor=\"red\">Syntax Error: Missing &apos;}&apos; in text command</mtext></merror>"));
+}
+
+#[test]
+fn test_nested_brackets_in_extensible_arrow() {
+    let mut input = "\\xrightarrow[a=[b]]{c}";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    // Extensible arrow maps limit on operator
+    assert!(mathml.contains("<munderover>"));
+    assert!(mathml.contains("<mo stretchy=\"true\">→</mo>"));
+    assert!(mathml.contains("<mrow><mi>a</mi><mo>=</mo><mo>[</mo><mi>b</mi><mo>]</mo></mrow>"));
+}
+
+#[test]
+fn test_nested_array_format() {
+    let mut input = "\\begin{array}{p{2cm}c} a & b \\end{array}";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    assert!(mathml.contains("<mtable columnalign=\"center center\">"));
 }

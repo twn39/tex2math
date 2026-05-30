@@ -1,7 +1,7 @@
 use winnow::ascii::{alpha1, digit1, multispace0 as space0};
 use winnow::combinator::{alt, delimited, opt, preceded, repeat, separated, trace};
 use winnow::prelude::*;
-use winnow::token::{literal, one_of, take_till, take_until};
+use winnow::token::{literal, one_of};
 
 use crate::ast::*;
 
@@ -244,15 +244,101 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
 // --- Sub-parsers for commands ---
 
+/// Parses a string slice enclosed in matching curly braces `{...}`, keeping track of nesting depth and escaping backslashes.
+/// Returns the inner content (excluding the outermost braces) and whether the closing brace was found.
+pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bool)> {
+    let _ = preceded(space0, literal("{")).parse_next(input)?;
+
+    let full = *input;
+    let mut depth = 1usize;
+    let mut len = 0usize;
+    let mut backslash_count = 0usize;
+    for (idx, c) in full.char_indices() {
+        if c == '\\' {
+            backslash_count += 1;
+        } else {
+            if (c == '{' || c == '}') && backslash_count.is_multiple_of(2) {
+                if c == '{' {
+                    depth += 1;
+                } else {
+                    depth -= 1;
+                    if depth == 0 {
+                        len = idx;
+                        break;
+                    }
+                }
+            }
+            backslash_count = 0;
+        }
+    }
+
+    if depth == 0 {
+        let content = &full[..len];
+        *input = &full[len + 1..]; // Skip matching '}'
+        Ok((content, true))
+    } else {
+        let content = full;
+        *input = &full[full.len()..];
+        Ok((content, false))
+    }
+}
+
+/// Parses a string slice enclosed in matching square brackets `[...]`, keeping track of nesting depth and escaping backslashes.
+/// Returns the inner content (excluding the outermost brackets) and whether the closing bracket was found.
+pub fn take_balanced_brackets<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bool)> {
+    let _ = preceded(space0, literal("[")).parse_next(input)?;
+
+    let full = *input;
+    let mut depth = 1usize;
+    let mut len = 0usize;
+    let mut backslash_count = 0usize;
+    for (idx, c) in full.char_indices() {
+        if c == '\\' {
+            backslash_count += 1;
+        } else {
+            if (c == '[' || c == ']') && backslash_count.is_multiple_of(2) {
+                if c == '[' {
+                    depth += 1;
+                } else {
+                    depth -= 1;
+                    if depth == 0 {
+                        len = idx;
+                        break;
+                    }
+                }
+            }
+            backslash_count = 0;
+        }
+    }
+
+    if depth == 0 {
+        let content = &full[..len];
+        *input = &full[len + 1..]; // Skip matching ']'
+        Ok((content, true))
+    } else {
+        let content = full;
+        *input = &full[full.len()..];
+        Ok((content, false))
+    }
+}
+
 fn parse_text_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
-    let inner_text = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
-    Ok(MathNode::Text(inner_text.to_string()))
+    let (inner_text, is_closed) = take_balanced_braces(input)?;
+    let text_node = MathNode::Text(inner_text.to_string());
+    if is_closed {
+        Ok(text_node)
+    } else {
+        Ok(MathNode::Row(vec![
+            text_node,
+            MathNode::Error("Missing '}' in text command".to_string()),
+        ]))
+    }
 }
 
 fn parse_color_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> {
     match cmd {
         "textcolor" => {
-            let color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let (color, _) = take_balanced_braces(input)?;
             let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
             Ok(MathNode::Color {
                 color: color.to_string(),
@@ -260,7 +346,7 @@ fn parse_color_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> 
             })
         }
         "colorbox" => {
-            let bg_color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let (bg_color, _) = take_balanced_braces(input)?;
             let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
             Ok(MathNode::ColorBox {
                 bg_color: bg_color.to_string(),
@@ -268,7 +354,7 @@ fn parse_color_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode> 
             })
         }
         "color" => {
-            let color = delimited((space0, '{'), take_until(0.., "}"), '}').parse_next(input)?;
+            let (color, _) = take_balanced_braces(input)?;
             let remaining_nodes: Vec<MathNode> =
                 repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
             let content = if remaining_nodes.len() == 1 {
@@ -379,8 +465,7 @@ fn parse_extensible_arrow_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult
         _ => unreachable!(),
     };
 
-    let sub_str_opt =
-        opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')).parse_next(input)?;
+    let sub_str_opt = opt(take_balanced_brackets.map(|(content, _)| content)).parse_next(input)?;
     let sup = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
 
     let sub = if let Some(mut s) = sub_str_opt {
@@ -751,7 +836,7 @@ pub fn parse_cells_in_row<'s>(input: &mut &'s str) -> ModalResult<Vec<MathNode>>
 pub fn parse_newline_opt<'s>(input: &mut &'s str) -> ModalResult<Option<&'s str>> {
     preceded(
         literal("\\\\"),
-        opt(delimited((space0, '['), take_till(0.., |c| c == ']'), ']')),
+        opt(take_balanced_brackets.map(|(content, _)| content)),
     )
     .parse_next(input)
 }
@@ -765,10 +850,8 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 
         let mut format = None;
         if name == "array" {
-            // 使用 opt 来利用上下文进行推导，这样编译器就能知道 Error 是 winnow::error::ContextError
-            let fmt_opt: Option<&str> =
-                opt(delimited((space0, '{'), take_until(0.., "}"), '}')).parse_next(input)?;
-            if let Some(fmt_str) = fmt_opt {
+            let fmt_opt: Option<(&str, bool)> = opt(take_balanced_braces).parse_next(input)?;
+            if let Some((fmt_str, _)) = fmt_opt {
                 format = Some(fmt_str.to_string());
             }
         }
@@ -841,11 +924,10 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             .parse_next(row_input)
         };
 
-        // 指定类型为 ModalResult<Option<&str>>
         let mut parse_newline_opt = |input: &mut &'s str| -> ModalResult<Option<&str>> {
             preceded(
                 literal("\\\\"),
-                opt(delimited((space0, '['), take_until(0.., "]"), ']')),
+                opt(take_balanced_brackets.map(|(content, _)| content)),
             )
             .parse_next(input)
         };

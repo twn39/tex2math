@@ -301,11 +301,7 @@ impl MathRenderer for MathMLRenderer {
             }
             MathNode::OperatorName(content) => {
                 if let Some(text) = try_extract_operator_text(content) {
-                    write!(
-                        buf,
-                        "<mi mathvariant=\"normal\">{}</mi>",
-                        escape_xml(&text)
-                    )?;
+                    write!(buf, "<mi mathvariant=\"normal\">{}</mi>", escape_xml(&text))?;
                 } else {
                     buf.push_str("<mrow><mstyle mathvariant=\"normal\">");
                     self.render_into(content, mode, buf)?;
@@ -422,10 +418,12 @@ pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
     MathMLRenderer::new().render(node, mode)
 }
 
-
 fn try_extract_operator_text(node: &MathNode) -> Option<String> {
     match node {
-        MathNode::Identifier(s) | MathNode::Number(s) | MathNode::Operator(s) | MathNode::Function(s) => Some(s.clone()),
+        MathNode::Identifier(s)
+        | MathNode::Number(s)
+        | MathNode::Operator(s)
+        | MathNode::Function(s) => Some(s.clone()),
         MathNode::Space(s) => {
             Some(match s.as_str() {
                 "0.1667em" => " ".to_string(), //   (thin space, ,)

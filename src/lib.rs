@@ -22,7 +22,7 @@ use winnow::Parser;
 /// A unified, high-level API for parsing a complete LaTeX string into an Abstract Syntax Tree (AST).
 ///
 /// This is the recommended entry point for library consumers. It automatically leverages `parse_math`
-/// to handle top-level environments (like multi-column `align*` created by isolated `&` and `\\`) 
+/// to handle top-level environments (like multi-column `align*` created by isolated `&` and `\\`)
 /// and consumes the input string safely.
 ///
 /// # Differences between underlying parsers:
@@ -33,7 +33,7 @@ use winnow::Parser;
 /// # Example
 /// ```rust
 /// use tex2math::parse_latex;
-/// 
+///
 /// let ast = parse_latex(r"\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}").expect("Failed to parse");
 /// ```
 pub fn parse_latex(input: &str) -> Result<MathNode, ParseError> {
