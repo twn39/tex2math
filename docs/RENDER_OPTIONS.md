@@ -45,3 +45,5 @@ Intent values are stable for currently covered nodes; new nodes may gain intents
 ## Testing
 
 See `src/tests/v2_features.rs` for regression checks on cancel/boxed core paths and intent emission for fraction, root, fenced, scripts, accent, and tables.
+
+For broader LaTeX → MathML coverage (including newly added macros such as `\binom`, `\pmod`, `\stackrel`), see the fixture corpus under [`tests/fixtures/`](../tests/fixtures/README.md) and the runner `tests/fixtures_runner.rs`.

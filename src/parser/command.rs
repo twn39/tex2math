@@ -176,6 +176,288 @@ fn parse_frac_style_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathN
     })
 }
 
+fn parse_binom_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    let style = crate::registry::BINOM_STYLES
+        .iter()
+        .find(|&&(k, _)| k == cmd)
+        .map(|&(_, s)| s)
+        .expect("binom pre-filtered");
+    let upper = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let lower = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let binom = MathNode::Binom(Box::new(upper), Box::new(lower));
+    Ok(match style {
+        None => binom,
+        Some(ds) => MathNode::StyledMath {
+            displaystyle: ds,
+            content: Box::new(binom),
+        },
+    })
+}
+
+fn parse_mod_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    // Spacing and shape follow common TeX/KaTeX conventions (simplified MathML).
+    // `\pmod` / `\pod` take a braced argument; `\bmod` / `\mod` are infix operators
+    // (optional braces for a trailing operand are accepted but uncommon).
+    Ok(match cmd {
+        "pmod" => {
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            MathNode::Row(vec![
+                MathNode::Space(Cow::Borrowed("0.35em")),
+                MathNode::Operator(Cow::Borrowed("(")),
+                MathNode::Function(Cow::Borrowed("mod")),
+                MathNode::Space(Cow::Borrowed("0.1667em")),
+                content,
+                MathNode::Operator(Cow::Borrowed(")")),
+            ])
+        }
+        "pod" => {
+            let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+            MathNode::Row(vec![
+                MathNode::Space(Cow::Borrowed("0.35em")),
+                MathNode::Operator(Cow::Borrowed("(")),
+                content,
+                MathNode::Operator(Cow::Borrowed(")")),
+            ])
+        }
+        "bmod" => {
+            if input.trim_start().starts_with('{') {
+                let content =
+                    delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+                MathNode::Row(vec![
+                    MathNode::Space(Cow::Borrowed("0.2222em")),
+                    MathNode::Function(Cow::Borrowed("mod")),
+                    MathNode::Space(Cow::Borrowed("0.2222em")),
+                    content,
+                ])
+            } else {
+                MathNode::Row(vec![
+                    MathNode::Space(Cow::Borrowed("0.2222em")),
+                    MathNode::Function(Cow::Borrowed("mod")),
+                    MathNode::Space(Cow::Borrowed("0.2222em")),
+                ])
+            }
+        }
+        // `\mod` — relational spacing before "mod", optional braced operand
+        _ => {
+            if input.trim_start().starts_with('{') {
+                let content =
+                    delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+                MathNode::Row(vec![
+                    MathNode::Space(Cow::Borrowed("0.35em")),
+                    MathNode::Function(Cow::Borrowed("mod")),
+                    MathNode::Space(Cow::Borrowed("0.1667em")),
+                    content,
+                ])
+            } else {
+                MathNode::Row(vec![
+                    MathNode::Space(Cow::Borrowed("0.35em")),
+                    MathNode::Function(Cow::Borrowed("mod")),
+                    MathNode::Space(Cow::Borrowed("0.1667em")),
+                ])
+            }
+        }
+    })
+}
+
+fn parse_math_class_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    // Class is a spacing hint in TeX; we accept the argument so it is not treated as unknown.
+    delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)
+}
+
+fn parse_style_switch_cmd<'s>(
+    displaystyle: bool,
+    input: &mut &'s str,
+) -> ModalResult<MathNode<'s>> {
+    let content = if input.trim_start().starts_with('{') {
+        delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?
+    } else {
+        // Apply to the next atom (TeX switch approximation inside a row).
+        preceded(space0, parse_atom).parse_next(input)?
+    };
+    Ok(MathNode::StyledMath {
+        displaystyle,
+        content: Box::new(content),
+    })
+}
+
+/// Parse a TeX dimension token: optional braces, e.g. `1em`, `0.5ex`, `5mu`, `-0.1em`.
+fn parse_dimension<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
+    let _ = space0.parse_next(input)?;
+    if input.starts_with('{') {
+        let (inner, _) = take_balanced_braces(input)?;
+        return Ok(inner.trim());
+    }
+    // bare: optional sign, digits, optional fraction, unit
+    let start = *input;
+    let mut i = 0;
+    let bytes = start.as_bytes();
+    if i < bytes.len() && (bytes[i] == b'+' || bytes[i] == b'-') {
+        i += 1;
+    }
+    let dig_start = i;
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i < bytes.len() && bytes[i] == b'.' {
+        i += 1;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+    }
+    if i == dig_start {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::new(),
+        ));
+    }
+    // unit: em, ex, mu, pt, pc, in, cm, mm, bp, dd, cc, sp, or px
+    let unit_start = i;
+    while i < bytes.len() && bytes[i].is_ascii_alphabetic() {
+        i += 1;
+    }
+    if i == unit_start {
+        return Err(winnow::error::ErrMode::Backtrack(
+            winnow::error::ContextError::new(),
+        ));
+    }
+    let dim = &start[..i];
+    *input = &start[i..];
+    Ok(dim)
+}
+
+fn normalize_space_dim(cmd: &str, dim: &str) -> String {
+    // `\mkern` / `\mskip` use math units (mu); approximate 1mu ≈ 1/18 em.
+    if matches!(cmd, "mkern" | "mskip") {
+        let trimmed = dim.trim();
+        if let Some(num) = trimmed.strip_suffix("mu") {
+            if let Ok(v) = num.trim().parse::<f64>() {
+                return format!("{}em", v / 18.0);
+            }
+        }
+    }
+    dim.trim().to_string()
+}
+
+fn parse_dim_space_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    let dim = parse_dimension(input)?;
+    let width = normalize_space_dim(cmd, dim);
+    Ok(MathNode::Space(Cow::Owned(width)))
+}
+
+fn parse_substack_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    let (inner, _closed) = take_balanced_braces(input)?;
+    let mut cursor = inner;
+    let mut rows: Vec<(Vec<MathNode<'s>>, Option<Cow<'s, str>>)> = Vec::new();
+    loop {
+        let _ = space0.parse_next(&mut cursor)?;
+        if cursor.is_empty() {
+            break;
+        }
+        let mark = cursor.len();
+        if let Ok(cells) = super::environment::parse_cells_in_row.parse_next(&mut cursor) {
+            let spacing =
+                if let Ok(opt_sp) = super::environment::parse_newline_opt.parse_next(&mut cursor) {
+                    opt_sp.map(Cow::Borrowed)
+                } else {
+                    None
+                };
+            rows.push((cells, spacing));
+        } else {
+            break;
+        }
+        if cursor.len() == mark {
+            break;
+        }
+    }
+    if rows.is_empty() {
+        rows.push((vec![MathNode::Row(vec![])], None));
+    }
+    Ok(MathNode::Environment {
+        name: Cow::Borrowed("substack"),
+        format: None,
+        rows,
+    })
+}
+
+fn parse_middle_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    let delim = parse_fence_delim.parse_next(input)?;
+    Ok(MathNode::Middle(Cow::Owned(delim)))
+}
+
+fn thickness_is_zero(thick: &str) -> bool {
+    let t = thick.trim();
+    if t.is_empty() || t == "0" {
+        return true;
+    }
+    // 0pt, 0em, 0.0mu, …
+    let num: String = t
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '+' || *c == '-')
+        .collect();
+    num.parse::<f64>().map(|v| v == 0.0).unwrap_or(false)
+}
+
+fn parse_genfrac_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    // \genfrac{left}{right}{thickness}{style}{num}{den}
+    let (left, _) = take_balanced_braces(input)?;
+    let (right, _) = take_balanced_braces(input)?;
+    let (thick, _) = take_balanced_braces(input)?;
+    let (style, _) = take_balanced_braces(input)?;
+    let num = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let den = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+
+    let left = left.trim();
+    let right = right.trim();
+    let paren_delims = left == "(" && right == ")";
+    let no_delims = left.is_empty() && right.is_empty();
+
+    // Zero rule + () → Binom; zero rule without delims still uses Binom (adds ());
+    // non-zero rule → Fraction, optionally fenced.
+    let body = if thickness_is_zero(thick) && (paren_delims || no_delims) {
+        MathNode::Binom(Box::new(num), Box::new(den))
+    } else {
+        let frac = MathNode::Fraction(Box::new(num), Box::new(den));
+        if no_delims {
+            frac
+        } else {
+            MathNode::Fenced {
+                open: Cow::Owned(if left.is_empty() {
+                    ".".into()
+                } else {
+                    left.to_string()
+                }),
+                content: Box::new(frac),
+                close: Cow::Owned(if right.is_empty() {
+                    ".".into()
+                } else {
+                    right.to_string()
+                }),
+            }
+        }
+    };
+
+    Ok(match style.trim() {
+        "0" => MathNode::StyledMath {
+            displaystyle: true,
+            content: Box::new(body),
+        },
+        "1" | "2" | "3" => MathNode::StyledMath {
+            displaystyle: false,
+            content: Box::new(body),
+        },
+        _ => body,
+    })
+}
+
+fn parse_tag_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    Ok(MathNode::Row(vec![
+        MathNode::Space(Cow::Borrowed("1em")),
+        MathNode::Operator(Cow::Borrowed("(")),
+        content,
+        MathNode::Operator(Cow::Borrowed(")")),
+    ]))
+}
+
 fn parse_operatorname_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
     if cmd == "operatorname*" {
@@ -375,8 +657,9 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
 
         // Table-driven families — names only in `registry` (no duplicated match lists).
         use crate::registry::{
-            lookup, lookup_bool, lookup_stretch, ACCENTS, CANCEL_MODES, EXTENSIBLE_ARROWS,
-            FONT_STYLES, FRAC_STYLES, PHANTOM_KINDS, SIZED_DELIMS, STRUCTURAL_CMDS,
+            lookup, lookup_bool, lookup_stretch, ACCENTS, BINOM_STYLES, CANCEL_MODES,
+            DIM_SPACE_CMDS, EXTENSIBLE_ARROWS, FONT_STYLES, FRAC_STYLES, MATH_CLASS_CMDS, MOD_CMDS,
+            PHANTOM_KINDS, SIZED_DELIMS, STRUCTURAL_CMDS, STYLE_SWITCH_CMDS,
         };
 
         if lookup(FONT_STYLES, cmd).is_some() {
@@ -384,6 +667,9 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         }
         if lookup_bool(FRAC_STYLES, cmd).is_some() {
             return parse_frac_style_cmd(cmd, input);
+        }
+        if BINOM_STYLES.iter().any(|&(k, _)| k == cmd) {
+            return parse_binom_cmd(cmd, input);
         }
         if lookup(EXTENSIBLE_ARROWS, cmd).is_some() {
             return parse_extensible_arrow_cmd(cmd, input);
@@ -403,6 +689,18 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         if lookup(SIZED_DELIMS, cmd).is_some() {
             return parse_sized_delimiter_cmd(cmd, input);
         }
+        if MOD_CMDS.contains(&cmd) {
+            return parse_mod_cmd(cmd, input);
+        }
+        if MATH_CLASS_CMDS.contains(&cmd) {
+            return parse_math_class_cmd(input);
+        }
+        if let Some(&(_, ds)) = STYLE_SWITCH_CMDS.iter().find(|&&(k, _)| k == cmd) {
+            return parse_style_switch_cmd(ds, input);
+        }
+        if DIM_SPACE_CMDS.contains(&cmd) {
+            return parse_dim_space_cmd(cmd, input);
+        }
         if STRUCTURAL_CMDS.contains(&cmd) {
             // Handled by outer parser (`frac` / `sqrt` / `left` / `right`).
             return winnow::combinator::fail.parse_next(input);
@@ -413,10 +711,18 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             "text" => parse_text_cmd(input),
             "color" | "textcolor" | "colorbox" => parse_color_cmd(cmd, input),
             "boxed" => parse_boxed_cmd(input),
-            "overset" | "underset" => parse_over_under_set_cmd(cmd, input),
+            "overset" | "underset" | "stackrel" => {
+                parse_over_under_set_cmd(if cmd == "stackrel" { "overset" } else { cmd }, input)
+            }
             "sideset" => parse_sideset_cmd(input),
             "operatorname" | "operatorname*" => parse_operatorname_cmd(cmd, input),
             "not" => parse_not_modifier_cmd(input),
+            "choose" => Ok(MathNode::ChooseMarker),
+            "genfrac" => parse_genfrac_cmd(input),
+            "substack" => parse_substack_cmd(input),
+            "middle" => parse_middle_cmd(input),
+            "tag" => parse_tag_cmd(input),
+            "notag" => Ok(MathNode::Row(vec![])),
             _ => {
                 if let Some(node) = crate::symbols::lookup_symbol(cmd) {
                     Ok(node)

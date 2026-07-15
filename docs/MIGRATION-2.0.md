@@ -92,6 +92,9 @@ tex2math --unknown-error '\notacommand{x}'   # unknown cmds → merror
 - **`UnknownCommandPolicy`**: configurable unknown-control-sequence behavior.
 - **Coverage docs**: [`RENDER_OPTIONS.md`](./RENDER_OPTIONS.md) for `mathml_core` / `emit_intent` matrices.
 - **Benches**: criterion paths for parse-only vs full `convert`.
+- **Fixture corpus**: `tests/fixtures/` + `fixtures_runner` for exact/substring MathML locks.
+- **Extra KaTeX-oriented macros**: `\binom`/`\dbinom`/`\tbinom`, `\pmod`/`\bmod`/`\mod`/`\pod`, `\stackrel`, `\mathbin`… class wrappers, more inverse trig/hyperbolic names (`\arccot`, `\lcm`, …); AST gains `MathNode::Binom`.
+- **P1 coverage**: infix `\choose` (folds to `Binom`), `\genfrac`, `\substack`, `\middle`, `\displaystyle`/`\textstyle`, `\hskip`/`\kern`/`\mkern`/`\hspace`/`\mskip`, `\tag`/`\notag`; environment align for `aligned`/`split`/`gathered`/`smallmatrix`/`substack`.
 
 ## See also
 

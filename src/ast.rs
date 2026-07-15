@@ -210,6 +210,12 @@ pub enum MathNode<'s> {
     Identifier(Cow<'s, str>),
     Operator(Cow<'s, str>),
     Fraction(Box<MathNode<'s>>, Box<MathNode<'s>>),
+    /// Binomial coefficient `\binom{n}{k}` → parenthesized fraction with zero rule.
+    Binom(Box<MathNode<'s>>, Box<MathNode<'s>>),
+    /// Infix `\choose` marker; folded into [`MathNode::Binom`] by the semantic pass.
+    ChooseMarker,
+    /// Stretchy delimiter from `\middle` (inside `\left`…`\right`).
+    Middle(Cow<'s, str>),
     Scripts {
         base: Box<MathNode<'s>>,
         sub: Option<Box<MathNode<'s>>>,
@@ -301,6 +307,9 @@ impl<'s> MathNode<'s> {
             Identifier(s) => Identifier(Cow::Owned(s.into_owned())),
             Operator(s) => Operator(Cow::Owned(s.into_owned())),
             Fraction(a, b) => Fraction(Box::new(a.into_owned()), Box::new(b.into_owned())),
+            Binom(a, b) => Binom(Box::new(a.into_owned()), Box::new(b.into_owned())),
+            ChooseMarker => ChooseMarker,
+            Middle(s) => Middle(Cow::Owned(s.into_owned())),
             Scripts {
                 base,
                 sub,

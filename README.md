@@ -135,9 +135,12 @@ TDD with unit tests under `src/tests/` and integration tests under `tests/`.
 
 ```bash
 cargo test
+cargo test --test fixtures_runner   # LaTeX/MathML corpus under tests/fixtures/
 cargo test --all-features
 cargo bench --bench math_parser_bench   # criterion (parse / convert / deep trees)
 ```
+
+Add coverage by dropping `name.tex` + `name.mathml` (and optional `.contains` / `.meta`) under `tests/fixtures/` — see [tests/fixtures/README.md](tests/fixtures/README.md).
 
 Enable `debug-trace` for a colorful winnow parse trace when debugging.
 

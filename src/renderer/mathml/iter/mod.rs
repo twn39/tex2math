@@ -73,10 +73,13 @@ impl MathMLRenderer {
             | MathNode::Space(_)
             | MathNode::Function(_)
             | MathNode::Error(_)
-            | MathNode::SizedDelimiter { .. } => self.expand_token(node, ctx),
+            | MathNode::SizedDelimiter { .. }
+            | MathNode::Middle(_)
+            | MathNode::ChooseMarker => self.expand_token(node, ctx),
 
             // Structural containers
             MathNode::Fraction(_, _)
+            | MathNode::Binom(_, _)
             | MathNode::Sqrt(_)
             | MathNode::Root { .. }
             | MathNode::Row(_)

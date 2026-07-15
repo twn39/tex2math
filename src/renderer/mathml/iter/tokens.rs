@@ -69,6 +69,17 @@ impl MathMLRenderer {
                     escape_xml(delim.as_ref())
                 )?;
             }
+            MathNode::Middle(delim) => {
+                write!(
+                    ctx.out,
+                    "<mo stretchy=\"true\">{}</mo>",
+                    escape_xml(delim.as_ref())
+                )?;
+            }
+            // Should have been folded away; keep a harmless fallback.
+            MathNode::ChooseMarker => {
+                write!(ctx.out, "<mo>/</mo>")?;
+            }
             _ => unreachable!("expand_token called with non-token node"),
         }
         Ok(())

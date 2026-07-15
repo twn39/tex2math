@@ -15,6 +15,47 @@ pub fn analyze<'s>(node: MathNode<'s>) -> MathNode<'s> {
     normalize_tree(node)
 }
 
+/// Fold a flat list of nodes: prescripts then `\choose` markers.
+#[inline]
+pub fn fold_row<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
+    fold_choose(flatten_row_nodes(fold_prescripts(nodes)))
+}
+
+fn flatten_row_nodes<'s>(node: MathNode<'s>) -> Vec<MathNode<'s>> {
+    match node {
+        MathNode::Row(nodes) => nodes,
+        other => vec![other],
+    }
+}
+
+/// Fold `a \choose b` (and multi-token sides) into [`MathNode::Binom`].
+pub fn fold_choose<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
+    if let Some(idx) = nodes
+        .iter()
+        .position(|n| matches!(n, MathNode::ChooseMarker))
+    {
+        let mut left: Vec<MathNode<'s>> = nodes.into_iter().collect();
+        let right = left.split_off(idx + 1);
+        left.pop(); // remove ChooseMarker
+        let upper = match left.len() {
+            0 => MathNode::Row(vec![]),
+            1 => left.into_iter().next().unwrap(),
+            _ => MathNode::Row(left),
+        };
+        let lower = match right.len() {
+            0 => MathNode::Row(vec![]),
+            1 => right.into_iter().next().unwrap(),
+            _ => MathNode::Row(right),
+        };
+        return MathNode::Binom(Box::new(upper), Box::new(lower));
+    }
+    if nodes.len() == 1 {
+        nodes.into_iter().next().unwrap()
+    } else {
+        MathNode::Row(nodes)
+    }
+}
+
 /// Fold adjacent empty-base scripts into tensor / prescript form.
 ///
 /// Used while assembling rows (`parse_row`) and as part of full-tree normalize.
@@ -84,10 +125,13 @@ pub fn normalize_tree<'s>(node: MathNode<'s>) -> MathNode<'s> {
     match node {
         MathNode::Row(nodes) => {
             let mapped: Vec<_> = nodes.into_iter().map(normalize_tree).collect();
-            fold_prescripts(mapped)
+            fold_row(mapped)
         }
         MathNode::Fraction(a, b) => {
             MathNode::Fraction(Box::new(normalize_tree(*a)), Box::new(normalize_tree(*b)))
+        }
+        MathNode::Binom(a, b) => {
+            MathNode::Binom(Box::new(normalize_tree(*a)), Box::new(normalize_tree(*b)))
         }
         MathNode::Scripts {
             base,

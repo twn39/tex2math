@@ -24,6 +24,27 @@ impl MathMLRenderer {
                     stack.push(Frame::Lit("<mfrac>"));
                 }
             }
+            MathNode::Binom(upper, lower) => {
+                // ( n ⁄ k ) with zero rule thickness
+                stack.push(Frame::Lit("</mrow>"));
+                stack.push(Frame::Lit("<mo>)</mo>"));
+                stack.push(Frame::Lit("</mfrac>"));
+                stack.push(Frame::Node(lower));
+                stack.push(Frame::Node(upper));
+                if ctx.options.emit_intent {
+                    stack.push(Frame::Lit(
+                        "<mfrac linethickness=\"0\" intent=\"binomial\">",
+                    ));
+                } else {
+                    stack.push(Frame::Lit("<mfrac linethickness=\"0\">"));
+                }
+                stack.push(Frame::Lit("<mo>(</mo>"));
+                if ctx.options.emit_intent {
+                    stack.push(Frame::Lit("<mrow intent=\"binomial\">"));
+                } else {
+                    stack.push(Frame::Lit("<mrow>"));
+                }
+            }
             MathNode::Sqrt(content) => {
                 stack.push(Frame::Lit("</msqrt>"));
                 stack.push(Frame::Node(content));

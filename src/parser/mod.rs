@@ -399,10 +399,10 @@ pub fn parse_node<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_node", alt((parse_script, parse_operator))).parse_next(input)
 }
 
-/// Fold row nodes (prescript / tensor pass). Delegates to [`crate::sema`].
+/// Fold row nodes (prescript / choose passes). Delegates to [`crate::sema`].
 #[inline]
 pub fn fold_row_nodes<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
-    crate::sema::fold_prescripts(nodes)
+    crate::sema::fold_row(nodes)
 }
 
 pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {

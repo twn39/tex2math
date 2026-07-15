@@ -254,6 +254,54 @@ fn registry_owns_font_style_names() {
     assert!(supports_command("underbrace"));
     assert!(supports_command("varinjlim"));
     assert!(supports_command("AA"));
+    assert!(supports_command("binom"));
+    assert!(supports_command("pmod"));
+    assert!(supports_command("stackrel"));
+    assert!(supports_command("arccot"));
+    assert!(supports_command("mathbin"));
+}
+
+#[test]
+fn binom_ast_shape() {
+    let ast = parse(r"\binom{n}{k}", &ParseOptions::default()).unwrap();
+    match ast {
+        MathNode::Binom(u, l) => {
+            assert!(matches!(*u, MathNode::Identifier(_)));
+            assert!(matches!(*l, MathNode::Identifier(_)));
+        }
+        other => panic!("expected Binom, got {other:?}"),
+    }
+}
+
+#[test]
+fn choose_folds_to_binom() {
+    let ast = parse(r"{n \choose k}", &ParseOptions::default()).unwrap();
+    match ast {
+        MathNode::Binom(u, l) => {
+            assert!(matches!(*u, MathNode::Identifier(_)));
+            assert!(matches!(*l, MathNode::Identifier(_)));
+        }
+        other => panic!("expected Binom from choose, got {other:?}"),
+    }
+}
+
+#[test]
+fn middle_and_substack_supported() {
+    assert!(supports_command("middle"));
+    assert!(supports_command("substack"));
+    assert!(supports_command("genfrac"));
+    assert!(supports_command("choose"));
+    assert!(supports_command("displaystyle"));
+    assert!(supports_command("hskip"));
+    let mid = convert(
+        r"\left(a\middle|b\right)",
+        &ConvertOptions {
+            wrap_math: false,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(mid.contains("stretchy=\"true\""), "got {mid}");
 }
 
 #[test]

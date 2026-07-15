@@ -84,7 +84,8 @@ impl MathMLRenderer {
 
         let mut open = String::from("<mtable");
         match name {
-            "align" | "align*" | "eqnarray" | "eqnarray*" => {
+            // Alternating right/left columns (relation alignment).
+            "align" | "align*" | "aligned" | "alignedat" | "split" | "eqnarray" | "eqnarray*" => {
                 let max_cols = rows.iter().map(|(r, _)| r.len()).max().unwrap_or(0);
                 let aligns: Vec<&str> = (0..max_cols)
                     .map(|i| if i % 2 == 0 { "right" } else { "left" })
@@ -94,6 +95,15 @@ impl MathMLRenderer {
                 }
             }
             "cases" => open.push_str(" columnalign=\"left\""),
+            "gathered" | "gather" | "gather*" | "multline" | "multline*" => {
+                open.push_str(" columnalign=\"center\"")
+            }
+            // Compact matrix for scripts / inline.
+            "smallmatrix" | "substack" => {
+                open.push_str(
+                    " columnalign=\"center\" rowspacing=\"0.1em\" columnspacing=\"0.1667em\"",
+                );
+            }
             "array" => {
                 if !custom_aligns.is_empty() {
                     open.push_str(&format!(" columnalign=\"{}\"", custom_aligns.join(" ")));
@@ -102,6 +112,7 @@ impl MathMLRenderer {
                     open.push_str(&format!(" columnlines=\"{}\"", custom_lines.join(" ")));
                 }
             }
+            "matrix" => open.push_str(" columnalign=\"center\""),
             _ => {}
         }
         if ctx.options.emit_intent {

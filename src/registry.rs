@@ -101,6 +101,33 @@ pub const PHANTOM_KINDS: &[&str] = &["phantom", "vphantom", "hphantom"];
 /// Frac style: true = displaystyle, false = textstyle.
 pub const FRAC_STYLES: &[(&str, bool)] = &[("dfrac", true), ("cfrac", true), ("tfrac", false)];
 
+/// Binomial style: `None` = default style, `Some(true)` = display, `Some(false)` = text.
+pub const BINOM_STYLES: &[(&str, Option<bool>)] = &[
+    ("binom", None),
+    ("dbinom", Some(true)),
+    ("tbinom", Some(false)),
+];
+
+/// Math-class wrappers (`\mathbin{...}`, …) — parse args, pass content through.
+pub const MATH_CLASS_CMDS: &[&str] = &[
+    "mathbin",
+    "mathrel",
+    "mathop",
+    "mathord",
+    "mathopen",
+    "mathclose",
+    "mathpunct",
+];
+
+/// Modular congruence helpers.
+pub const MOD_CMDS: &[&str] = &["pmod", "bmod", "mod", "pod"];
+
+/// Display-style switches (`\displaystyle{...}` or next atom).
+pub const STYLE_SWITCH_CMDS: &[(&str, bool)] = &[("displaystyle", true), ("textstyle", false)];
+
+/// Explicit horizontal spacing with a dimension argument (`\hskip`, `\kern`, …).
+pub const DIM_SPACE_CMDS: &[&str] = &["hskip", "hspace", "kern", "mkern", "mskip"];
+
 /// Zero-arg identifier aliases (Å, ø, …).
 pub const IDENT_ALIASES: &[(&str, &str)] = &[
     ("AA", "\u{00C5}"),
@@ -139,10 +166,38 @@ pub const IRREGULAR_CMDS: &[&str] = &[
     "boxed",
     "overset",
     "underset",
+    "stackrel",
     "sideset",
     "operatorname",
     "operatorname*",
     "not",
+    "pmod",
+    "bmod",
+    "mod",
+    "pod",
+    "mathbin",
+    "mathrel",
+    "mathop",
+    "mathord",
+    "mathopen",
+    "mathclose",
+    "mathpunct",
+    "binom",
+    "dbinom",
+    "tbinom",
+    "choose",
+    "genfrac",
+    "substack",
+    "middle",
+    "displaystyle",
+    "textstyle",
+    "hskip",
+    "hspace",
+    "kern",
+    "mkern",
+    "mskip",
+    "tag",
+    "notag",
 ];
 
 #[inline]
@@ -176,13 +231,64 @@ pub fn is_registered_style_cmd(cmd: &str) -> bool {
         || lookup_stretch(cmd).is_some()
         || PHANTOM_KINDS.contains(&cmd)
         || lookup_bool(FRAC_STYLES, cmd).is_some()
+        || BINOM_STYLES.iter().any(|&(k, _)| k == cmd)
+        || MATH_CLASS_CMDS.contains(&cmd)
+        || MOD_CMDS.contains(&cmd)
+        || STYLE_SWITCH_CMDS.iter().any(|&(k, _)| k == cmd)
+        || DIM_SPACE_CMDS.contains(&cmd)
 }
 
 /// Named math functions (`\sin`, `\lim`, …).
 pub const MATH_FUNCTIONS: &[&str] = &[
-    "sin", "cos", "tan", "csc", "sec", "cot", "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh",
-    "exp", "log", "ln", "lg", "lim", "limsup", "liminf", "max", "min", "sup", "inf", "det", "arg",
-    "dim", "deg", "ker", "hom", "Pr", "gcd", "injlim", "projlim",
+    "sin",
+    "cos",
+    "tan",
+    "csc",
+    "sec",
+    "cot",
+    "arcsin",
+    "arccos",
+    "arctan",
+    "arccot",
+    "arcsec",
+    "arccsc",
+    "sinh",
+    "cosh",
+    "tanh",
+    "coth",
+    "sech",
+    "csch",
+    "arsinh",
+    "arcosh",
+    "artanh",
+    "arcsinh",
+    "arccosh",
+    "arctanh",
+    "exp",
+    "log",
+    "ln",
+    "lg",
+    "lim",
+    "limsup",
+    "liminf",
+    "max",
+    "min",
+    "sup",
+    "inf",
+    "det",
+    "arg",
+    "dim",
+    "deg",
+    "ker",
+    "hom",
+    "Pr",
+    "gcd",
+    "lcm",
+    "injlim",
+    "projlim",
+    "plim",
+    "varlimsup",
+    "varliminf",
 ];
 
 /// Spacing macros.

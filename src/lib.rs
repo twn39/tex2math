@@ -30,7 +30,7 @@ pub use depth::{DEFAULT_MAX_NESTING_DEPTH, MAX_NESTING_DEPTH};
 pub use parser::*;
 pub use registry::supports_command;
 pub use renderer::*;
-pub use sema::{analyze, fold_prescripts};
+pub use sema::{analyze, fold_choose, fold_prescripts, fold_row};
 
 #[cfg(test)]
 mod tests;
