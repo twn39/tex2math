@@ -86,17 +86,25 @@ tex2math --unknown-error '\notacommand{x}'   # unknown cmds → merror
 - **Heap-iterative renderer**: deep ASTs no longer grow the OS call stack during MathML emission.
 - Renderer expand split by AST family (`tokens` / `structure` / `style` / `scripts` / `environment`).
 
-### Current hardening (post-2.2)
+### Current hardening (post-2.2, shipped as **2.3.0**)
 
 - **Registry single-source**: table-driven command *names* live only in `registry`; `parse_command` dispatches via lookups.
 - **`UnknownCommandPolicy`**: configurable unknown-control-sequence behavior.
 - **Coverage docs**: [`RENDER_OPTIONS.md`](./RENDER_OPTIONS.md) for `mathml_core` / `emit_intent` matrices.
-- **Benches**: criterion paths for parse-only vs full `convert`.
+- **Benches**: criterion paths for parse-only vs full `convert` ([`PERFORMANCE.md`](./PERFORMANCE.md)).
 - **Fixture corpus**: `tests/fixtures/` + `fixtures_runner` for exact/substring MathML locks.
 - **Extra KaTeX-oriented macros**: `\binom`/`\dbinom`/`\tbinom`, `\pmod`/`\bmod`/`\mod`/`\pod`, `\stackrel`, `\mathbin`… class wrappers, more inverse trig/hyperbolic names (`\arccot`, `\lcm`, …); AST gains `MathNode::Binom`.
 - **P1 coverage**: infix `\choose` (folds to `Binom`), `\genfrac`, `\substack`, `\middle`, `\displaystyle`/`\textstyle`, `\hskip`/`\kern`/`\mkern`/`\hspace`/`\mskip`, `\tag`/`\notag`; environment align for `aligned`/`split`/`gathered`/`smallmatrix`/`substack`.
 
+### 2.3
+
+- Full **`emit_intent`** matrix for tokens, text, sized delims, middle, stretch ops, style switches.
+- CLI: `--no-mathml-core`, `--emit-intent`.
+- Irregular-command **snapshot guardrail** test; crate version **2.3.0** + [`CHANGELOG.md`](../CHANGELOG.md).
+
 ## See also
 
 - [`RENDER_OPTIONS.md`](./RENDER_OPTIONS.md) — `mathml_core` and `emit_intent` coverage
+- [`PERFORMANCE.md`](./PERFORMANCE.md) — benches and hot-path notes
+- [`CHANGELOG.md`](../CHANGELOG.md) — release notes
 - Crate README — high-level 2.x usage

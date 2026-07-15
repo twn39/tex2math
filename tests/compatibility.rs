@@ -53,7 +53,7 @@ fn test_texmath_empty_matrix_cells() {
     let mut input = "\\begin{pmatrix} & b \\\\ c & \\end{pmatrix}";
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    let expected = "<mrow><mo stretchy=\"true\">(</mo><mtable><mtr><mtd><mrow></mrow></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mrow></mrow></mtd></mtr></mtable><mo stretchy=\"true\">)</mo></mrow>";
+    let expected = "<mrow><mo stretchy=\"true\">(</mo><mtable columnalign=\"center\"><mtr><mtd><mrow></mrow></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mrow></mrow></mtd></mtr></mtable><mo stretchy=\"true\">)</mo></mrow>";
     assert_eq!(mathml, expected);
 }
 

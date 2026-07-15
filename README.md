@@ -46,7 +46,7 @@ Most lightweight Markdown parsers use fragile regular expressions for math and f
 
 ```toml
 [dependencies]
-tex2math = "2"
+tex2math = "2.3"
 ```
 
 ### CLI
@@ -66,6 +66,8 @@ tex2math "\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"
 tex2math --display "\sum_{i=1}^n x_i"
 echo "\int_0^\infty f(x) \, dx" | tex2math
 tex2math --no-wrap --unknown-error '\foo{x}'
+tex2math --emit-intent '\frac{1}{2}'
+tex2math --no-mathml-core '\boxed{x}'
 ```
 
 | Flag | Effect |
@@ -75,6 +77,8 @@ tex2math --no-wrap --unknown-error '\foo{x}'
 | `--max-depth N` | Parse nesting cap (default 64) |
 | `--allow-trailing` | Ignore trailing junk after a successful parse |
 | `--unknown-error` | Unknown `\cmd` → `<merror>` instead of identifier fallback |
+| `--no-mathml-core` | Legacy emission (e.g. `<menclose>` for cancel/boxed); default is Core-friendly |
+| `--emit-intent` | Experimental MathML 4 `intent` attributes |
 
 ### Library (2.x)
 
@@ -125,7 +129,10 @@ LaTeX &str → parser (winnow) → MathNode AST → sema folds → MathML render
 3. **Semantic pass** — prescripts, row normalize (`sema::analyze`).
 4. **Heap-iterative MathML** — expand by AST family (`tokens` / `structure` / `style` / `scripts` / `environment`).
 
-Migration notes: [docs/MIGRATION-2.0.md](docs/MIGRATION-2.0.md).
+Migration notes: [docs/MIGRATION-2.0.md](docs/MIGRATION-2.0.md).  
+Command dispatch & product boundaries: [docs/COMMANDS.md](docs/COMMANDS.md).  
+Render options matrix: [docs/RENDER_OPTIONS.md](docs/RENDER_OPTIONS.md).  
+Changelog: [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -141,6 +148,8 @@ cargo bench --bench math_parser_bench   # criterion (parse / convert / deep tree
 ```
 
 Add coverage by dropping `name.tex` + `name.mathml` (and optional `.contains` / `.meta`) under `tests/fixtures/` — see [tests/fixtures/README.md](tests/fixtures/README.md).
+
+Performance tips: [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 Enable `debug-trace` for a colorful winnow parse trace when debugging.
 

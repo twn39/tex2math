@@ -4,7 +4,7 @@ use tex2math::{
     convert, ConvertOptions, ParseOptions, RenderMode, TrailingPolicy, UnknownCommandPolicy,
 };
 
-/// tex2math 2.0: LaTeX → MathML converter
+/// tex2math 2.x: LaTeX → MathML converter
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -31,6 +31,15 @@ struct Cli {
     /// Treat unknown `\`-commands as errors (`<merror>`) instead of identifiers.
     #[arg(long, default_value_t = false)]
     unknown_error: bool,
+
+    /// Use legacy non-Core constructs (e.g. `<menclose>` for `\cancel`/`\boxed`).
+    /// Default is MathML Core–friendly emission.
+    #[arg(long, default_value_t = false)]
+    no_mathml_core: bool,
+
+    /// Emit experimental MathML 4 `intent` attributes.
+    #[arg(long, default_value_t = false)]
+    emit_intent: bool,
 }
 
 fn main() {
@@ -51,6 +60,8 @@ fn main() {
             buffer
         }
     };
+
+    let mathml_core = !cli.no_mathml_core;
 
     let opts = ConvertOptions {
         parse: ParseOptions {
@@ -73,8 +84,8 @@ fn main() {
             RenderMode::Inline
         },
         wrap_math: !cli.no_wrap,
-        mathml_core: true,
-        emit_intent: false,
+        mathml_core,
+        emit_intent: cli.emit_intent,
     };
 
     match convert(&latex_input, &opts) {

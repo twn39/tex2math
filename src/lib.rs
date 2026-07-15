@@ -26,11 +26,11 @@ pub mod sema;
 pub mod symbols;
 
 pub use ast::*;
-pub use depth::{DEFAULT_MAX_NESTING_DEPTH, MAX_NESTING_DEPTH};
+pub use depth::{ParseCtx, ParseCtxGuard, DEFAULT_MAX_NESTING_DEPTH, MAX_NESTING_DEPTH};
 pub use parser::*;
-pub use registry::supports_command;
+pub use registry::{command_spec, registered_command_names, supports_command, CommandSpec};
 pub use renderer::*;
-pub use sema::{analyze, fold_choose, fold_prescripts, fold_row};
+pub use sema::{analyze, fold_choose, fold_prescripts, fold_prime_node, fold_row};
 
 #[cfg(test)]
 mod tests;
@@ -45,7 +45,8 @@ use winnow::Parser;
 /// The returned [`MathNode`] may borrow from `input`. Call
 /// [`MathNode::into_owned`] if it must outlive `input`.
 pub fn parse<'s>(input: &'s str, opts: &ParseOptions) -> Result<MathNode<'s>, ParseError> {
-    depth::configure_parse(opts.max_depth, opts.unknown_command);
+    // Guard restores prior TLS so nested `parse` on the same thread is safe.
+    let _ctx = depth::ParseCtx::from_parse_options(opts).install();
 
     let mut cursor = input;
     let initial_len = cursor.len();

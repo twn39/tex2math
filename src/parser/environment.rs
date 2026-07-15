@@ -167,13 +167,49 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             rows,
         };
 
+        let unknown = !crate::registry::is_known_environment(name.as_ref());
+        let strict = matches!(
+            crate::depth::recovery_mode(),
+            crate::ast::RecoveryMode::Strict
+        );
+
+        // Strict + unknown: surface only `<merror>` (no salvage table).
+        if unknown && strict {
+            let mut parts = vec![MathNode::Error(Cow::Owned(format!(
+                "Unknown environment '{}'",
+                name.as_ref()
+            )))];
+            if !is_closed {
+                parts.push(MathNode::Error(Cow::Owned(format!(
+                    "Missing \\end{{{}}}",
+                    name.as_ref()
+                ))));
+            }
+            return Ok(if parts.len() == 1 {
+                parts.into_iter().next().unwrap()
+            } else {
+                MathNode::Row(parts)
+            });
+        }
+
+        let mut parts = vec![env_node];
+        if unknown {
+            parts.push(MathNode::Error(Cow::Owned(format!(
+                "Unknown environment '{}'",
+                name.as_ref()
+            ))));
+        }
         if !is_closed {
-            Ok(MathNode::Row(vec![
-                env_node,
-                MathNode::Error(Cow::Owned(format!("Missing \\end{{{}}}", name.as_ref()))),
-            ]))
+            parts.push(MathNode::Error(Cow::Owned(format!(
+                "Missing \\end{{{}}}",
+                name.as_ref()
+            ))));
+        }
+
+        if parts.len() == 1 {
+            Ok(parts.into_iter().next().unwrap())
         } else {
-            Ok(env_node)
+            Ok(MathNode::Row(parts))
         }
     })
     .parse_next(input)

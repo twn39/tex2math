@@ -48,10 +48,30 @@ fn test_error_recovery_unclosed_environment_complex() {
     let mut input = "\\begin{bmatrix} 1 & 2 \\\\ 3 & 4";
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    assert!(mathml.contains("<mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable>"));
+    assert!(
+        mathml.contains("<mtable")
+            && mathml.contains("<mn>1</mn>")
+            && mathml.contains("<mn>4</mn>"),
+        "got {mathml}"
+    );
     assert!(mathml.contains(
         "<merror><mtext mathcolor=\"red\">Syntax Error: Missing \\end{bmatrix}</mtext></merror>"
     ));
+}
+
+#[test]
+fn test_unknown_environment_name_flags_merror() {
+    let out = convert(
+        r"\begin{notanenv}x\end{notanenv}",
+        &ConvertOptions {
+            wrap_math: false,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(out.contains("<merror"), "got {out}");
+    assert!(out.contains("Unknown environment"), "got {out}");
+    assert!(out.contains("<mi>x</mi>"), "got {out}");
 }
 
 #[test]

@@ -1,8 +1,8 @@
 [package]
 name = "tex2math"
-version = "2.0.0"
+version = "2.3.0"
 edition = "2021"
-description = "Blazing fast LaTeX → MathML (2.x): borrowed AST, structured errors, MathML Core-friendly output, MathSink streaming."
+description = "Blazing fast LaTeX → MathML (2.x): borrowed AST, structured errors, MathML Core-friendly output, MathSink streaming, MathML 4 intent."
 authors = ["twn39 <twn39@163.com>"]
 license = "LGPL-3.0-only"
 repository = "https://github.com/twn39/tex2math"

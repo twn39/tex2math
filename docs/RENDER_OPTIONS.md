@@ -8,6 +8,8 @@ Defaults:
 |-----|---------------|---------------|
 | `convert` / `ConvertOptions::default()` | **true** | false |
 | `generate_mathml` / `RenderOptions::default()` | false | false |
+| CLI | true (use `--no-mathml-core` to disable) | false (`--emit-intent`) |
+| WASM `convert_to_mathml_with_options` | true unless `mathmlCore: false` | `emitIntent` optional |
 
 ## `mathml_core`
 
@@ -19,15 +21,18 @@ When **true**, prefer MathML Core–friendly constructs (avoid non-Core elements
 | `\boxed{…}` | `<mrow>` (optionally `intent="boxed"`) | `<menclose notation="box">` |
 | Everything else | Unchanged | Unchanged |
 
-**Not yet differentiated:** stretch ops, phantoms, `mpadded`, environment tables, fonts, accents — these already use Core-friendly tags or are accepted widely.
+Stretch ops, phantoms, `mpadded`, environment tables, fonts, and accents already use Core-friendly tags (or tags widely accepted); they are **not** branched on this flag.
 
 ## `emit_intent` (experimental MathML 4)
 
-When **true**, emit `intent="…"` on selected presentation elements.
+When **true**, emit `intent="…"` on presentation elements.
+
+### Structural & scripts
 
 | AST / construct | Intent value | Element |
 |-----------------|--------------|---------|
 | Fraction (`\frac`, …) | `fraction` | `<mfrac>` |
+| Binom | `binomial` | outer `<mrow>` / inner `<mfrac>` |
 | Sqrt | `square-root` | `<msqrt>` |
 | Root (`\sqrt[n]`) | `root` | `<mroot>` |
 | Row / group | `group` | `<mrow>` |
@@ -38,12 +43,32 @@ When **true**, emit `intent="…"` on selected presentation elements.
 | Scripts / limits | `scripts` | `<msub>` / `<msup>` / `<munder>` / … / `<mmultiscripts>` |
 | Environment table | `table` | `<mtable>` |
 
-**Not covered yet:** `Color`, `ColorBox`, `Style` / font variants, `Phantom`, `StretchOp`, `OperatorName`, bare tokens (`mi`/`mo`/`mn`), `SizedDelimiter`, `Space`, `Function`, `Text`, `Error`.
+### Style & tokens (2.3+)
 
-Intent values are stable for currently covered nodes; new nodes may gain intents in minor releases without changing existing strings.
+| AST / construct | Intent value | Element |
+|-----------------|--------------|---------|
+| Color | `color` | `<mstyle>` |
+| ColorBox | `colorbox` | `<mstyle>` |
+| Style / font | `style` | `<mstyle>` |
+| StyledMath | `displaystyle` / `textstyle` | `<mstyle>` |
+| Phantom / v/h | `phantom` / `vphantom` / `hphantom` | `<mphantom>` / `<mpadded>` |
+| StretchOp over/under | `stretch-over` / `stretch-under` | `<mover>` / `<munder>` |
+| OperatorName | `operator-name` | `<mi>` / `<mrow>` |
+| MathClass | `math-class:{bin\|rel\|…}` | `<mo>` / `<mrow>` |
+| Function | `function` | `<mi>` |
+| Space | `space` | `<mspace>` |
+| Error | `error` | `<merror>` |
+| Number | `number` | `<mn>` |
+| Identifier | `identifier` | `<mi>` |
+| Operator | `operator` | `<mo>` |
+| Text | `text` | `<mtext>` |
+| SizedDelimiter | `sized-delimiter` | `<mo>` |
+| Middle | `middle` | `<mo>` |
+
+Intent values for covered nodes are stable; new nodes may gain intents in minor releases without changing existing strings.
 
 ## Testing
 
-See `src/tests/v2_features.rs` for regression checks on cancel/boxed core paths and intent emission for fraction, root, fenced, scripts, accent, and tables.
+See `src/tests/v2_features.rs` (`emit_intent_coverage_matrix` and related tests).
 
-For broader LaTeX → MathML coverage (including newly added macros such as `\binom`, `\pmod`, `\stackrel`), see the fixture corpus under [`tests/fixtures/`](../tests/fixtures/README.md) and the runner `tests/fixtures_runner.rs`.
+For broader LaTeX → MathML coverage, see the fixture corpus under [`tests/fixtures/`](../tests/fixtures/README.md) and the runner `tests/fixtures_runner.rs`.

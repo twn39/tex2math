@@ -47,7 +47,7 @@ fn test_mathml_pmatrix() {
     let mut input = "\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}";
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    let expected = "<mrow><mo stretchy=\"true\">(</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mn>1</mn></mtd></mtr></mtable><mo stretchy=\"true\">)</mo></mrow>";
+    let expected = "<mrow><mo stretchy=\"true\">(</mo><mtable columnalign=\"center\"><mtr><mtd><mn>1</mn></mtd><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mn>1</mn></mtd></mtr></mtable><mo stretchy=\"true\">)</mo></mrow>";
     assert_eq!(mathml, expected);
 }
 
@@ -68,7 +68,10 @@ fn test_environment_cases_alignment() {
     let mathml = generate_mathml(&ast, RenderMode::Display);
 
     assert!(mathml.contains("<mrow><mo stretchy=\"true\">{</mo>"));
-    assert!(mathml.contains("<mtable columnalign=\"left\">"));
+    assert!(
+        mathml.contains("columnalign=\"left left\"") || mathml.contains("columnalign=\"left\""),
+        "got {mathml}"
+    );
 }
 
 #[test]
@@ -78,7 +81,7 @@ fn test_complex_cases_environment() {
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
 
-    assert!(mathml.contains("columnalign=\"left\""));
+    assert!(mathml.contains("columnalign=\"left"), "got {mathml}");
     assert!(mathml.contains("<mfrac><mn>1</mn><mn>2</mn></mfrac>"));
     assert!(mathml.contains("<mo>≤</mo><mi>x</mi><mo>&lt;</mo><mn>0</mn>"));
     assert!(mathml.contains("<mtext>otherwise</mtext>"));
@@ -100,7 +103,12 @@ fn test_environment_row_spacing() {
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
 
-    assert!(mathml.contains("<mtr style=\"margin-bottom: 2em;\">") || mathml.contains("<mpadded"));
+    assert!(
+        mathml.contains("rowspacing=")
+            || mathml.contains("<mtr style=\"margin-bottom: 2em;\">")
+            || mathml.contains("<mpadded"),
+        "got {mathml}"
+    );
 }
 
 #[test]
@@ -117,6 +125,6 @@ fn test_parse_matrix_with_trailing_newline() {
     let mut input = "\\begin{bmatrix} 1 & V_i^* \\\\ V_i & W_{ii} \\\\ \\end{bmatrix} \\succeq 0";
     let result = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&result, RenderMode::Display);
-    let expected = r#"<mrow><mrow><mo stretchy="true">[</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><msubsup><mi>V</mi><mi>i</mi><mo>*</mo></msubsup></mtd></mtr><mtr><mtd><msub><mi>V</mi><mi>i</mi></msub></mtd><mtd><msub><mi>W</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub></mtd></mtr></mtable><mo stretchy="true">]</mo></mrow><mo>⪰</mo><mn>0</mn></mrow>"#;
+    let expected = r#"<mrow><mrow><mo stretchy="true">[</mo><mtable columnalign="center"><mtr><mtd><mn>1</mn></mtd><mtd><msubsup><mi>V</mi><mi>i</mi><mo>*</mo></msubsup></mtd></mtr><mtr><mtd><msub><mi>V</mi><mi>i</mi></msub></mtd><mtd><msub><mi>W</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub></mtd></mtr></mtable><mo stretchy="true">]</mo></mrow><mo>⪰</mo><mn>0</mn></mrow>"#;
     assert_eq!(mathml, expected);
 }

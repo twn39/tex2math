@@ -1,8 +1,9 @@
 //! Regression tests for tex2math 2.0 / 2.1 / 2.2 APIs.
 
 use crate::{
-    convert, generate_mathml, parse, render_mathml_to, supports_command, ConvertOptions, MathNode,
-    ParseErrorKind, ParseOptions, RenderMode, RenderOptions, TrailingPolicy, UnknownCommandPolicy,
+    command_spec, convert, generate_mathml, parse, registered_command_names, render_mathml_to,
+    supports_command, CommandSpec, ConvertOptions, MathClass, MathNode, ParseErrorKind,
+    ParseOptions, RenderMode, RenderOptions, TrailingPolicy, UnknownCommandPolicy,
 };
 
 #[test]
@@ -171,6 +172,17 @@ fn emit_intent_coverage_matrix() {
         (r"\boxed{x}", "intent=\"boxed\""),
         (r"\cancel{x}", "intent=\"cancel:"),
         (r"\begin{pmatrix} a \\ b \end{pmatrix}", "intent=\"table\""),
+        // 2.3+ coverage
+        (r"\text{hi}", "intent=\"text\""),
+        (r"\big(", "intent=\"sized-delimiter\""),
+        (r"\overbrace{x}", "intent=\"stretch-over\""),
+        (r"\underbrace{x}", "intent=\"stretch-under\""),
+        (r"x", "intent=\"identifier\""),
+        (r"1", "intent=\"number\""),
+        (r"+", "intent=\"operator\""),
+        (r"\left(a\middle|b\right)", "intent=\"middle\""),
+        (r"\displaystyle x", "intent=\"displaystyle\""),
+        (r"\textstyle x", "intent=\"textstyle\""),
     ];
     for (latex, needle) in cases {
         let out = convert(latex, &opts).unwrap();
@@ -179,6 +191,39 @@ fn emit_intent_coverage_matrix() {
             "for {latex:?} expected {needle:?}, got {out}"
         );
     }
+}
+
+/// Snapshot of irregular multi-arg commands. Prefer table-driven [`CommandSpec`]
+/// families when adding macros; only grow this list for non-fixed arity shapes.
+#[test]
+fn irregular_cmds_snapshot_guardrail() {
+    use crate::registry::IRREGULAR_CMDS;
+
+    const EXPECTED: &[&str] = &[
+        "boxed",
+        "choose",
+        "color",
+        "colorbox",
+        "genfrac",
+        "middle",
+        "not",
+        "notag",
+        "operatorname",
+        "operatorname*",
+        "overset",
+        "sideset",
+        "stackrel",
+        "substack",
+        "tag",
+        "text",
+        "textcolor",
+        "underset",
+    ];
+    assert_eq!(
+        IRREGULAR_CMDS, EXPECTED,
+        "IRREGULAR_CMDS changed — update docs/COMMANDS.md and this snapshot only if the command \
+         cannot be table-driven (fixed arity + registry payload)"
+    );
 }
 
 #[test]
@@ -259,6 +304,155 @@ fn registry_owns_font_style_names() {
     assert!(supports_command("stackrel"));
     assert!(supports_command("arccot"));
     assert!(supports_command("mathbin"));
+}
+
+#[test]
+fn command_spec_table_vs_irregular() {
+    assert_eq!(command_spec("mathbf"), Some(CommandSpec::FontStyle));
+    assert_eq!(command_spec("binom"), Some(CommandSpec::Binom));
+    assert_eq!(command_spec("mathbin"), Some(CommandSpec::MathClass));
+    assert_eq!(command_spec("pmod"), Some(CommandSpec::Mod));
+    assert_eq!(command_spec("dfrac"), Some(CommandSpec::FracStyle));
+    assert_eq!(command_spec("frac"), Some(CommandSpec::Structural));
+    assert_eq!(command_spec("genfrac"), Some(CommandSpec::Irregular));
+    assert_eq!(command_spec("text"), Some(CommandSpec::Irregular));
+    assert_eq!(command_spec("tag"), Some(CommandSpec::Irregular));
+    assert_eq!(command_spec("notarealcmd"), None);
+}
+
+#[test]
+fn registered_command_names_is_sorted_unique() {
+    let names = registered_command_names();
+    assert!(names.len() > 50, "expected a non-trivial registry dump");
+    assert!(names.windows(2).all(|w| w[0] < w[1]));
+    assert!(names.contains(&"mathbf"));
+    assert!(names.contains(&"mathbin"));
+    assert!(names.contains(&"genfrac"));
+}
+
+#[test]
+fn math_class_ast_and_spacing() {
+    let ast = parse(r"\mathbin{+}", &ParseOptions::default()).unwrap();
+    match ast {
+        MathNode::MathClass {
+            class: MathClass::Bin,
+            content,
+        } => assert!(matches!(*content, MathNode::Operator(_))),
+        other => panic!("expected MathClass::Bin, got {other:?}"),
+    }
+    let out = convert(
+        r"\mathrel{=}",
+        &ConvertOptions {
+            wrap_math: false,
+            emit_intent: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(out.contains("lspace=\"0.2778em\""), "got {out}");
+    assert!(out.contains("intent=\"math-class:rel\""), "got {out}");
+}
+
+#[test]
+fn registry_tables_are_sorted_for_binary_search() {
+    use crate::registry::{
+        ACCENTS, BINOM_STYLES, BLACKBOARD_LETTERS, CANCEL_MODES, DIM_SPACE_CMDS, EXTENSIBLE_ARROWS,
+        FONT_STYLES, FRAC_STYLES, IDENT_ALIASES, IRREGULAR_CMDS, MATH_CLASS_CMDS, MATH_FUNCTIONS,
+        MOD_CMDS, PHANTOM_KINDS, SIZED_DELIMS, SPACING_CMDS, STRETCH_OPS, STRUCTURAL_CMDS,
+        STYLE_SWITCH_CMDS, VAR_GREEK, VAR_LIM_CMDS,
+    };
+
+    fn assert_sorted_keys(keys: impl IntoIterator<Item = &'static str>, label: &str) {
+        let v: Vec<_> = keys.into_iter().collect();
+        let mut sorted = v.clone();
+        sorted.sort_unstable();
+        assert_eq!(v, sorted, "{label} must be sorted for binary_search");
+    }
+
+    assert_sorted_keys(FONT_STYLES.iter().map(|(k, _)| *k), "FONT_STYLES");
+    assert_sorted_keys(ACCENTS.iter().map(|(k, _)| *k), "ACCENTS");
+    assert_sorted_keys(SIZED_DELIMS.iter().map(|(k, _)| *k), "SIZED_DELIMS");
+    assert_sorted_keys(CANCEL_MODES.iter().map(|(k, _)| *k), "CANCEL_MODES");
+    assert_sorted_keys(
+        EXTENSIBLE_ARROWS.iter().map(|(k, _)| *k),
+        "EXTENSIBLE_ARROWS",
+    );
+    assert_sorted_keys(STRETCH_OPS.iter().map(|(k, _, _)| *k), "STRETCH_OPS");
+    assert_sorted_keys(PHANTOM_KINDS.iter().copied(), "PHANTOM_KINDS");
+    assert_sorted_keys(FRAC_STYLES.iter().map(|(k, _)| *k), "FRAC_STYLES");
+    assert_sorted_keys(BINOM_STYLES.iter().map(|(k, _)| *k), "BINOM_STYLES");
+    assert_sorted_keys(MATH_CLASS_CMDS.iter().copied(), "MATH_CLASS_CMDS");
+    assert_sorted_keys(MOD_CMDS.iter().copied(), "MOD_CMDS");
+    assert_sorted_keys(STYLE_SWITCH_CMDS.iter().map(|(k, _)| *k), "STYLE_SWITCH");
+    assert_sorted_keys(DIM_SPACE_CMDS.iter().copied(), "DIM_SPACE_CMDS");
+    assert_sorted_keys(IDENT_ALIASES.iter().map(|(k, _)| *k), "IDENT_ALIASES");
+    assert_sorted_keys(VAR_GREEK.iter().map(|(k, _)| *k), "VAR_GREEK");
+    assert_sorted_keys(VAR_LIM_CMDS.iter().map(|(k, _)| *k), "VAR_LIM_CMDS");
+    assert_sorted_keys(STRUCTURAL_CMDS.iter().copied(), "STRUCTURAL_CMDS");
+    assert_sorted_keys(
+        crate::registry::KNOWN_ENVIRONMENTS.iter().copied(),
+        "KNOWN_ENVIRONMENTS",
+    );
+    assert_sorted_keys(IRREGULAR_CMDS.iter().copied(), "IRREGULAR_CMDS");
+    assert_sorted_keys(MATH_FUNCTIONS.iter().copied(), "MATH_FUNCTIONS");
+    assert_sorted_keys(SPACING_CMDS.iter().map(|(k, _)| *k), "SPACING_CMDS");
+    assert_sorted_keys(BLACKBOARD_LETTERS.iter().copied(), "BLACKBOARD_LETTERS");
+}
+
+#[test]
+fn nested_parse_restores_parse_ctx() {
+    use crate::depth::{unknown_command_policy, ParseCtx};
+
+    let outer = ParseCtx {
+        unknown_command: UnknownCommandPolicy::Identifier,
+        ..Default::default()
+    };
+    let inner = ParseCtx {
+        unknown_command: UnknownCommandPolicy::Error,
+        ..Default::default()
+    };
+
+    let _g_outer = outer.install();
+    assert_eq!(unknown_command_policy(), UnknownCommandPolicy::Identifier);
+    {
+        let _g_inner = inner.install();
+        assert_eq!(unknown_command_policy(), UnknownCommandPolicy::Error);
+        let ast = parse(
+            r"\notarealcmd",
+            &ParseOptions {
+                unknown_command: UnknownCommandPolicy::Error,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(matches!(ast, MathNode::Error(_)), "got {ast:?}");
+    }
+    // After inner guard drops, outer Identifier policy is restored.
+    assert_eq!(unknown_command_policy(), UnknownCommandPolicy::Identifier);
+    let ast = parse(
+        r"\stillunknown",
+        &ParseOptions {
+            unknown_command: UnknownCommandPolicy::Identifier,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(
+        matches!(ast, MathNode::Identifier(_)),
+        "expected identifier fallback after restore: {ast:?}"
+    );
+}
+
+#[test]
+fn emit_intent_on_function_and_space() {
+    let opts = ConvertOptions {
+        emit_intent: true,
+        wrap_math: false,
+        ..Default::default()
+    };
+    let out = convert(r"\sin\,x", &opts).unwrap();
+    assert!(out.contains("intent=\"function\""), "got {out}");
+    assert!(out.contains("intent=\"space\""), "got {out}");
 }
 
 #[test]

@@ -95,7 +95,8 @@ impl MathMLRenderer {
             | MathNode::StyledMath { .. }
             | MathNode::Phantom { .. }
             | MathNode::StretchOp { .. }
-            | MathNode::OperatorName(_) => self.expand_style(node, ctx, stack),
+            | MathNode::OperatorName(_)
+            | MathNode::MathClass { .. } => self.expand_style(node, ctx, stack),
 
             MathNode::Scripts {
                 base,

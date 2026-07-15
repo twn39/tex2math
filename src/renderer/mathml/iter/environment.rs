@@ -53,7 +53,12 @@ impl MathMLRenderer {
         };
 
         let wrap = open_fence.is_some() || close_fence.is_some() || name == "cases";
+        // Compact script-size tables (KaTeX-style smallmatrix / substack).
+        let script_level = matches!(name, "smallmatrix" | "substack");
 
+        if script_level {
+            stack.push(Frame::Lit("</mstyle>"));
+        }
         if wrap {
             stack.push(Frame::Lit("</mrow>"));
         }
@@ -65,6 +70,15 @@ impl MathMLRenderer {
         }
         stack.push(Frame::Lit("</mtable>"));
 
+        // Prefer MathML `rowspacing` (between-row gaps) over CSS on <mtr>.
+        let mut rowspacings: Vec<&str> = Vec::new();
+        let use_rowspacing_attr = rows.iter().any(|(_, sp)| sp.is_some());
+        if use_rowspacing_attr && rows.len() > 1 {
+            for (_, spacing) in rows.iter().take(rows.len() - 1) {
+                rowspacings.push(spacing.as_ref().map(|s| s.as_ref()).unwrap_or("0.5ex"));
+            }
+        }
+
         for (row, spacing) in rows.iter().rev() {
             stack.push(Frame::Lit("</mtr>"));
             for cell in row.iter().rev() {
@@ -72,11 +86,15 @@ impl MathMLRenderer {
                 stack.push(Frame::Node(cell));
                 stack.push(Frame::Lit("<mtd>"));
             }
-            if let Some(space) = spacing {
-                stack.push(Frame::Owned(format!(
-                    "<mtr style=\"margin-bottom: {};\">",
-                    escape_xml(space.as_ref())
-                )));
+            if !use_rowspacing_attr {
+                if let Some(space) = spacing {
+                    stack.push(Frame::Owned(format!(
+                        "<mtr style=\"margin-bottom: {};\">",
+                        escape_xml(space.as_ref())
+                    )));
+                } else {
+                    stack.push(Frame::Lit("<mtr>"));
+                }
             } else {
                 stack.push(Frame::Lit("<mtr>"));
             }
@@ -94,7 +112,10 @@ impl MathMLRenderer {
                     open.push_str(&format!(" columnalign=\"{}\"", aligns.join(" ")));
                 }
             }
-            "cases" => open.push_str(" columnalign=\"left\""),
+            "cases" => {
+                // Condition column left-aligned; generous gap between value and condition.
+                open.push_str(" columnalign=\"left left\" columnspacing=\"1em\"");
+            }
             "gathered" | "gather" | "gather*" | "multline" | "multline*" => {
                 open.push_str(" columnalign=\"center\"")
             }
@@ -112,11 +133,23 @@ impl MathMLRenderer {
                     open.push_str(&format!(" columnlines=\"{}\"", custom_lines.join(" ")));
                 }
             }
-            "matrix" => open.push_str(" columnalign=\"center\""),
-            _ => {}
+            "matrix" | "pmatrix" | "bmatrix" | "Bmatrix" | "vmatrix" | "Vmatrix" => {
+                open.push_str(" columnalign=\"center\"")
+            }
+            _ => {
+                // Unknown / generic environments: center by default.
+                open.push_str(" columnalign=\"center\"");
+            }
+        }
+        if use_rowspacing_attr && !rowspacings.is_empty() {
+            open.push_str(&format!(" rowspacing=\"{}\"", rowspacings.join(" ")));
         }
         if ctx.options.emit_intent {
-            open.push_str(" intent=\"table\"");
+            if crate::registry::is_known_environment(name) {
+                open.push_str(" intent=\"table\"");
+            } else {
+                open.push_str(" intent=\"table:unknown\"");
+            }
         }
         open.push('>');
         stack.push(Frame::Owned(open));
@@ -129,6 +162,9 @@ impl MathMLRenderer {
         }
         if wrap {
             stack.push(Frame::Lit("<mrow>"));
+        }
+        if script_level {
+            stack.push(Frame::Lit("<mstyle scriptlevel=\"+1\">"));
         }
         Ok(())
     }

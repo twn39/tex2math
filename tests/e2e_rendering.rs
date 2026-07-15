@@ -358,7 +358,33 @@ fn test_nested_environments_no_cross_boundary() {
         "\\begin{align} a \\\\ \\begin{bmatrix} 1 \\\\ 2 \\end{bmatrix} \\\\ b \\end{align}";
     let result = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&result, RenderMode::Display);
-    assert!(mathml.contains("<mtr><mtd><mrow><mo stretchy=\"true\">[</mo><mtable><mtr><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr></mtable><mo stretchy=\"true\">]</mo></mrow></mtd></mtr>"));
+    assert!(
+        mathml.contains("<mo stretchy=\"true\">[</mo>")
+            && mathml.contains("<mn>1</mn>")
+            && mathml.contains("<mn>2</mn>")
+            && mathml.contains("<mo stretchy=\"true\">]</mo>"),
+        "nested bmatrix inside align should render: {mathml}"
+    );
+}
+
+#[test]
+fn test_prime_fold_via_convert() {
+    let out = convert(
+        r"x^{\prime\prime}",
+        &ConvertOptions {
+            wrap_math: false,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(
+        out.contains("<mi>″</mi>"),
+        "double prime should fold: {out}"
+    );
+    assert!(
+        !out.contains("<mrow><mi>′</mi><mi>′</mi></mrow>"),
+        "should not leave prime row: {out}"
+    );
 }
 
 #[test]

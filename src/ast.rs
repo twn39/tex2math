@@ -195,6 +195,58 @@ pub enum PhantomKind {
     Horizontal,
 }
 
+/// TeX math atom class (`\mathbin`, `\mathrel`, …).
+///
+/// Controls operator spacing / form in MathML emission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MathClass {
+    /// `\mathbin` — binary operator spacing.
+    Bin,
+    /// `\mathrel` — relation spacing.
+    Rel,
+    /// `\mathop` — large-operator / prefix op.
+    Op,
+    /// `\mathord` — ordinary atom.
+    Ord,
+    /// `\mathopen` — opening delimiter.
+    Open,
+    /// `\mathclose` — closing delimiter.
+    Close,
+    /// `\mathpunct` — punctuation.
+    Punct,
+}
+
+impl MathClass {
+    /// Short name used in `intent` attributes (`bin`, `rel`, …).
+    #[inline]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MathClass::Bin => "bin",
+            MathClass::Rel => "rel",
+            MathClass::Op => "op",
+            MathClass::Ord => "ord",
+            MathClass::Open => "open",
+            MathClass::Close => "close",
+            MathClass::Punct => "punct",
+        }
+    }
+
+    /// MathML Core–friendly default `lspace` / `rspace` (em) for a class-wrapped operator.
+    #[inline]
+    pub fn default_spaces(self) -> (&'static str, &'static str) {
+        match self {
+            MathClass::Bin => ("0.2222em", "0.2222em"),
+            MathClass::Rel => ("0.2778em", "0.2778em"),
+            MathClass::Op => ("0.1667em", "0.1667em"),
+            MathClass::Ord => ("0em", "0em"),
+            MathClass::Open => ("0em", "0em"),
+            MathClass::Close => ("0em", "0em"),
+            MathClass::Punct => ("0em", "0.1667em"),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // AST
 // ---------------------------------------------------------------------------
@@ -251,6 +303,11 @@ pub enum MathNode<'s> {
     },
     Function(Cow<'s, str>),
     OperatorName(Box<MathNode<'s>>),
+    /// Explicit TeX math-class wrapper (`\mathbin{…}`, …).
+    MathClass {
+        class: MathClass,
+        content: Box<MathNode<'s>>,
+    },
     SizedDelimiter {
         size: Cow<'s, str>,
         delim: Cow<'s, str>,
@@ -364,6 +421,10 @@ impl<'s> MathNode<'s> {
             },
             Function(s) => Function(Cow::Owned(s.into_owned())),
             OperatorName(c) => OperatorName(Box::new(c.into_owned())),
+            MathClass { class, content } => MathClass {
+                class,
+                content: Box::new(content.into_owned()),
+            },
             SizedDelimiter { size, delim } => SizedDelimiter {
                 size: Cow::Owned(size.into_owned()),
                 delim: Cow::Owned(delim.into_owned()),
