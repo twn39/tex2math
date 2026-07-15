@@ -1,4 +1,5 @@
 use super::super::*;
+use std::borrow::Cow;
 use winnow::Parser;
 
 #[test]
@@ -6,8 +7,8 @@ fn test_ignore_spaces() {
     let mut input = "\\frac { a } { b }";
     let result = parse_fraction.parse_next(&mut input).unwrap();
     let expected = MathNode::Fraction(
-        Box::new(MathNode::Identifier("a".to_string())),
-        Box::new(MathNode::Identifier("b".to_string())),
+        Box::new(MathNode::Identifier(Cow::Borrowed("a"))),
+        Box::new(MathNode::Identifier(Cow::Borrowed("b"))),
     );
     assert_eq!(result, expected);
 }

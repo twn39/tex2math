@@ -1,0 +1,8 @@
+{
+  "include": ["src", "tests"],
+  "exclude": ["target", "third_party", "dist", "node_modules"],
+  "output": ".codegraph",
+  "languages": ["rust"],
+  "workers": 4,
+  "cache": true
+}

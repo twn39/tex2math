@@ -1,18 +1,23 @@
 use crate::ast::*;
 
 pub mod mathml;
-pub use mathml::{generate_mathml, MathMLRenderer};
+pub mod sink;
 
-/// An abstract backend interface for rendering a `MathNode` abstract syntax tree into an output format.
-///
-/// All backend renderers must implement this trait.
+pub use mathml::{generate_mathml, generate_mathml_with_options, MathMLRenderer, RenderOptions};
+pub use sink::{render_mathml_to, MathSink, WriteSink};
+
+/// An abstract backend interface for rendering a `MathNode` AST into an output format.
 pub trait MathRenderer {
-    /// Renders the `MathNode` into the provided string buffer to avoid unnecessary memory allocations.
-    fn render_into(&self, node: &MathNode, mode: RenderMode, buf: &mut String) -> std::fmt::Result;
+    /// Renders into an existing buffer (avoids intermediate allocations at the call site).
+    fn render_into(
+        &self,
+        node: &MathNode<'_>,
+        mode: RenderMode,
+        buf: &mut String,
+    ) -> std::fmt::Result;
 
-    /// Renders the `MathNode` into a new `String`.
-    /// This provides backward compatibility and ease of use.
-    fn render(&self, node: &MathNode, mode: RenderMode) -> String {
+    /// Convenience wrapper allocating a new `String`.
+    fn render(&self, node: &MathNode<'_>, mode: RenderMode) -> String {
         let mut buf = String::with_capacity(256);
         self.render_into(node, mode, &mut buf)
             .expect("Formatting to String should never fail");

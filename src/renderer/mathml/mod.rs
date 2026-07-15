@@ -1,70 +1,85 @@
 use crate::ast::*;
+use crate::renderer::sink::MathSink;
 use crate::renderer::MathRenderer;
+use std::fmt;
 
 mod basic;
-mod decorated;
-mod env;
-mod layout;
+mod iter;
 
-/// The standard MathML rendering backend provided by tex2math.
+/// Options controlling MathML emission (tex2math 2.0+).
 ///
-/// Converts a `MathNode` AST into a MathML XML string.
-pub struct MathMLRenderer;
+/// Defaults: `mathml_core = false`, `emit_intent = false` so `generate_mathml`
+/// keeps historical tags (e.g. `<menclose>`). Use `ConvertOptions { mathml_core: true, .. }`
+/// for Core-friendly output via [`crate::convert`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RenderOptions {
+    /// Prefer MathML Core-friendly output (omit non-Core elements like `menclose`).
+    pub mathml_core: bool,
+    /// Emit MathML 4 `intent` attributes where known (experimental).
+    pub emit_intent: bool,
+}
+
+/// The standard MathML rendering backend (heap-iterative emission).
+pub struct MathMLRenderer {
+    pub options: RenderOptions,
+}
 
 impl MathMLRenderer {
     pub fn new() -> Self {
-        Self
+        Self {
+            options: RenderOptions::default(),
+        }
+    }
+
+    pub fn with_options(options: RenderOptions) -> Self {
+        Self { options }
+    }
+
+    /// Stream MathML into any [`MathSink`] (stack-safe for deep trees).
+    pub fn render_to_sink(
+        &self,
+        node: &MathNode<'_>,
+        mode: RenderMode,
+        sink: &mut dyn MathSink,
+    ) -> fmt::Result {
+        let mut ctx = RenderCtx {
+            out: sink,
+            mode,
+            options: self.options,
+        };
+        self.render_node_iter(node, &mut ctx)
+    }
+}
+
+impl Default for MathMLRenderer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl MathRenderer for MathMLRenderer {
-    fn render_into(&self, node: &MathNode, mode: RenderMode, buf: &mut String) -> std::fmt::Result {
-        match node {
-            // 1. 基础叶子原子节点
-            MathNode::Number(_)
-            | MathNode::Identifier(_)
-            | MathNode::Operator(_)
-            | MathNode::Text(_)
-            | MathNode::Space(_)
-            | MathNode::Function(_) => self.render_basic_node(node, mode, buf),
-
-            // 2. 局部修饰与样式变换节点
-            MathNode::Style { .. }
-            | MathNode::Accent { .. }
-            | MathNode::Color { .. }
-            | MathNode::ColorBox { .. }
-            | MathNode::Boxed(_)
-            | MathNode::Cancel { .. }
-            | MathNode::Error(_) => self.render_decorated_node(node, mode, buf),
-
-            // 3. 复杂布局与环境节点
-            MathNode::Fraction(..)
-            | MathNode::Scripts { .. }
-            | MathNode::Row(_)
-            | MathNode::Sqrt(_)
-            | MathNode::Root { .. }
-            | MathNode::Fenced { .. }
-            | MathNode::Environment { .. }
-            | MathNode::OperatorName(_)
-            | MathNode::SizedDelimiter { .. }
-            | MathNode::Phantom { .. }
-            | MathNode::StretchOp { .. }
-            | MathNode::StyledMath { .. } => self.render_layout_node(node, mode, buf),
-        }
+    fn render_into(&self, node: &MathNode<'_>, mode: RenderMode, buf: &mut String) -> fmt::Result {
+        self.render_to_sink(node, mode, buf)
     }
 }
 
-/// A convenience function to generate MathML from a `MathNode` AST directly.
-///
-/// This uses the `MathMLRenderer` under the hood to perform the translation.
-/// Provides a simple, standard interface for backward compatibility.
-///
-/// # Arguments
-/// * `node` - The root `MathNode` of the parsed formula.
-/// * `mode` - The `RenderMode` (Inline or Display) determining layout rules.
-///
-/// # Returns
-/// A `String` containing the generated MathML XML.
-pub fn generate_mathml(node: &MathNode, mode: RenderMode) -> String {
+/// Shared rendering context for the MathML backend.
+pub(super) struct RenderCtx<'a> {
+    pub out: &'a mut dyn MathSink,
+    pub mode: RenderMode,
+    pub options: RenderOptions,
+}
+
+/// Generate MathML with default render options.
+pub fn generate_mathml(node: &MathNode<'_>, mode: RenderMode) -> String {
     MathMLRenderer::new().render(node, mode)
+}
+
+/// Generate MathML with explicit [`RenderOptions`].
+pub fn generate_mathml_with_options(
+    node: &MathNode<'_>,
+    mode: RenderMode,
+    options: &RenderOptions,
+) -> String {
+    MathMLRenderer::with_options(*options).render(node, mode)
 }

@@ -1,4 +1,5 @@
 use crate::MathNode;
+use std::borrow::Cow;
 
 /// Looks up a LaTeX command name and maps it to a specific `MathNode` (Identifier or Operator).
 ///
@@ -1023,12 +1024,12 @@ const SYMBOLS: &[(&str, SymbolKind, &str)] = &[
 /// Looks up a LaTeX command name and maps it to a specific `MathNode` (Identifier or Operator).
 ///
 /// Contains over 400 common Greek letters, arrows, and mathematical symbols defined by KaTeX.
-pub fn lookup_symbol(cmd: &str) -> Option<MathNode> {
+pub fn lookup_symbol<'s>(cmd: &str) -> Option<MathNode<'s>> {
     if let Ok(idx) = SYMBOLS.binary_search_by_key(&cmd, |&(k, _, _)| k) {
         let (_, kind, ch) = SYMBOLS[idx];
         match kind {
-            SymbolKind::Operator => Some(MathNode::Operator(ch.to_string())),
-            SymbolKind::Identifier => Some(MathNode::Identifier(ch.to_string())),
+            SymbolKind::Operator => Some(MathNode::Operator(Cow::Borrowed(ch))),
+            SymbolKind::Identifier => Some(MathNode::Identifier(Cow::Borrowed(ch))),
         }
     } else {
         None

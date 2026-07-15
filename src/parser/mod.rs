@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use winnow::ascii::{alpha1, multispace0 as space0};
 use winnow::combinator::{alt, delimited, opt, preceded, repeat, trace};
 use winnow::prelude::*;
@@ -14,12 +15,12 @@ pub use command::parse_command;
 pub use environment::parse_environment;
 
 /// Parses LaTeX fractions like `\frac{num}{den}`, `\dfrac{num}{den}`, and `\tfrac{num}{den}`.
-pub fn parse_fraction<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_fraction<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_fraction", |input: &mut &'s str| {
         let _ = literal("\\frac").parse_next(input)?;
 
         // 辅助函数：解析一个 { ... } 块。如果没有右括号，不报错，而是吸收剩余所有字符并报错。
-        let mut parse_block = |inp: &mut &'s str| -> ModalResult<MathNode> {
+        let mut parse_block = |inp: &mut &'s str| -> ModalResult<MathNode<'s>> {
             let _ = preceded(space0, literal("{")).parse_next(inp)?;
             let content = parse_row.parse_next(inp)?;
 
@@ -32,7 +33,10 @@ pub fn parse_fraction<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                 let remaining = winnow::token::rest.parse_next(inp)?;
                 Ok(MathNode::Row(vec![
                     content,
-                    MathNode::Error(format!("Missing '}}' in fraction, found: '{}'", remaining)),
+                    MathNode::Error(Cow::Owned(format!(
+                        "Missing '}}' in fraction, found: '{}'",
+                        remaining
+                    ))),
                 ]))
             }
         };
@@ -44,7 +48,7 @@ pub fn parse_fraction<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         let den = if let Ok(d) = parse_block.parse_next(input) {
             d
         } else {
-            MathNode::Error("Missing denominator block".to_string())
+            MathNode::Error(Cow::Borrowed("Missing denominator block"))
         };
 
         Ok(MathNode::Fraction(Box::new(num), Box::new(den)))
@@ -53,7 +57,7 @@ pub fn parse_fraction<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 /// Parses a square root or nth root like `\sqrt{x}` or `\sqrt[n]{x}`.
-pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_sqrt", |input: &mut &'s str| {
         let _ = literal("\\sqrt").parse_next(input)?;
         let _ = space0.parse_next(input)?;
@@ -153,7 +157,7 @@ pub fn parse_fence_delim<'s>(input: &mut &'s str) -> ModalResult<String> {
 }
 
 /// Parses dynamically sized fences like `\left( ... \right)`.
-pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_left_right", |input: &mut &'s str| {
         let _ = literal("\\left").parse_next(input)?;
         let open = parse_fence_delim.parse_next(input)?;
@@ -171,16 +175,26 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             ".".to_string() // implicit empty close, same as \left. \right.
         };
         Ok(MathNode::Fenced {
-            open,
+            open: Cow::Owned(open),
             content: Box::new(content),
-            close,
+            close: Cow::Owned(close),
         })
     })
     .parse_next(input)
 }
 
 /// Parses an atomic mathematical element, which can be a number, identifier, operator, group, or command.
-pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    // Cap nesting so pathological input cannot blow the native stack.
+    let _depth_guard = match crate::depth::DepthGuard::enter_parse() {
+        Ok(g) => g,
+        Err(()) => {
+            return Err(winnow::error::ErrMode::Cut(
+                winnow::error::ContextError::new(),
+            ));
+        }
+    };
+
     trace(
         "parse_atom",
         alt((
@@ -200,7 +214,7 @@ pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 /// Parses subscripts (`_`) and superscripts (`^`) attached to a base mathematical element.
-pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_script", |input: &mut &'s str| {
         let base = match parse_atom.parse_next(input) {
             Ok(b) => b,
@@ -215,12 +229,14 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         };
 
         // 探测 base 之后是否紧跟 \limits 或 \nolimits (这些通常用于覆盖默认的上下标排版)
-        let behavior = if let Ok(_) =
-            literal::<&str, &str, winnow::error::ContextError>("\\limits").parse_next(input)
+        let behavior = if literal::<&str, &str, winnow::error::ContextError>("\\limits")
+            .parse_next(input)
+            .is_ok()
         {
             LimitBehavior::Limits
-        } else if let Ok(_) =
-            literal::<&str, &str, winnow::error::ContextError>("\\nolimits").parse_next(input)
+        } else if literal::<&str, &str, winnow::error::ContextError>("\\nolimits")
+            .parse_next(input)
+            .is_ok()
         {
             LimitBehavior::NoLimits
         } else {
@@ -246,7 +262,7 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
                 3 => "\u{2034}", // ‴
                 _ => "\u{2057}", // ⁗ (4重撇及以上)
             };
-            sup = Some(MathNode::Identifier(prime_char.to_string()));
+            sup = Some(MathNode::Identifier(Cow::Borrowed(prime_char)));
         }
 
         loop {
@@ -301,8 +317,29 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 /// The main parser for a single mathematical node, handling scripts, atoms, and other constructs.
-pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
-    let mut rows: Vec<(Vec<MathNode>, Option<String>)> = Vec::new();
+///
+/// Nesting deeper than [`crate::MAX_NESTING_DEPTH`] surfaces as `Err` (even if an inner
+/// combinator recovered with `MathNode::Error`), so callers never observe a silently truncated tree.
+pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    // Clear any stale depth flag from a previous call on this thread.
+    let _ = crate::depth::take_parse_depth_exceeded();
+
+    let result = parse_math_inner(input);
+
+    // Inner combinators may recover with MathNode::Error and still return Ok.
+    // Elevate a depth-limit hit to a hard Err so callers cannot miss it.
+    if crate::depth::parse_depth_exceeded() {
+        crate::depth::mark_parse_depth_exceeded();
+        return Err(winnow::error::ErrMode::Cut(
+            winnow::error::ContextError::new(),
+        ));
+    }
+
+    result
+}
+
+fn parse_math_inner<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    let mut rows: Vec<(Vec<MathNode<'s>>, Option<Cow<'s, str>>)> = Vec::new();
 
     loop {
         let _ = space0.parse_next(input)?;
@@ -315,7 +352,7 @@ pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         if let Ok(cells) = environment::parse_cells_in_row.parse_next(input) {
             let spacing = if let Ok(opt_spacing) = environment::parse_newline_opt.parse_next(input)
             {
-                opt_spacing.map(|s: &str| s.to_string())
+                opt_spacing.map(|s: &str| Cow::Borrowed(s))
             } else {
                 None
             };
@@ -351,81 +388,24 @@ pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
     } else {
         // Multi-line or aligned top-level expression
         Ok(MathNode::Environment {
-            name: "align*".to_string(), // use align* to support alternating right/left alignments without labels
+            name: Cow::Borrowed("align*"), // use align* to support alternating right/left alignments without labels
             format: None,
             rows,
         })
     }
 }
 
-pub fn parse_node<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_node<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_node", alt((parse_script, parse_operator))).parse_next(input)
 }
 
-pub fn fold_row_nodes(nodes: Vec<MathNode>) -> MathNode {
-    // == AST 智能折叠 Pass: 张量与前置角标 ==
-    let mut folded_nodes: Vec<MathNode> = Vec::with_capacity(nodes.len());
-    let mut i = 0;
-
-    while i < nodes.len() {
-        if i + 1 < nodes.len() {
-            if let MathNode::Scripts {
-                base,
-                sub,
-                sup,
-                pre_sub: None,
-                pre_sup: None,
-                behavior: LimitBehavior::Default,
-                ..
-            } = &nodes[i]
-            {
-                if let MathNode::Row(inner) = &**base {
-                    if inner.is_empty() {
-                        let next_node = nodes[i + 1].clone();
-                        let merged_node = match next_node {
-                            MathNode::Scripts {
-                                base: next_base,
-                                sub: next_sub,
-                                sup: next_sup,
-                                behavior,
-                                ..
-                            } => MathNode::Scripts {
-                                base: next_base,
-                                sub: next_sub,
-                                sup: next_sup,
-                                pre_sub: sub.clone(),
-                                pre_sup: sup.clone(),
-                                behavior,
-                            },
-                            _ => MathNode::Scripts {
-                                base: Box::new(next_node),
-                                sub: None,
-                                sup: None,
-                                pre_sub: sub.clone(),
-                                pre_sup: sup.clone(),
-                                behavior: LimitBehavior::Default,
-                            },
-                        };
-
-                        folded_nodes.push(merged_node);
-                        i += 2;
-                        continue;
-                    }
-                }
-            }
-        }
-        folded_nodes.push(nodes[i].clone());
-        i += 1;
-    }
-
-    if folded_nodes.len() == 1 {
-        folded_nodes.into_iter().next().unwrap()
-    } else {
-        MathNode::Row(folded_nodes)
-    }
+/// Fold row nodes (prescript / tensor pass). Delegates to [`crate::sema`].
+#[inline]
+pub fn fold_row_nodes<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
+    crate::sema::fold_prescripts(nodes)
 }
 
-pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_row<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace(
         "parse_row",
         repeat(0.., preceded(space0, parse_node)).map(fold_row_nodes),

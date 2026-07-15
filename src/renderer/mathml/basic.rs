@@ -1,8 +1,9 @@
-use super::MathMLRenderer;
+//! Shared MathML helpers (escaping, operator-name text extraction).
+
 use crate::ast::*;
 use std::fmt::Write;
 
-pub(super) struct EscapedXml<'a>(&'a str);
+pub(super) struct EscapedXml<'a>(pub(super) &'a str);
 
 impl<'a> std::fmt::Display for EscapedXml<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -25,56 +26,15 @@ pub(super) fn escape_xml(input: &str) -> EscapedXml<'_> {
     EscapedXml(input)
 }
 
-impl MathMLRenderer {
-    pub(super) fn render_basic_node(
-        &self,
-        node: &MathNode,
-        _mode: RenderMode,
-        buf: &mut String,
-    ) -> std::fmt::Result {
-        match node {
-            MathNode::Number(n) => write!(buf, "<mn>{}</mn>", escape_xml(n)),
-            MathNode::Identifier(i) => write!(buf, "<mi>{}</mi>", escape_xml(i)),
-            MathNode::Operator(o) => {
-                let is_arrow = [
-                    "\u{2190}", "\u{2192}", "\u{2194}", "\u{21D2}", "\u{21D0}", "\u{21D4}",
-                    "\u{21A6}", "\u{21A9}", "\u{21AA}", "\u{219E}", "\u{21A0}",
-                ]
-                .contains(&o.as_str());
-                if is_arrow {
-                    write!(buf, "<mo stretchy=\"true\">{}</mo>", escape_xml(o))
-                } else {
-                    write!(buf, "<mo>{}</mo>", escape_xml(o))
-                }
-            }
-            MathNode::Text(t) => write!(buf, "<mtext>{}</mtext>", escape_xml(t)),
-            MathNode::Space(width) => write!(buf, "<mspace width=\"{}\"/>", escape_xml(width)),
-            MathNode::Function(f) => {
-                let func_text = match f.as_str() {
-                    "injlim" => "inj lim",
-                    "projlim" => "proj lim",
-                    _ => f.as_str(),
-                };
-                write!(
-                    buf,
-                    "<mi mathvariant=\"normal\">{}</mi>",
-                    escape_xml(func_text)
-                )
-            }
-            _ => unreachable!(),
-        }
-    }
-}
-
 pub(super) fn try_extract_operator_text<'a>(
-    node: &'a MathNode,
+    node: &'a MathNode<'_>,
 ) -> Option<std::borrow::Cow<'a, str>> {
     match node {
         MathNode::Identifier(s)
         | MathNode::Number(s)
         | MathNode::Operator(s)
-        | MathNode::Function(s) => Some(std::borrow::Cow::Borrowed(s.as_str())),
-        MathNode::Space(s) => Some(std::borrow::Cow::Borrowed(match s.as_str() {
+        | MathNode::Function(s) => Some(std::borrow::Cow::Borrowed(s.as_ref())),
+        MathNode::Space(s) => Some(std::borrow::Cow::Borrowed(match s.as_ref() {
             "0.1667em" => " ",
             "0.2222em" => " ",
             "0.2778em" => " ",

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use tex2math::*;
 use winnow::Parser;
 
@@ -19,20 +20,20 @@ fn test_parse_matrix_environment() {
     let mut input = "\\begin{matrix} a & b \\\\ c & d \\end{matrix}";
     let ast = parse_math.parse_next(&mut input).unwrap();
     let expected = MathNode::Environment {
-        name: "matrix".to_string(),
+        name: Cow::Borrowed("matrix"),
         format: None,
         rows: vec![
             (
                 vec![
-                    MathNode::Identifier("a".to_string()),
-                    MathNode::Identifier("b".to_string()),
+                    MathNode::Identifier(Cow::Borrowed("a")),
+                    MathNode::Identifier(Cow::Borrowed("b")),
                 ],
                 None,
             ),
             (
                 vec![
-                    MathNode::Identifier("c".to_string()),
-                    MathNode::Identifier("d".to_string()),
+                    MathNode::Identifier(Cow::Borrowed("c")),
+                    MathNode::Identifier(Cow::Borrowed("d")),
                 ],
                 None,
             ),

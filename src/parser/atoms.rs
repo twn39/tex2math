@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use winnow::ascii::{digit1, multispace0 as space0};
 use winnow::combinator::{alt, opt, preceded, trace};
 use winnow::prelude::*;
@@ -7,7 +8,7 @@ use super::parse_row;
 use crate::ast::*;
 
 /// Parses a numeric literal (e.g., `123`, `3.14`, `.14`, `10.`) into a `MathNode::Number`.
-pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace(
         "parse_number",
         alt((
@@ -16,35 +17,35 @@ pub fn parse_number<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             // Format 2: Leading decimal (e.g., ".14")
             ('.', digit1).take(),
         ))
-        .map(|s: &str| MathNode::Number(s.to_string())),
+        .map(|s: &str| MathNode::Number(Cow::Borrowed(s))),
     )
     .parse_next(input)
 }
 
 /// Parses a single alphabetic character as an identifier into a `MathNode::Identifier`.
-pub fn parse_ident<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_ident<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace(
         "parse_ident",
         winnow::token::one_of(|c: char| c.is_ascii_alphabetic())
-            .map(|c: char| MathNode::Identifier(c.to_string())),
+            .map(|c: char| MathNode::Identifier(Cow::Owned(c.to_string()))),
     )
     .parse_next(input)
 }
 
 /// Parses common mathematical operators (e.g., `+`, `-`, `=`, `!`) into a `MathNode::Operator`.
-pub fn parse_operator<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_operator<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace(
         "parse_operator",
         one_of([
             '+', '-', '=', '<', '>', '(', ')', '[', ']', '|', ',', '/', '*', '.', ':',
         ])
-        .map(|c: char| MathNode::Operator(c.to_string())),
+        .map(|c: char| MathNode::Operator(Cow::Owned(c.to_string()))),
     )
     .parse_next(input)
 }
 
 /// Parses a grouped expression enclosed in curly braces (`{...}`) into a `MathNode::Row` or a single node.
-pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_group", |input: &mut &'s str| {
         // 匹配左大括号
         let _ = preceded(space0, winnow::token::literal("{")).parse_next(input)?;
@@ -65,7 +66,7 @@ pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             let remaining = winnow::token::rest.parse_next(input)?;
             Ok(MathNode::Row(vec![
                 content,
-                MathNode::Error(format!("Missing '}}', found: '{}'", remaining)),
+                MathNode::Error(Cow::Owned(format!("Missing '}}', found: '{}'", remaining))),
             ]))
         }
     })
@@ -73,17 +74,17 @@ pub fn parse_group<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
 }
 
 /// Fallback for raw Unicode characters not explicitly matched as operators or identifiers.
-pub fn parse_fallback_char<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_fallback_char<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace(
         "parse_fallback_char",
         winnow::token::one_of(|c: char| !c.is_ascii_whitespace() && !"\\{}_^&%$#~".contains(c))
             .map(|c: char| {
                 if c.is_alphabetic() {
-                    MathNode::Identifier(c.to_string())
+                    MathNode::Identifier(Cow::Owned(c.to_string()))
                 } else if c.is_numeric() {
-                    MathNode::Number(c.to_string())
+                    MathNode::Number(Cow::Owned(c.to_string()))
                 } else {
-                    MathNode::Operator(c.to_string())
+                    MathNode::Operator(Cow::Owned(c.to_string()))
                 }
             }),
     )

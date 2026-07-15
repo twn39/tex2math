@@ -1,49 +1,30 @@
-use crate::{generate_mathml, parse_math, ParseError, RenderMode};
+use crate::{convert, parse, ConvertOptions, ParseError, ParseErrorKind, ParseOptions, RenderMode};
 use wasm_bindgen::prelude::*;
-use winnow::Parser as WinnowParser;
+
+fn err_to_js(err: ParseError) -> JsValue {
+    #[cfg(feature = "serde")]
+    {
+        serde_wasm_bindgen::to_value(&err).unwrap_or_else(|_| JsValue::from_str(&err.message))
+    }
+    #[cfg(not(feature = "serde"))]
+    {
+        JsValue::from_str(&err.message)
+    }
+}
 
 /// Convert a LaTeX string to MathML for use in JavaScript via WebAssembly.
 #[wasm_bindgen]
 pub fn convert_to_mathml(latex_input: &str, display_mode: bool) -> Result<String, JsValue> {
-    let mode = if display_mode {
-        RenderMode::Display
-    } else {
-        RenderMode::Inline
+    let opts = ConvertOptions {
+        mode: if display_mode {
+            RenderMode::Display
+        } else {
+            RenderMode::Inline
+        },
+        wrap_math: true,
+        ..Default::default()
     };
-
-    let mut cursor = latex_input;
-    let initial_len = cursor.len();
-
-    match parse_math.parse_next(&mut cursor) {
-        Ok(ast) => {
-            let mathml = generate_mathml(&ast, mode);
-            let display_attr = if display_mode {
-                " display=\"block\""
-            } else {
-                ""
-            };
-
-            Ok(format!(
-                "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"{}>{}</math>",
-                display_attr, mathml
-            ))
-        }
-        Err(e) => {
-            #[cfg(feature = "serde")]
-            {
-                let err_obj = ParseError {
-                    message: format!("Parse error: {}", e),
-                    offset: initial_len - cursor.len(),
-                };
-                Err(serde_wasm_bindgen::to_value(&err_obj)
-                    .unwrap_or_else(|_| JsValue::from_str(&err_obj.message)))
-            }
-            #[cfg(not(feature = "serde"))]
-            {
-                Err(JsValue::from_str(&format!("Parse error: {}", e)))
-            }
-        }
-    }
+    convert(latex_input, &opts).map_err(err_to_js)
 }
 
 #[cfg(feature = "serde")]
@@ -56,20 +37,12 @@ pub struct WasmBatchInput {
 #[cfg(feature = "serde")]
 #[wasm_bindgen]
 pub fn parse_to_ast(latex_input: &str) -> Result<JsValue, JsValue> {
-    let mut cursor = latex_input;
-    let initial_len = cursor.len();
-
-    match parse_math.parse_next(&mut cursor) {
-        Ok(ast) => Ok(serde_wasm_bindgen::to_value(&ast).unwrap()),
-        Err(e) => {
-            let err_obj = ParseError {
-                message: format!("Parse error: {}", e),
-                offset: initial_len - cursor.len(),
-            };
-            Err(serde_wasm_bindgen::to_value(&err_obj)
-                .unwrap_or_else(|_| JsValue::from_str(&err_obj.message)))
-        }
-    }
+    // Serialize an owned tree so it does not borrow the input buffer.
+    let ast = parse(latex_input, &ParseOptions::default())
+        .map_err(err_to_js)?
+        .into_owned();
+    serde_wasm_bindgen::to_value(&ast)
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize AST: {}", e)))
 }
 
 #[cfg(feature = "serde")]
@@ -89,44 +62,35 @@ pub fn convert_batch(inputs_js: &JsValue) -> Result<JsValue, JsValue> {
     let mut results = Vec::with_capacity(inputs.len());
 
     for input in inputs {
-        let mode = if input.display {
-            RenderMode::Display
-        } else {
-            RenderMode::Inline
+        let opts = ConvertOptions {
+            mode: if input.display {
+                RenderMode::Display
+            } else {
+                RenderMode::Inline
+            },
+            wrap_math: true,
+            ..Default::default()
         };
-        let mut cursor = input.latex.as_str();
-        let initial_len = cursor.len();
-
-        match parse_math.parse_next(&mut cursor) {
-            Ok(ast) => {
-                let mathml = generate_mathml(&ast, mode);
-                let display_attr = if input.display {
-                    " display=\"block\""
-                } else {
-                    ""
-                };
-                let xml = format!(
-                    "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"{}>{}</math>",
-                    display_attr, mathml
-                );
-                results.push(WasmBatchResult {
-                    success: true,
-                    result: Some(xml),
-                    error: None,
-                });
-            }
-            Err(e) => {
-                results.push(WasmBatchResult {
-                    success: false,
-                    result: None,
-                    error: Some(ParseError {
-                        message: format!("Parse error: {}", e),
-                        offset: initial_len - cursor.len(),
-                    }),
-                });
-            }
+        match convert(&input.latex, &opts) {
+            Ok(xml) => results.push(WasmBatchResult {
+                success: true,
+                result: Some(xml),
+                error: None,
+            }),
+            Err(e) => results.push(WasmBatchResult {
+                success: false,
+                result: None,
+                error: Some(e),
+            }),
         }
     }
 
-    Ok(serde_wasm_bindgen::to_value(&results).unwrap())
+    serde_wasm_bindgen::to_value(&results)
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize batch results: {}", e)))
+}
+
+// Silence unused-import when serde is off for kind (used in docs).
+#[allow(dead_code)]
+fn _kind_export() -> ParseErrorKind {
+    ParseErrorKind::Other
 }

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use winnow::ascii::{alpha1, multispace0 as space0};
 use winnow::combinator::{delimited, opt, preceded, separated, trace};
 use winnow::prelude::*;
@@ -8,7 +9,7 @@ use super::parse_row;
 use crate::ast::*;
 
 /// 解析一行中由 `&` 分隔的多个单元格 (Cell)
-pub fn parse_cells_in_row<'s>(input: &mut &'s str) -> ModalResult<Vec<MathNode>> {
+pub fn parse_cells_in_row<'s>(input: &mut &'s str) -> ModalResult<Vec<MathNode<'s>>> {
     separated(
         0..,
         delimited(space0, parse_row, space0),
@@ -26,17 +27,17 @@ pub fn parse_newline_opt<'s>(input: &mut &'s str) -> ModalResult<Option<&'s str>
     .parse_next(input)
 }
 
-pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
+pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_environment", |input: &mut &'s str| {
         let begin_tag = preceded((literal("\\begin"), space0, '{'), alpha1).parse_next(input)?;
-        let name = begin_tag.to_string();
+        let name: Cow<'s, str> = Cow::Borrowed(begin_tag);
         let _ = literal("}").parse_next(input)?;
 
-        let mut format = None;
-        if name == "array" {
+        let mut format: Option<Cow<'s, str>> = None;
+        if name.as_ref() == "array" {
             let fmt_opt: Option<(&str, bool)> = opt(take_balanced_braces).parse_next(input)?;
             if let Some((fmt_str, _)) = fmt_opt {
-                format = Some(fmt_str.to_string());
+                format = Some(Cow::Borrowed(fmt_str));
             }
         }
 
@@ -94,7 +95,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             }
         };
 
-        let mut parse_cells_in_row = |row_input: &mut &'s str| -> ModalResult<Vec<MathNode>> {
+        let mut parse_cells_in_row = |row_input: &mut &'s str| -> ModalResult<Vec<MathNode<'s>>> {
             separated(
                 0..,
                 delimited(space0, parse_row, space0),
@@ -111,7 +112,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             .parse_next(input)
         };
 
-        let mut rows: Vec<(Vec<MathNode>, Option<String>)> = Vec::new();
+        let mut rows: Vec<(Vec<MathNode<'s>>, Option<Cow<'s, str>>)> = Vec::new();
 
         loop {
             let _ = space0.parse_next(&mut inner_str)?;
@@ -124,7 +125,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
             if let Ok(cells) = parse_cells_in_row.parse_next(&mut inner_str) {
                 let spacing = if let Ok(opt_spacing) = parse_newline_opt.parse_next(&mut inner_str)
                 {
-                    opt_spacing.map(|s: &str| s.to_string())
+                    opt_spacing.map(|s: &str| Cow::Borrowed(s))
                 } else {
                     None
                 };
@@ -169,7 +170,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode> {
         if !is_closed {
             Ok(MathNode::Row(vec![
                 env_node,
-                MathNode::Error(format!("Missing \\end{{{}}}", name)),
+                MathNode::Error(Cow::Owned(format!("Missing \\end{{{}}}", name.as_ref()))),
             ]))
         } else {
             Ok(env_node)

@@ -2,7 +2,9 @@ use crate::ast::RenderMode;
 use crate::parser::parse_math;
 use crate::renderer::mathml::MathMLRenderer;
 use crate::renderer::MathRenderer;
+use crate::{parse_latex, MAX_NESTING_DEPTH};
 use std::time::Instant;
+use winnow::Parser;
 
 // ==========================================
 // 1. 超长平铺序列测试 (O(N) 复杂度验证)
@@ -17,7 +19,7 @@ fn test_boundary_ultra_long_sequence() {
 
     let start = Instant::now();
     let mut i = input.as_str();
-    let ast = parse_math(&mut i).unwrap();
+    let ast = parse_math.parse_next(&mut i).unwrap();
     let duration = start.elapsed();
 
     // 必须能够迅速完成，绝不能指数级退化
@@ -36,9 +38,7 @@ fn test_boundary_ultra_long_sequence() {
 // ==========================================
 // 2. 超深层嵌套测试 (Stack Overflow 预防)
 // ==========================================
-// 暂时忽略，避免导致整个测试套件因 SIGABRT 直接崩溃，待实现保护机制后再启用
 #[test]
-#[ignore]
 fn test_boundary_ultra_deep_nesting() {
     let mut input = String::new();
     let depth = 5000;
@@ -51,12 +51,19 @@ fn test_boundary_ultra_deep_nesting() {
     }
 
     let mut i = input.as_str();
-    let res = parse_math(&mut i);
+    let res = parse_math.parse_next(&mut i);
 
-    // 我们期望的是一个优雅的 Error (例如 Recursion Limit Exceeded)，而不是内核段错误
+    // 优雅 Error (Recursion Limit Exceeded)，而不是内核段错误
     assert!(
         res.is_err(),
         "Deep nesting should eventually hit a recursion limit gracefully."
+    );
+
+    let err = parse_latex(&input).expect_err("facade should reject ultra-deep nesting");
+    assert!(
+        err.message.contains("nesting") || err.message.contains(&MAX_NESTING_DEPTH.to_string()),
+        "unexpected message: {}",
+        err.message
     );
 }
 
@@ -66,7 +73,9 @@ fn test_boundary_ultra_deep_nesting() {
 #[test]
 fn test_boundary_full_unicode_text() {
     let mut input = "\\text{你好，世界！🙋‍♂️ 123 α} + \\sum_{i=1}^n x_i";
-    let ast = parse_math(&mut input).expect("Should parse full unicode successfully");
+    let ast = parse_math
+        .parse_next(&mut input)
+        .expect("Should parse full unicode successfully");
 
     let renderer = MathMLRenderer::new();
     let mathml = renderer.render(&ast, RenderMode::Display);
@@ -92,7 +101,7 @@ fn test_boundary_decimal_formats() {
 
     for (math, expected) in formats {
         let mut input = math;
-        let ast = parse_math(&mut input).unwrap();
+        let ast = parse_math.parse_next(&mut input).unwrap();
         let mathml = renderer.render(&ast, RenderMode::Inline);
         assert!(
             mathml.contains(expected),
@@ -104,7 +113,7 @@ fn test_boundary_decimal_formats() {
 
     // 单独的 . 仍然应该被解析为操作符，而不是数字
     let mut input_dot = ".";
-    let ast_dot = parse_math(&mut input_dot).unwrap();
+    let ast_dot = parse_math.parse_next(&mut input_dot).unwrap();
     let mathml_dot = renderer.render(&ast_dot, RenderMode::Inline);
     assert!(mathml_dot.contains("<mo>.</mo>"));
 }

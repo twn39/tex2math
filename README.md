@@ -8,50 +8,48 @@
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)
 ![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)
 
-> A blazing fast, zero-copy Rust library and CLI tool designed to parse LaTeX mathematical formulas and compile them into perfectly structured MathML XML.
+> A blazing fast Rust library and CLI tool that parses LaTeX math and emits structured MathML — zero JS, backend- or WASM-friendly.
 
 </div>
 
-Inspired by the robust AST designs of **texmath** and the rich symbol dictionaries of **KaTeX**, `tex2math` is built to be a lightweight, JavaScript-free alternative for generating native MathML directly on the backend (or via WebAssembly).
+Inspired by the AST designs of **texmath** and the symbol dictionaries of **KaTeX**, `tex2math` is a lightweight alternative for generating native MathML without shipping a browser math engine.
 
 ---
 
 ## 💡 Why `tex2math`?
 
-Most lightweight Markdown parsers use fragile regular expressions to handle math, which fails catastrophically on nested structures like `\sqrt{\frac{a}{b}}`. On the other hand, full-blown engines like KaTeX require shipping a massive JavaScript runtime.
+Most lightweight Markdown parsers use fragile regular expressions for math and fail on nested structures like `\sqrt{\frac{a}{b}}`. Full engines like KaTeX require a large JavaScript runtime.
 
-`tex2math` sits in the sweet spot:
-* **True Parsing**: It builds a complete Abstract Syntax Tree (AST) using parser combinators.
-* **Native MathML**: Outputs standard MathML that modern browsers (Chrome 109+, Safari, Firefox) render natively at 60fps without *any* client-side scripts.
-* **Zero Overhead**: Written in pure Rust. Memory allocations are kept to an absolute minimum.
+`tex2math` sits in the middle:
+
+* **True parsing** — full AST via [`winnow`](https://github.com/winnow-rs/winnow) combinators.
+* **Native MathML** — browsers (Chrome 109+, Safari, Firefox) render MathML without client scripts.
+* **Low overhead** — pure Rust, slice-oriented parse, borrowed AST leaves, nesting-depth guards, heap-iterative render.
+
+---
 
 ## ✨ Key Features
 
-- ⚡️ **Blazing Fast & Zero-Copy**: Built on top of the [`winnow`](https://github.com/winnow-rs/winnow) parser combinator library, the lexer reads directly from string slices.
-- 🎓 **Academic-Grade Typography**: 
-  - Smart rendering of limits based on contexts (*Inline* vs *Display*).
-  - Multi-dimensional matrix alignments (`\begin{align}`).
-  - Dynamically stretchy braces (`\left( \right]`).
-- 📚 **Huge Symbol Dictionary**: Natively supports over **450+** mathematical symbols, Greek letters, relational operators, and logic arrows—extracted directly from KaTeX source specs.
-- 🛡️ **Tolerant Parsing & Error Recovery**: Designed to be indestructible. A missing `}` or unclosed environment will NOT crash the engine, but gracefully emit a red `<merror>` block while salvaging the rest of the formula.
-- 🎨 **Advanced Ecosystem Support**: Out-of-the-box support for text modes (`\text{...}`), inline styling (`\mathbf`, `\color`), math accents (`\vec`, `\overbrace`), and complex tensor prescripts (`{}_a^b X`).
+- ⚡️ **Slice-based parsing** — walks input as `&str` slices; AST leaves are `Cow<'s, str>` (borrow input or static tables). Call `into_owned()` when the tree must outlive the source.
+- 🎓 **Academic-grade layout** — display vs inline limits, multi-column `align` / `array`, stretchy `\left`…`\right`.
+- 📚 **Large symbol table** — 450+ symbols, Greek, relations, arrows (KaTeX-oriented).
+- 🛡️ **Tolerant recovery** — missing `}` / unclosed environments emit `<merror>` and salvage the rest when possible.
+- 🎨 **Styles & accents** — `\text`, `\mathbf`, `\color`, accents, stretch ops, cancel, tensor-style prescripts via a post-parse semantic pass.
+- 🔌 **Pluggable emission** — `MathRenderer` + `MathSink` (stream into any `fmt::Write`); MathML is the default backend.
+- 🧩 **Data-driven commands** — fonts, accents, arrows, stretch ops live in `registry` (single source of names).
 
 ---
 
 ## 🛠️ Installation
 
-### As a Library (Crate)
-Add this to your `Cargo.toml`. 
-*Note: The CLI dependencies are fully optional, keeping the library footprint incredibly small (~30KB).*
+### Library
 
 ```toml
 [dependencies]
-tex2math = "1.0"
-winnow = "0.6"
+tex2math = "2"
 ```
 
-### As a CLI Tool
-You can install the CLI tool directly using Cargo:
+### CLI
 
 ```bash
 cargo install tex2math --features cli
@@ -61,66 +59,90 @@ cargo install tex2math --features cli
 
 ## 🚀 Usage
 
-### 💻 Using the CLI
-The CLI is simple and easily integrated into bash pipelines (e.g., passing output directly to Pandoc or HTML generators).
+### CLI
 
 ```bash
-# Direct argument evaluation
 tex2math "\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"
-
-# Display mode evaluation (forces \sum limits to render top/bottom)
 tex2math --display "\sum_{i=1}^n x_i"
-
-# Pipe via stdin
 echo "\int_0^\infty f(x) \, dx" | tex2math
+tex2math --no-wrap --unknown-error '\foo{x}'
 ```
 
-### 🦀 Using the Library
+| Flag | Effect |
+|------|--------|
+| `--display` | Display mode (`display="block"`, large-op limits) |
+| `--no-wrap` | Omit outer `<math>` wrapper |
+| `--max-depth N` | Parse nesting cap (default 64) |
+| `--allow-trailing` | Ignore trailing junk after a successful parse |
+| `--unknown-error` | Unknown `\cmd` → `<merror>` instead of identifier fallback |
+
+### Library (2.x)
 
 ```rust
-use tex2math::{parse_latex, MathMLRenderer, MathRenderer, RenderMode};
+use tex2math::{convert, parse, ConvertOptions, ParseOptions, UnknownCommandPolicy};
 
 fn main() {
-    let latex_input = "\\underbrace{a+b}_{=X} \\times \\mathbf{R}";
-    
-    // 1. Parse the LaTeX string into an AST using the high-level API
-    match parse_latex(latex_input) {
-        Ok(ast) => {
-            // 2. Initialize the backend renderer
-            let renderer = MathMLRenderer::new();
-            
-            // 3. Generate MathML (Choose Inline or Display mode)
-            let mathml = renderer.render(&ast, RenderMode::Display);
-            println!("<math>{}</math>", mathml);
-        }
-        Err(e) => {
-            eprintln!("Parse error: {}", e);
-        }
-    }
+    // One-shot conversion (recommended)
+    let mathml = convert(
+        r"\underbrace{a+b}_{=X} \times \mathbf{R}",
+        &ConvertOptions::display(),
+    )
+    .expect("convert");
+    println!("{mathml}");
+
+    // Borrowed AST (zero-copy leaves where possible)
+    let input = r"x^2 + y^2";
+    let ast = parse(input, &ParseOptions::default()).unwrap();
+    let _owned = ast.into_owned(); // detach from `input`
+
+    // Unknown commands as errors (renders <merror>)
+    let opts = ConvertOptions {
+        parse: ParseOptions {
+            unknown_command: UnknownCommandPolicy::Error,
+            ..Default::default()
+        },
+        wrap_math: false,
+        ..Default::default()
+    };
+    let _ = convert(r"\notreal{x}", &opts);
 }
 ```
+
+`ConvertOptions` defaults: wrap in `<math>`, **MathML Core–friendly** emission (`mathml_core: true`), no experimental `intent` attributes. See [docs/RENDER_OPTIONS.md](docs/RENDER_OPTIONS.md).
 
 ---
 
 ## 🏗️ Architecture
 
-1. **Parser Combinators (`winnow`)**: Transforms string slices into a highly structured `MathNode` enum.
-2. **AST Folding Pass**: Post-processes the AST to handle complex semantic overrides, such as converting empty-based scripts into true MathML `<mmultiscripts>` (tensor prescripts).
-3. **Pluggable Renderers**: The abstract `MathRenderer` trait decouples AST generation from final presentation mapping, allowing future expansions (e.g., Typst or HTML/CSS backends).
+```text
+LaTeX &str → parser (winnow) → MathNode AST → sema folds → MathML renderer → String / MathSink
+                  ↑                    ↑
+            registry/symbols      DepthGuard / ParseError
+```
+
+1. **Parser** — combinators in `parser/` build a syntactic AST.
+2. **Registry** — command name → payload tables (single source for table-driven cmds).
+3. **Semantic pass** — prescripts, row normalize (`sema::analyze`).
+4. **Heap-iterative MathML** — expand by AST family (`tokens` / `structure` / `style` / `scripts` / `environment`).
+
+Migration notes: [docs/MIGRATION-2.0.md](docs/MIGRATION-2.0.md).
+
+---
 
 ## 🧪 Development & Testing
 
-This project strictly follows **Test-Driven Development (TDD)**. It includes over 50 rigorous regression tests inspired by `KaTeX` and `texmath` to ensure edge cases (e.g., nested roots, empty environments, infinite recursions) are perfectly handled.
+TDD with unit tests under `src/tests/` and integration tests under `tests/`.
 
 ```bash
-# Run tests without verbose trace outputs
-cargo test --no-default-features
+cargo test
+cargo test --all-features
+cargo bench --bench math_parser_bench   # criterion (parse / convert / deep trees)
 ```
 
-If you need to debug a failing parser, enable the `debug-trace` feature in `Cargo.toml` to see a colorful, interactive trace of the parser execution tree.
+Enable `debug-trace` for a colorful winnow parse trace when debugging.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **GNU Lesser General Public License v3.0 (LGPL-3.0)**. See the `LICENSE` file for details.
+LGPL-3.0-only — see crate metadata.

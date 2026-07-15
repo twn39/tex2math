@@ -1,30 +1,41 @@
 use clap::Parser;
 use std::io::{self, Read};
-use tex2math::{generate_mathml, parse_math, RenderMode};
-use winnow::Parser as WinnowParser; // 需要引入 traits 才能调用 parse_next
+use tex2math::{
+    convert, ConvertOptions, ParseOptions, RenderMode, TrailingPolicy, UnknownCommandPolicy,
+};
 
-/// tex2math: A blazing fast, zero-copy LaTeX to MathML converter
+/// tex2math 2.0: LaTeX → MathML converter
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// The LaTeX string to convert. If not provided, it will read from standard input (stdin).
+    /// The LaTeX string to convert. If omitted, read from stdin.
     #[arg(value_name = "INPUT")]
     input: Option<String>,
 
-    /// Render the math formula in display mode (forces <math display="block"> and large operators to use over/under limits).
+    /// Display mode (`display="block"`, large-op limits above/below).
     #[arg(short, long, default_value_t = false)]
     display: bool,
 
-    /// Do not wrap the output in <math> tags, only return the inner MathML nodes.
+    /// Do not wrap output in `<math>` tags.
     #[arg(long, default_value_t = false)]
     no_wrap: bool,
+
+    /// Maximum parse nesting depth (default 64).
+    #[arg(long, default_value_t = 64)]
+    max_depth: u32,
+
+    /// Ignore trailing unparsed input instead of erroring.
+    #[arg(long, default_value_t = false)]
+    allow_trailing: bool,
+
+    /// Treat unknown `\`-commands as errors (`<merror>`) instead of identifiers.
+    #[arg(long, default_value_t = false)]
+    unknown_error: bool,
 }
 
 fn main() {
-    // 1. 解析命令行参数
     let cli = Cli::parse();
 
-    // 2. 获取 LaTeX 输入 (优先使用参数，否则读标准输入)
     let latex_input = match cli.input {
         Some(s) => s,
         None => {
@@ -41,47 +52,35 @@ fn main() {
         }
     };
 
-    // 3. 决定渲染模式
-    let mode = if cli.display {
-        RenderMode::Display
-    } else {
-        RenderMode::Inline
+    let opts = ConvertOptions {
+        parse: ParseOptions {
+            max_depth: cli.max_depth,
+            trailing: if cli.allow_trailing {
+                TrailingPolicy::Ignore
+            } else {
+                TrailingPolicy::Error
+            },
+            unknown_command: if cli.unknown_error {
+                UnknownCommandPolicy::Error
+            } else {
+                UnknownCommandPolicy::Identifier
+            },
+            ..ParseOptions::default()
+        },
+        mode: if cli.display {
+            RenderMode::Display
+        } else {
+            RenderMode::Inline
+        },
+        wrap_math: !cli.no_wrap,
+        mathml_core: true,
+        emit_intent: false,
     };
 
-    // 4. 执行解析
-    // 由于 winnow 的解析器要求一个可变引用（游标）
-    let mut cursor = latex_input.as_str();
-
-    match parse_math.parse_next(&mut cursor) {
-        Ok(ast) => {
-            // 5. 生成 MathML
-            let mathml = generate_mathml(&ast, mode);
-
-            // 6. 输出结果
-            if cli.no_wrap {
-                println!("{}", mathml);
-            } else {
-                let display_attr = if cli.display {
-                    " display=\"block\""
-                } else {
-                    ""
-                };
-                println!(
-                    "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"{}>{}</math>",
-                    display_attr, mathml
-                );
-            }
-
-            // 检查是否有未解析完的垃圾尾缀
-            if !cursor.trim().is_empty() {
-                eprintln!(
-                    "Warning: Some trailing characters were not parsed: '{}'",
-                    cursor
-                );
-            }
-        }
+    match convert(&latex_input, &opts) {
+        Ok(out) => println!("{out}"),
         Err(e) => {
-            eprintln!("Parse error: {}", e);
+            eprintln!("{e}");
             std::process::exit(1);
         }
     }
