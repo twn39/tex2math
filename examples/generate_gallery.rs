@@ -69,13 +69,7 @@ struct FixtureItem {
 
 fn strip_comments(text: &str) -> String {
     text.lines()
-        .map(|l| {
-            if let Some(idx) = l.find('%') {
-                &l[..idx]
-            } else {
-                l
-            }
-        })
+        .filter(|l| !l.trim_start().starts_with('%'))
         .collect::<Vec<_>>()
         .join("\n")
         .trim()
