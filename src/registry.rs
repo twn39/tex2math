@@ -226,6 +226,7 @@ pub const IRREGULAR_CMDS: &[&str] = &[
     "operatorname",
     "operatorname*",
     "overset",
+    "prescript",
     "sideset",
     "stackrel",
     "substack",

@@ -211,6 +211,7 @@ fn irregular_cmds_snapshot_guardrail() {
         "operatorname",
         "operatorname*",
         "overset",
+        "prescript",
         "sideset",
         "stackrel",
         "substack",

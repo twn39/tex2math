@@ -38,6 +38,46 @@ pub(super) fn parse_sideset_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode
     })
 }
 
+pub(super) fn parse_prescript_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    let sup_node = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let sub_node = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
+    let base = preceded(space0, parse_node).parse_next(input)?;
+
+    let pre_sup = match sup_node {
+        MathNode::Row(ref r) if r.is_empty() => None,
+        other => Some(Box::new(other)),
+    };
+    let pre_sub = match sub_node {
+        MathNode::Row(ref r) if r.is_empty() => None,
+        other => Some(Box::new(other)),
+    };
+
+    match base {
+        MathNode::Scripts {
+            base: inner_base,
+            sub,
+            sup,
+            behavior,
+            ..
+        } => Ok(MathNode::Scripts {
+            base: inner_base,
+            sub,
+            sup,
+            pre_sub,
+            pre_sup,
+            behavior,
+        }),
+        other => Ok(MathNode::Scripts {
+            base: Box::new(other),
+            sub: None,
+            sup: None,
+            pre_sub,
+            pre_sup,
+            behavior: LimitBehavior::Default,
+        }),
+    }
+}
+
 pub(super) fn parse_over_under_set_cmd<'s>(
     cmd: &str,
     input: &mut &'s str,

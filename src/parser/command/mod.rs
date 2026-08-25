@@ -33,7 +33,7 @@ use misc::{
 };
 use scripts::{
     parse_extensible_arrow_cmd, parse_not_modifier_cmd, parse_operatorname_cmd,
-    parse_over_under_set_cmd, parse_sideset_cmd, parse_stretch_modifier_cmd,
+    parse_over_under_set_cmd, parse_prescript_cmd, parse_sideset_cmd, parse_stretch_modifier_cmd,
 };
 use space::{parse_dim_space_cmd, parse_sized_delimiter_cmd};
 use style::{
@@ -100,6 +100,7 @@ fn parse_irregular_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNo
         "overset" | "underset" | "stackrel" => {
             parse_over_under_set_cmd(if cmd == "stackrel" { "overset" } else { cmd }, input)
         }
+        "prescript" => parse_prescript_cmd(input),
         "sideset" => parse_sideset_cmd(input),
         "operatorname" | "operatorname*" => parse_operatorname_cmd(cmd, input),
         "not" => parse_not_modifier_cmd(input),
