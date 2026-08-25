@@ -447,12 +447,27 @@ fn main() {
       border: 1px solid var(--border);
       border-radius: 8px;
       min-height: 110px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1.5rem;
-      font-size: 1.8rem;
+      padding: 1.25rem 1.25rem;
+      font-size: 1.55rem;
       overflow-x: auto;
+      text-align: center;
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent) transparent;
+    }}
+    .render-box::-webkit-scrollbar {{
+      height: 6px;
+    }}
+    .render-box::-webkit-scrollbar-thumb {{
+      background: #334155;
+      border-radius: 3px;
+    }}
+    .render-box::-webkit-scrollbar-thumb:hover {{
+      background: var(--accent);
+    }}
+    .render-box math {{
+      display: inline-block;
+      vertical-align: middle;
+      padding: 0 0.5rem;
     }}
     .code-section {{
       display: flex;

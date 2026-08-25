@@ -160,14 +160,19 @@ fn render_html_document(latex: &str, mathml: &str, opts: &ConvertOptions) -> Str
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.2);
     }}
     .preview-card {{
-      display: flex;
-      justify-content: center;
-      align-items: center;
       min-height: 160px;
-      font-size: 2.4rem;
+      font-size: 2.2rem;
       overflow-x: auto;
       padding: 2.5rem 1.5rem;
+      text-align: center;
       background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent) transparent;
+    }}
+    .preview-card math {{
+      display: inline-block;
+      vertical-align: middle;
+      padding: 0 0.5rem;
     }}
     .card-title {{
       font-size: 0.82rem;
