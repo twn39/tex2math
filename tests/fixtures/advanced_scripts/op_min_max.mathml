@@ -1,0 +1,1 @@
+<mrow><mi mathvariant="normal">max</mi><mo>(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>)</mo><mo>+</mo><mi mathvariant="normal">min</mi><mo>(</mo><mi>c</mi><mo>,</mo><mi>d</mi><mo>)</mo><mo>+</mo><mi mathvariant="normal">sup</mi><mi>E</mi><mo>+</mo><mi mathvariant="normal">inf</mi><mi>S</mi></mrow>

@@ -1,0 +1,1 @@
+<mrow><mo stretchy="true">{</mo><mtable columnalign="left left" columnspacing="1em"><mtr><mtd><mfrac><mn>1</mn><mn>2</mn></mfrac></mtd><mtd><mrow><mo>-</mo><mn>1</mn><mo>≤</mo><mi>x</mi><mo>&lt;</mo><mn>0</mn></mrow></mtd></mtr><mtr><mtd><mrow><mn>1</mn><mo>-</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable></mrow>
