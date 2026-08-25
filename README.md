@@ -46,7 +46,7 @@ Most lightweight Markdown parsers use fragile regular expressions for math and f
 
 ```toml
 [dependencies]
-tex2math = "2.3"
+tex2math = "2.4"
 ```
 
 ### CLI
