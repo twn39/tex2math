@@ -404,6 +404,7 @@ fn main() {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 0.75rem;
       border-bottom: 1px solid rgba(255,255,255,0.06);
       padding-bottom: 0.75rem;
     }}
@@ -411,20 +412,30 @@ fn main() {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      font-size: 1rem;
+      font-size: 0.95rem;
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+    }}
+    .card-title strong {{
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }}
     .suite-tag {{
       background: rgba(56, 189, 248, 0.12);
       color: var(--accent);
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       padding: 0.2rem 0.5rem;
       border-radius: 6px;
       font-weight: 600;
+      flex-shrink: 0;
     }}
     .card-meta {{
       display: flex;
       gap: 0.4rem;
       align-items: center;
+      flex-shrink: 0;
     }}
     .badge {{
       background: rgba(255,255,255,0.08);
