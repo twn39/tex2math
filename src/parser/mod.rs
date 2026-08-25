@@ -377,6 +377,7 @@ fn parse_math_inner<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             name: Cow::Borrowed("align*"), // use align* to support alternating right/left alignments without labels
             format: None,
             rows,
+            row_lines: None,
         })
     }
 }

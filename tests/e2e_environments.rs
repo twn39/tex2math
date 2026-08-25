@@ -38,6 +38,7 @@ fn test_parse_matrix_environment() {
                 None,
             ),
         ],
+        row_lines: None,
     };
     assert_eq!(ast, expected);
 }
@@ -126,5 +127,15 @@ fn test_parse_matrix_with_trailing_newline() {
     let result = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&result, RenderMode::Display);
     let expected = r#"<mrow><mrow><mo stretchy="true">[</mo><mtable columnalign="center"><mtr><mtd><mn>1</mn></mtd><mtd><msubsup><mi>V</mi><mi>i</mi><mo>*</mo></msubsup></mtd></mtr><mtr><mtd><msub><mi>V</mi><mi>i</mi></msub></mtd><mtd><msub><mi>W</mi><mrow><mi>i</mi><mi>i</mi></mrow></msub></mtd></mtr></mtable><mo stretchy="true">]</mo></mrow><mo>⪰</mo><mn>0</mn></mrow>"#;
+    assert_eq!(mathml, expected);
+}
+
+#[test]
+fn test_array_with_hline() {
+    let mut input =
+        "\\begin{array}{|c|c|} \\hline 1 & 2 \\\\ \\hline 3 & 4 \\\\ \\hline \\end{array}";
+    let ast = parse_math.parse_next(&mut input).unwrap();
+    let mathml = generate_mathml(&ast, RenderMode::Display);
+    let expected = "<mtable columnalign=\"center center\" columnlines=\"solid\" rowlines=\"solid\"><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable>";
     assert_eq!(mathml, expected);
 }

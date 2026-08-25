@@ -205,6 +205,7 @@ fn irregular_cmds_snapshot_guardrail() {
         "color",
         "colorbox",
         "genfrac",
+        "hline",
         "middle",
         "not",
         "notag",

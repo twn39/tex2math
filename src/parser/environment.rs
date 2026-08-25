@@ -113,6 +113,13 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         };
 
         let mut rows: Vec<(Vec<MathNode<'s>>, Option<Cow<'s, str>>)> = Vec::new();
+        let mut row_dividers: Vec<bool> = Vec::new();
+        let mut parse_hline = |input: &mut &'s str| -> ModalResult<&'s str> {
+            preceded(space0, literal("\\hline")).parse_next(input)
+        };
+
+        // Consume leading \hline (e.g. \begin{array}{|c|c|} \hline ...)
+        while parse_hline.parse_next(&mut inner_str).is_ok() {}
 
         loop {
             let _ = space0.parse_next(&mut inner_str)?;
@@ -130,6 +137,11 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
                     None
                 };
 
+                let mut has_hline_after_row = false;
+                while parse_hline.parse_next(&mut inner_str).is_ok() {
+                    has_hline_after_row = true;
+                }
+
                 let is_empty_row = cells.len() == 1
                     && match &cells[0] {
                         MathNode::Row(nodes) => nodes.is_empty(),
@@ -145,6 +157,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
                     // Do not push this empty row
                 } else {
                     rows.push((cells, spacing));
+                    row_dividers.push(has_hline_after_row);
                 }
             } else {
                 // Should not happen as separated(0..) always matches something, but fallback
@@ -161,10 +174,22 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             }
         }
 
+        let row_lines = if rows.len() > 1 && row_dividers.iter().take(rows.len() - 1).any(|&d| d) {
+            let lines: Vec<&str> = row_dividers
+                .iter()
+                .take(rows.len() - 1)
+                .map(|&d| if d { "solid" } else { "none" })
+                .collect();
+            Some(Cow::Owned(lines.join(" ")))
+        } else {
+            None
+        };
+
         let env_node = MathNode::Environment {
             name: name.clone(),
             format,
             rows,
+            row_lines,
         };
 
         let unknown = !crate::registry::is_known_environment(name.as_ref());

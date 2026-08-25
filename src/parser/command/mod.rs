@@ -106,6 +106,7 @@ fn parse_irregular_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNo
         "not" => parse_not_modifier_cmd(input),
         "choose" => Ok(MathNode::ChooseMarker),
         "genfrac" => parse_genfrac_cmd(input),
+        "hline" => Ok(MathNode::Row(vec![])),
         "substack" => parse_substack_cmd(input),
         "middle" => parse_middle_cmd(input),
         "tag" => parse_tag_cmd(input),

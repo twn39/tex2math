@@ -115,6 +115,7 @@ pub(super) fn parse_substack_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNod
         name: Cow::Borrowed("substack"),
         format: None,
         rows,
+        row_lines: None,
     })
 }
 

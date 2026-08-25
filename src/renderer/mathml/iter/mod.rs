@@ -153,9 +153,12 @@ impl MathMLRenderer {
                 behavior,
             } => self.expand_scripts(base, sub, sup, pre_sub, pre_sup, *behavior, ctx, stack),
 
-            MathNode::Environment { name, format, rows } => {
-                self.expand_environment(name.as_ref(), format, rows, ctx, stack)
-            }
+            MathNode::Environment {
+                name,
+                format,
+                rows,
+                row_lines,
+            } => self.expand_environment(name.as_ref(), format, rows, row_lines, ctx, stack),
         }
     }
 }

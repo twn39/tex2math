@@ -220,6 +220,7 @@ pub const IRREGULAR_CMDS: &[&str] = &[
     "color",
     "colorbox",
     "genfrac",
+    "hline",
     "middle",
     "not",
     "notag",

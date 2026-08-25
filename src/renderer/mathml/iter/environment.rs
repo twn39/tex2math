@@ -13,6 +13,7 @@ impl MathMLRenderer {
         name: &str,
         format: &Option<std::borrow::Cow<'_, str>>,
         rows: &'n [(Vec<MathNode<'s>>, Option<std::borrow::Cow<'s, str>>)],
+        row_lines: &Option<std::borrow::Cow<'_, str>>,
         ctx: &mut RenderCtx<'_>,
         stack: &mut FrameStack<'n, 's>,
     ) -> fmt::Result {
@@ -141,6 +142,9 @@ impl MathMLRenderer {
         }
         if use_rowspacing_attr && !rowspacings.is_empty() {
             open.push_str(&format!(" rowspacing=\"{}\"", rowspacings.join(" ")));
+        }
+        if let Some(r_lines) = row_lines {
+            open.push_str(&format!(" rowlines=\"{}\"", r_lines.as_ref()));
         }
         if ctx.options.emit_intent {
             if crate::registry::is_known_environment(name) {

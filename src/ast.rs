@@ -291,6 +291,7 @@ pub enum MathNode<'s> {
         name: Cow<'s, str>,
         format: Option<Cow<'s, str>>,
         rows: Vec<(Vec<MathNode<'s>>, Option<Cow<'s, str>>)>,
+        row_lines: Option<Cow<'s, str>>,
     },
     Text(Cow<'s, str>),
     Style {
@@ -397,7 +398,12 @@ impl<'s> MathNode<'s> {
                 content: Box::new(content.into_owned()),
                 close: Cow::Owned(close.into_owned()),
             },
-            Environment { name, format, rows } => Environment {
+            Environment {
+                name,
+                format,
+                rows,
+                row_lines,
+            } => Environment {
                 name: Cow::Owned(name.into_owned()),
                 format: format.map(|f| Cow::Owned(f.into_owned())),
                 rows: rows
@@ -409,6 +415,7 @@ impl<'s> MathNode<'s> {
                         )
                     })
                     .collect(),
+                row_lines: row_lines.map(|r| Cow::Owned(r.into_owned())),
             },
             Text(s) => Text(Cow::Owned(s.into_owned())),
             Style { variant, content } => Style {

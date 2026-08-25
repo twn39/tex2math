@@ -261,13 +261,19 @@ pub fn normalize_tree<'s>(node: MathNode<'s>) -> MathNode<'s> {
             content: Box::new(normalize_tree(*content)),
             close,
         },
-        MathNode::Environment { name, format, rows } => MathNode::Environment {
+        MathNode::Environment {
+            name,
+            format,
+            rows,
+            row_lines,
+        } => MathNode::Environment {
             name,
             format,
             rows: rows
                 .into_iter()
                 .map(|(cells, sp)| (cells.into_iter().map(normalize_tree).collect(), sp))
                 .collect(),
+            row_lines,
         },
         MathNode::Style { variant, content } => MathNode::Style {
             variant,
