@@ -174,6 +174,9 @@ fn render_html_document(latex: &str, mathml: &str, opts: &ConvertOptions) -> Str
       vertical-align: middle;
       padding: 0 0.5rem;
     }}
+    .preview-card math mtext {{
+      white-space: pre;
+    }}
     .card-title {{
       font-size: 0.82rem;
       text-transform: uppercase;

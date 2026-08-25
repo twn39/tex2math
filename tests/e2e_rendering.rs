@@ -108,7 +108,7 @@ fn test_parse_macro_aliases() {
     let mut input = "\\ne \\implies \\iff \\coloncolonequals \\sube \\dArr \\Rarr";
     let ast = parse_math.parse_next(&mut input).unwrap();
     let mathml = generate_mathml(&ast, RenderMode::Display);
-    let expected = "<mrow><mo>≠</mo><mo>⟹</mo><mo>⟺</mo><mi>\\coloncolonequals</mi><mo>⊆</mo><mo>⇓</mo><mo stretchy=\"true\">⇒</mo></mrow>";
+    let expected = "<mrow><mo>≠</mo><mo>⟹</mo><mo>⟺</mo><mo>∷=</mo><mo>⊆</mo><mo>⇓</mo><mo stretchy=\"true\">⇒</mo></mrow>";
     assert_eq!(mathml, expected);
 }
 

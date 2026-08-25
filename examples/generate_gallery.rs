@@ -474,6 +474,9 @@ fn main() {
       vertical-align: middle;
       padding: 0 0.5rem;
     }}
+    .render-box math mtext {{
+      white-space: pre;
+    }}
     .code-section {{
       display: flex;
       flex-direction: column;
