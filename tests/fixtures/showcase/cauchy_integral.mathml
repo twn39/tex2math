@@ -1,0 +1,1 @@
+<mrow><mi>f</mi><mo>(</mo><mi>a</mi><mo>)</mo><mo>=</mo><mfrac><mn>1</mn><mrow><mn>2</mn><mi>π</mi><mi>i</mi></mrow></mfrac><msub><mo>∮</mo><mi>γ</mi></msub><mfrac><mrow><mi>f</mi><mo>(</mo><mi>z</mi><mo>)</mo></mrow><mrow><mi>z</mi><mo>-</mo><mi>a</mi></mrow></mfrac><mspace width="0.1667em"/><mi>d</mi><mi>z</mi></mrow>

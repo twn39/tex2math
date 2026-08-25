@@ -1,0 +1,1 @@
+<mrow><mi>ζ</mi><mo>(</mo><mi>s</mi><mo>)</mo><mo>=</mo><msubsup><mo>∑</mo><mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow><mi>∞</mi></msubsup><mfrac><mn>1</mn><msup><mi>n</mi><mi>s</mi></msup></mfrac><mo>=</mo><msub><mo>∏</mo><mi>p</mi></msub><mfrac><mn>1</mn><mrow><mn>1</mn><mo>-</mo><msup><mi>p</mi><mrow><mo>-</mo><mi>s</mi></mrow></msup></mrow></mfrac></mrow>

@@ -1,0 +1,1 @@
+<mrow><mi mathvariant="normal">Attention</mi><mo>(</mo><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi><mo>)</mo><mo>=</mo><mi mathvariant="normal">softmax</mi><mrow><mo stretchy="true">(</mo><mrow><mfrac><mrow><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup></mrow><msqrt><msub><mi>d</mi><mi>k</mi></msub></msqrt></mfrac></mrow><mo stretchy="true">)</mo></mrow><mi>V</mi></mrow>

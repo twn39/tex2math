@@ -1,0 +1,1 @@
+<mrow><mover accent="true"><mi>f</mi><mo>^</mo></mover><mo>(</mo><mi>ξ</mi><mo>)</mo><mo>=</mo><msubsup><mo>∫</mo><mrow><mo>-</mo><mi>∞</mi></mrow><mi>∞</mi></msubsup><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><msup><mi>e</mi><mrow><mo>-</mo><mn>2</mn><mi>π</mi><mi>i</mi><mi>x</mi><mi>ξ</mi></mrow></msup><mspace width="0.1667em"/><mi>d</mi><mi>x</mi></mrow>
