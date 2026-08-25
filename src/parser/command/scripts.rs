@@ -121,9 +121,7 @@ pub(super) fn parse_not_modifier_cmd<'s>(input: &mut &'s str) -> ModalResult<Mat
     let _ = space0.parse_next(input)?;
     let checkpoint = *input;
 
-    if let Ok(next_cmd) =
-        preceded::<_, _, _, winnow::error::ContextError, _, _>('\\', alpha1).parse_next(input)
-    {
+    if let Some(next_cmd) = opt(preceded('\\', alpha1)).parse_next(input)? {
         let negated_opt = match next_cmd {
             "in" | "isin" => Some("\u{2209}"),
             "ni" | "owns" => Some("\u{220C}"),
@@ -139,6 +137,7 @@ pub(super) fn parse_not_modifier_cmd<'s>(input: &mut &'s str) -> ModalResult<Mat
             "vdash" => Some("\u{22AC}"),
             "prec" => Some("\u{2280}"),
             "succ" => Some("\u{2281}"),
+            "exists" => Some("\u{2204}"),
             "le" | "leq" => Some("\u{2270}"),
             "ge" | "geq" => Some("\u{2271}"),
             "leftarrow" => Some("\u{219A}"),
@@ -151,10 +150,7 @@ pub(super) fn parse_not_modifier_cmd<'s>(input: &mut &'s str) -> ModalResult<Mat
         }
 
         *input = checkpoint;
-    } else if opt(one_of::<_, _, winnow::error::ContextError>('='))
-        .parse_next(input)?
-        .is_some()
-    {
+    } else if opt(one_of('=')).parse_next(input)?.is_some() {
         return Ok(MathNode::Operator(Cow::Borrowed("\u{2260}")));
     }
 

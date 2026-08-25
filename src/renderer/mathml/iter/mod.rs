@@ -16,22 +16,38 @@ mod structure;
 mod style;
 mod tokens;
 
+use super::basic::write_escaped_xml;
 use super::{MathMLRenderer, RenderCtx};
 use crate::ast::*;
+use smallvec::SmallVec;
+use std::borrow::Cow;
 use std::fmt;
 
 /// Work-list items; processed LIFO so children are pushed in reverse order.
 pub(super) enum Frame<'n, 's> {
     /// Literal fragment already finalized.
     Lit(&'static str),
-    /// Owned fragment (dynamic tags / escaped snippets).
+    /// Stretchy operator token `<mo stretchy="true">...</mo>`
+    StretchyMo(Cow<'s, str>),
+    /// Open tag with attribute: `<{tag} {attr}="{val}">` (optional intent)
+    OpenTagWithAttr {
+        tag: &'static str,
+        attr: &'static str,
+        val: Cow<'s, str>,
+        intent: Option<&'static str>,
+    },
+    /// Accent closing tag: `<mo>{mark}</mo></mover>`
+    AccentClose(Cow<'s, str>),
+    /// Owned fragment (fallback for complex dynamic tags).
     Owned(String),
     /// Expand this AST node into more frames / output.
     Node(&'n MathNode<'s>),
 }
 
+pub(super) type FrameStack<'n, 's> = SmallVec<[Frame<'n, 's>; 32]>;
+
 impl MathMLRenderer {
-    /// Iterative entry: expand `node` onto a heap stack until drained.
+    /// Iterative entry: expand `node` onto a stack until drained.
     pub(super) fn render_node_iter<'n, 's>(
         &self,
         node: &'n MathNode<'s>,
@@ -39,7 +55,7 @@ impl MathMLRenderer {
     ) -> fmt::Result {
         // Cap frames to avoid unbounded memory on pathological trees.
         const MAX_FRAMES: usize = 1_000_000;
-        let mut stack: Vec<Frame<'n, 's>> = Vec::with_capacity(64);
+        let mut stack: FrameStack<'n, 's> = SmallVec::new();
         stack.push(Frame::Node(node));
 
         while let Some(frame) = stack.pop() {
@@ -51,6 +67,36 @@ impl MathMLRenderer {
             }
             match frame {
                 Frame::Lit(s) => ctx.out.push_str(s)?,
+                Frame::StretchyMo(s) => {
+                    ctx.out.push_str("<mo stretchy=\"true\">")?;
+                    write_escaped_xml(s.as_ref(), ctx.out)?;
+                    ctx.out.push_str("</mo>")?;
+                }
+                Frame::OpenTagWithAttr {
+                    tag,
+                    attr,
+                    val,
+                    intent,
+                } => {
+                    ctx.out.push_str("<")?;
+                    ctx.out.push_str(tag)?;
+                    ctx.out.push_str(" ")?;
+                    ctx.out.push_str(attr)?;
+                    ctx.out.push_str("=\"")?;
+                    write_escaped_xml(val.as_ref(), ctx.out)?;
+                    ctx.out.push_str("\"")?;
+                    if let Some(it) = intent {
+                        ctx.out.push_str(" intent=\"")?;
+                        ctx.out.push_str(it)?;
+                        ctx.out.push_str("\"")?;
+                    }
+                    ctx.out.push_str(">")?;
+                }
+                Frame::AccentClose(mark) => {
+                    ctx.out.push_str("<mo>")?;
+                    write_escaped_xml(mark.as_ref(), ctx.out)?;
+                    ctx.out.push_str("</mo></mover>")?;
+                }
                 Frame::Owned(s) => ctx.out.push_str(&s)?,
                 Frame::Node(n) => self.expand_node(n, ctx, &mut stack)?,
             }
@@ -62,7 +108,7 @@ impl MathMLRenderer {
         &self,
         node: &'n MathNode<'s>,
         ctx: &mut RenderCtx<'_>,
-        stack: &mut Vec<Frame<'n, 's>>,
+        stack: &mut FrameStack<'n, 's>,
     ) -> fmt::Result {
         match node {
             // Leaves / tokens

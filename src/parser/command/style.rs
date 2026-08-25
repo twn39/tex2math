@@ -109,25 +109,20 @@ pub(super) fn parse_font_style_cmd<'s>(
     let variant = crate::registry::lookup(crate::registry::FONT_STYLES, cmd)
         .expect("font style cmd pre-filtered");
 
-    let content = if let Ok(c) = delimited::<_, _, _, _, winnow::error::ContextError, _, _, _>(
-        (space0, '{'),
-        parse_row,
-        (space0, '}'),
-    )
-    .parse_next(input)
-    {
-        c
-    } else {
-        let remaining_nodes: Vec<MathNode<'s>> =
-            repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
-        if remaining_nodes.is_empty() {
-            MathNode::Row(vec![])
-        } else if remaining_nodes.len() == 1 {
-            remaining_nodes.into_iter().next().unwrap()
+    let content =
+        if let Ok(c) = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input) {
+            c
         } else {
-            MathNode::Row(remaining_nodes)
-        }
-    };
+            let remaining_nodes: Vec<MathNode<'s>> =
+                repeat(0.., preceded(space0, parse_node)).parse_next(input)?;
+            if remaining_nodes.is_empty() {
+                MathNode::Row(vec![])
+            } else if remaining_nodes.len() == 1 {
+                remaining_nodes.into_iter().next().unwrap()
+            } else {
+                MathNode::Row(remaining_nodes)
+            }
+        };
 
     Ok(MathNode::Style {
         variant: Cow::Borrowed(variant),

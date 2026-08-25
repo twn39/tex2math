@@ -1,7 +1,7 @@
 //! Scripts, limits, and multiscripts emission.
 
 use super::super::{MathMLRenderer, RenderCtx};
-use super::Frame;
+use super::{Frame, FrameStack};
 use crate::ast::*;
 use std::fmt;
 
@@ -16,7 +16,7 @@ impl MathMLRenderer {
         pre_sup: &'n Option<Box<MathNode<'s>>>,
         behavior: LimitBehavior,
         ctx: &RenderCtx<'_>,
-        stack: &mut Vec<Frame<'n, 's>>,
+        stack: &mut FrameStack<'n, 's>,
     ) -> fmt::Result {
         if pre_sub.is_some() || pre_sup.is_some() {
             stack.push(Frame::Lit("</mmultiscripts>"));
@@ -56,20 +56,56 @@ impl MathMLRenderer {
             LimitBehavior::Default => base.is_large_op() && ctx.mode == RenderMode::Display,
         };
 
-        let tag = match (render_as_limits, sub.is_some(), sup.is_some()) {
-            (true, true, true) => "munderover",
-            (true, true, false) => "munder",
-            (true, false, true) => "mover",
-            (false, true, true) => "msubsup",
-            (false, true, false) => "msub",
-            (false, false, true) => "msup",
+        let (open_tag, close_tag) = match (render_as_limits, sub.is_some(), sup.is_some()) {
+            (true, true, true) => {
+                if ctx.options.emit_intent {
+                    ("<munderover intent=\"scripts\">", "</munderover>")
+                } else {
+                    ("<munderover>", "</munderover>")
+                }
+            }
+            (true, true, false) => {
+                if ctx.options.emit_intent {
+                    ("<munder intent=\"scripts\">", "</munder>")
+                } else {
+                    ("<munder>", "</munder>")
+                }
+            }
+            (true, false, true) => {
+                if ctx.options.emit_intent {
+                    ("<mover intent=\"scripts\">", "</mover>")
+                } else {
+                    ("<mover>", "</mover>")
+                }
+            }
+            (false, true, true) => {
+                if ctx.options.emit_intent {
+                    ("<msubsup intent=\"scripts\">", "</msubsup>")
+                } else {
+                    ("<msubsup>", "</msubsup>")
+                }
+            }
+            (false, true, false) => {
+                if ctx.options.emit_intent {
+                    ("<msub intent=\"scripts\">", "</msub>")
+                } else {
+                    ("<msub>", "</msub>")
+                }
+            }
+            (false, false, true) => {
+                if ctx.options.emit_intent {
+                    ("<msup intent=\"scripts\">", "</msup>")
+                } else {
+                    ("<msup>", "</msup>")
+                }
+            }
             (_, false, false) => {
                 stack.push(Frame::Node(base));
                 return Ok(());
             }
         };
 
-        stack.push(Frame::Owned(format!("</{}>", tag)));
+        stack.push(Frame::Lit(close_tag));
         if let Some(s) = sup {
             stack.push(Frame::Node(s));
         }
@@ -77,11 +113,7 @@ impl MathMLRenderer {
             stack.push(Frame::Node(s));
         }
         stack.push(Frame::Node(base));
-        if ctx.options.emit_intent {
-            stack.push(Frame::Owned(format!("<{} intent=\"scripts\">", tag)));
-        } else {
-            stack.push(Frame::Owned(format!("<{}>", tag)));
-        }
+        stack.push(Frame::Lit(open_tag));
         Ok(())
     }
 }

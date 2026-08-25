@@ -2,7 +2,7 @@
 
 use super::super::basic::{escape_xml, try_extract_operator_text};
 use super::super::{MathMLRenderer, RenderCtx};
-use super::Frame;
+use super::{Frame, FrameStack};
 use crate::ast::*;
 use std::fmt;
 
@@ -11,7 +11,7 @@ impl MathMLRenderer {
         &self,
         node: &'n MathNode<'s>,
         ctx: &mut RenderCtx<'_>,
-        stack: &mut Vec<Frame<'n, 's>>,
+        stack: &mut FrameStack<'n, 's>,
     ) -> fmt::Result {
         match node {
             MathNode::Style { variant, content } => {
@@ -28,24 +28,20 @@ impl MathMLRenderer {
                 } else {
                     stack.push(Frame::Lit("</mstyle>"));
                     stack.push(Frame::Node(content));
-                    if ctx.options.emit_intent {
-                        stack.push(Frame::Owned(format!(
-                            "<mstyle mathvariant=\"{}\" intent=\"style\">",
-                            escape_xml(variant.as_ref())
-                        )));
-                    } else {
-                        stack.push(Frame::Owned(format!(
-                            "<mstyle mathvariant=\"{}\">",
-                            escape_xml(variant.as_ref())
-                        )));
-                    }
+                    stack.push(Frame::OpenTagWithAttr {
+                        tag: "mstyle",
+                        attr: "mathvariant",
+                        val: variant.clone(),
+                        intent: if ctx.options.emit_intent {
+                            Some("style")
+                        } else {
+                            None
+                        },
+                    });
                 }
             }
             MathNode::Accent { mark, content } => {
-                stack.push(Frame::Owned(format!(
-                    "<mo>{}</mo></mover>",
-                    escape_xml(mark.as_ref())
-                )));
+                stack.push(Frame::AccentClose(mark.clone()));
                 stack.push(Frame::Node(content));
                 if ctx.options.emit_intent {
                     stack.push(Frame::Lit("<mover accent=\"true\" intent=\"accent\">"));
@@ -56,32 +52,30 @@ impl MathMLRenderer {
             MathNode::Color { color, content } => {
                 stack.push(Frame::Lit("</mstyle>"));
                 stack.push(Frame::Node(content));
-                if ctx.options.emit_intent {
-                    stack.push(Frame::Owned(format!(
-                        "<mstyle mathcolor=\"{}\" intent=\"color\">",
-                        escape_xml(color.as_ref())
-                    )));
-                } else {
-                    stack.push(Frame::Owned(format!(
-                        "<mstyle mathcolor=\"{}\">",
-                        escape_xml(color.as_ref())
-                    )));
-                }
+                stack.push(Frame::OpenTagWithAttr {
+                    tag: "mstyle",
+                    attr: "mathcolor",
+                    val: color.clone(),
+                    intent: if ctx.options.emit_intent {
+                        Some("color")
+                    } else {
+                        None
+                    },
+                });
             }
             MathNode::ColorBox { bg_color, content } => {
                 stack.push(Frame::Lit("</mstyle>"));
                 stack.push(Frame::Node(content));
-                if ctx.options.emit_intent {
-                    stack.push(Frame::Owned(format!(
-                        "<mstyle mathbackground=\"{}\" intent=\"colorbox\">",
-                        escape_xml(bg_color.as_ref())
-                    )));
-                } else {
-                    stack.push(Frame::Owned(format!(
-                        "<mstyle mathbackground=\"{}\">",
-                        escape_xml(bg_color.as_ref())
-                    )));
-                }
+                stack.push(Frame::OpenTagWithAttr {
+                    tag: "mstyle",
+                    attr: "mathbackground",
+                    val: bg_color.clone(),
+                    intent: if ctx.options.emit_intent {
+                        Some("colorbox")
+                    } else {
+                        None
+                    },
+                });
             }
             MathNode::MathClass { class, content } => {
                 let (lspace, rspace) = class.default_spaces();
@@ -104,10 +98,12 @@ impl MathMLRenderer {
                     stack.push(Frame::Lit("</mrow>"));
                     stack.push(Frame::Node(content));
                     if ctx.options.emit_intent {
-                        stack.push(Frame::Owned(format!(
-                            "<mrow intent=\"math-class:{}\">",
-                            class.as_str()
-                        )));
+                        stack.push(Frame::OpenTagWithAttr {
+                            tag: "mrow",
+                            attr: "intent",
+                            val: std::borrow::Cow::Owned(format!("math-class:{}", class.as_str())),
+                            intent: None,
+                        });
                     } else {
                         stack.push(Frame::Lit("<mrow>"));
                     }
@@ -119,76 +115,60 @@ impl MathMLRenderer {
             } => {
                 stack.push(Frame::Lit("</mstyle>"));
                 stack.push(Frame::Node(content));
-                let ds = if *displaystyle { "true" } else { "false" };
-                if ctx.options.emit_intent {
-                    let intent = if *displaystyle {
-                        "displaystyle"
-                    } else {
-                        "textstyle"
-                    };
-                    stack.push(Frame::Owned(format!(
-                        "<mstyle displaystyle=\"{}\" intent=\"{}\">",
-                        ds, intent
-                    )));
-                } else {
-                    stack.push(Frame::Owned(format!("<mstyle displaystyle=\"{}\">", ds)));
-                }
-            }
-            MathNode::Phantom { kind, content } => {
-                let intent_attr = if ctx.options.emit_intent {
-                    match kind {
-                        PhantomKind::Invisible => " intent=\"phantom\"",
-                        PhantomKind::Vertical => " intent=\"vphantom\"",
-                        PhantomKind::Horizontal => " intent=\"hphantom\"",
-                    }
-                } else {
-                    ""
+                let tag = match (*displaystyle, ctx.options.emit_intent) {
+                    (true, true) => "<mstyle displaystyle=\"true\" intent=\"displaystyle\">",
+                    (true, false) => "<mstyle displaystyle=\"true\">",
+                    (false, true) => "<mstyle displaystyle=\"false\" intent=\"textstyle\">",
+                    (false, false) => "<mstyle displaystyle=\"false\">",
                 };
-                match kind {
-                    PhantomKind::Invisible => {
-                        stack.push(Frame::Lit("</mphantom>"));
-                        stack.push(Frame::Node(content));
-                        if intent_attr.is_empty() {
-                            stack.push(Frame::Lit("<mphantom>"));
-                        } else {
-                            stack.push(Frame::Owned(format!("<mphantom{intent_attr}>")));
-                        }
-                    }
-                    PhantomKind::Vertical => {
-                        stack.push(Frame::Lit("</mphantom></mpadded>"));
-                        stack.push(Frame::Node(content));
-                        if intent_attr.is_empty() {
-                            stack.push(Frame::Lit("<mpadded width=\"0px\"><mphantom>"));
-                        } else {
-                            stack.push(Frame::Owned(format!(
-                                "<mpadded width=\"0px\"{intent_attr}><mphantom>"
-                            )));
-                        }
-                    }
-                    PhantomKind::Horizontal => {
-                        stack.push(Frame::Lit("</mphantom></mpadded>"));
-                        stack.push(Frame::Node(content));
-                        if intent_attr.is_empty() {
-                            stack.push(Frame::Lit(
-                                "<mpadded height=\"0px\" depth=\"0px\"><mphantom>",
-                            ));
-                        } else {
-                            stack.push(Frame::Owned(format!(
-                                "<mpadded height=\"0px\" depth=\"0px\"{intent_attr}><mphantom>"
-                            )));
-                        }
-                    }
-                }
+                stack.push(Frame::Lit(tag));
             }
+            MathNode::Phantom { kind, content } => match (kind, ctx.options.emit_intent) {
+                (PhantomKind::Invisible, true) => {
+                    stack.push(Frame::Lit("</mphantom>"));
+                    stack.push(Frame::Node(content));
+                    stack.push(Frame::Lit("<mphantom intent=\"phantom\">"));
+                }
+                (PhantomKind::Invisible, false) => {
+                    stack.push(Frame::Lit("</mphantom>"));
+                    stack.push(Frame::Node(content));
+                    stack.push(Frame::Lit("<mphantom>"));
+                }
+                (PhantomKind::Vertical, true) => {
+                    stack.push(Frame::Lit("</mphantom></mpadded>"));
+                    stack.push(Frame::Node(content));
+                    stack.push(Frame::Lit(
+                        "<mpadded width=\"0px\" intent=\"vphantom\"><mphantom>",
+                    ));
+                }
+                (PhantomKind::Vertical, false) => {
+                    stack.push(Frame::Lit("</mphantom></mpadded>"));
+                    stack.push(Frame::Node(content));
+                    stack.push(Frame::Lit("<mpadded width=\"0px\"><mphantom>"));
+                }
+                (PhantomKind::Horizontal, true) => {
+                    stack.push(Frame::Lit("</mphantom></mpadded>"));
+                    stack.push(Frame::Node(content));
+                    stack.push(Frame::Lit(
+                        "<mpadded height=\"0px\" depth=\"0px\" intent=\"hphantom\"><mphantom>",
+                    ));
+                }
+                (PhantomKind::Horizontal, false) => {
+                    stack.push(Frame::Lit("</mphantom></mpadded>"));
+                    stack.push(Frame::Node(content));
+                    stack.push(Frame::Lit(
+                        "<mpadded height=\"0px\" depth=\"0px\"><mphantom>",
+                    ));
+                }
+            },
             MathNode::StretchOp {
                 op,
                 is_over,
                 content,
             } => {
-                let stretchy = format!("<mo stretchy=\"true\">{}</mo>", escape_xml(op.as_ref()));
                 if *is_over {
                     stack.push(Frame::Lit("</mover>"));
-                    stack.push(Frame::Owned(stretchy));
+                    stack.push(Frame::StretchyMo(op.clone()));
                     stack.push(Frame::Node(content));
                     if ctx.options.emit_intent {
                         stack.push(Frame::Lit("<mover intent=\"stretch-over\">"));
@@ -197,7 +177,7 @@ impl MathMLRenderer {
                     }
                 } else {
                     stack.push(Frame::Lit("</munder>"));
-                    stack.push(Frame::Owned(stretchy));
+                    stack.push(Frame::StretchyMo(op.clone()));
                     stack.push(Frame::Node(content));
                     if ctx.options.emit_intent {
                         stack.push(Frame::Lit("<munder intent=\"stretch-under\">"));

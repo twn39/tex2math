@@ -1,8 +1,7 @@
 //! Structural containers: fraction, root, row, fenced, boxed, cancel.
 
-use super::super::basic::escape_xml;
 use super::super::{MathMLRenderer, RenderCtx};
-use super::Frame;
+use super::{Frame, FrameStack};
 use crate::ast::*;
 use std::fmt;
 
@@ -11,7 +10,7 @@ impl MathMLRenderer {
         &self,
         node: &'n MathNode<'s>,
         ctx: &mut RenderCtx<'_>,
-        stack: &mut Vec<Frame<'n, 's>>,
+        stack: &mut FrameStack<'n, 's>,
     ) -> fmt::Result {
         match node {
             MathNode::Fraction(num, den) => {
@@ -95,20 +94,29 @@ impl MathMLRenderer {
                     stack.push(Frame::Lit("</mrow>"));
                     stack.push(Frame::Node(content));
                     if ctx.options.emit_intent {
-                        stack.push(Frame::Owned(format!(
-                            "<mrow intent=\"cancel:{}\">",
-                            escape_xml(mode.as_ref())
-                        )));
+                        match mode.as_ref() {
+                            "cancel" => stack.push(Frame::Lit("<mrow intent=\"cancel:cancel\">")),
+                            "bcancel" => stack.push(Frame::Lit("<mrow intent=\"cancel:bcancel\">")),
+                            "xcancel" => stack.push(Frame::Lit("<mrow intent=\"cancel:xcancel\">")),
+                            _ => stack.push(Frame::OpenTagWithAttr {
+                                tag: "mrow",
+                                attr: "intent",
+                                val: std::borrow::Cow::Owned(format!("cancel:{}", mode)),
+                                intent: None,
+                            }),
+                        }
                     } else {
                         stack.push(Frame::Lit("<mrow>"));
                     }
                 } else {
                     stack.push(Frame::Lit("</menclose>"));
                     stack.push(Frame::Node(content));
-                    stack.push(Frame::Owned(format!(
-                        "<menclose notation=\"{}\">",
-                        escape_xml(mode.as_ref())
-                    )));
+                    stack.push(Frame::OpenTagWithAttr {
+                        tag: "menclose",
+                        attr: "notation",
+                        val: mode.clone(),
+                        intent: None,
+                    });
                 }
             }
             MathNode::Fenced {
@@ -118,19 +126,13 @@ impl MathMLRenderer {
             } => {
                 stack.push(Frame::Lit("</mrow>"));
                 if close.as_ref() != "." {
-                    stack.push(Frame::Owned(format!(
-                        "<mo stretchy=\"true\">{}</mo>",
-                        escape_xml(close.as_ref())
-                    )));
+                    stack.push(Frame::StretchyMo(close.clone()));
                 }
                 stack.push(Frame::Lit("</mrow>"));
                 stack.push(Frame::Node(content));
                 stack.push(Frame::Lit("<mrow>"));
                 if open.as_ref() != "." {
-                    stack.push(Frame::Owned(format!(
-                        "<mo stretchy=\"true\">{}</mo>",
-                        escape_xml(open.as_ref())
-                    )));
+                    stack.push(Frame::StretchyMo(open.clone()));
                 }
                 if ctx.options.emit_intent {
                     stack.push(Frame::Lit("<mrow intent=\"fenced\">"));

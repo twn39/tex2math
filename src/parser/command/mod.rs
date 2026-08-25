@@ -127,7 +127,7 @@ pub fn parse_command<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         )
         .parse_next(input)?;
 
-        // Fast path: pure zero-arg macros from static tables.
+        // Fast path: pure zero-arg macros from static tables (functions, spacing, bb).
         if let Some(node) = resolve_zero_arg_cmd(cmd) {
             return Ok(node);
         }

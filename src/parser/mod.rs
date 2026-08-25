@@ -64,10 +64,7 @@ pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
 
         let mut index_node_opt = None;
 
-        if opt(literal::<&str, &str, winnow::error::ContextError>("["))
-            .parse_next(input)?
-            .is_some()
-        {
+        if opt(literal("[")).parse_next(input)?.is_some() {
             let mut index_nodes = Vec::new();
             loop {
                 let _ = space0.parse_next(input)?;
@@ -87,8 +84,7 @@ pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             }
 
             // 消耗右侧的 ']'
-            let _ =
-                opt(literal::<&str, &str, winnow::error::ContextError>("]")).parse_next(input)?;
+            let _ = opt(literal("]")).parse_next(input)?;
 
             // 使用复用的 AST 折叠逻辑
             index_node_opt = Some(fold_row_nodes(index_nodes));
@@ -166,10 +162,7 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         // (e.g. caused by a mis-nested \begin/\end truncating the environment body).
         // Instead of backtracking and leaving \left as an unresolvable stuck atom,
         // we emit a Fenced node with an implicit empty close delimiter '.'.
-        let close = if literal::<&str, &str, winnow::error::ContextError>("\\right")
-            .parse_next(input)
-            .is_ok()
-        {
+        let close = if opt(literal("\\right")).parse_next(input)?.is_some() {
             parse_fence_delim.parse_next(input)?
         } else {
             ".".to_string() // implicit empty close, same as \left. \right.
@@ -206,8 +199,10 @@ pub fn parse_atom<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             parse_command, // 将通用命令解析器加入！
             parse_ident,
             parse_number,
-            parse_operator, // 允许单字符操作符作为 atom（例如为它添加上下标 V^* 或 \lim_{x \to 0}^+）
-            atoms::parse_fallback_char, // 允许原生 Unicode 字符（如 • 或 α）
+            alt((
+                parse_operator, // 允许单字符操作符作为 atom（例如为它添加上下标 V^* 或 \lim_{x \to 0}^+）
+                atoms::parse_fallback_char, // 允许原生 Unicode 字符（如 • 或 α）
+            )),
         )),
     )
     .parse_next(input)
@@ -229,15 +224,9 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         };
 
         // 探测 base 之后是否紧跟 \limits 或 \nolimits (这些通常用于覆盖默认的上下标排版)
-        let behavior = if literal::<&str, &str, winnow::error::ContextError>("\\limits")
-            .parse_next(input)
-            .is_ok()
-        {
+        let behavior = if opt(literal("\\limits")).parse_next(input)?.is_some() {
             LimitBehavior::Limits
-        } else if literal::<&str, &str, winnow::error::ContextError>("\\nolimits")
-            .parse_next(input)
-            .is_ok()
-        {
+        } else if opt(literal("\\nolimits")).parse_next(input)?.is_some() {
             LimitBehavior::NoLimits
         } else {
             LimitBehavior::Default
@@ -249,10 +238,7 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         // == 新增：撇号（prime）支持 ==
         // x' 和 x^{\prime} 等价；x'' 对应 x^{\prime\prime}（即双撇线 ″）
         let mut prime_count = 0usize;
-        while opt(one_of::<_, _, winnow::error::ContextError>('\''))
-            .parse_next(input)?
-            .is_some()
-        {
+        while opt(one_of('\'')).parse_next(input)?.is_some() {
             prime_count += 1;
         }
         if prime_count > 0 {

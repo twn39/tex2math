@@ -73,3 +73,23 @@ fn test_simple_ast_shape_scripts() {
         other => panic!("expected Scripts, got {other:?}"),
     }
 }
+
+#[test]
+fn test_convert_to_matches_convert() {
+    use crate::{convert, convert_to, ConvertOptions};
+
+    let cases = [
+        r"\frac{1}{2}",
+        r"\sqrt{x^2 + y^2}",
+        r"\begin{pmatrix} a & b \\ c & d \end{pmatrix}",
+        r"\sum_{i=1}^{n} x_i",
+    ];
+
+    let opts = ConvertOptions::default();
+    for latex in cases {
+        let expected = convert(latex, &opts).unwrap();
+        let mut sink = String::new();
+        convert_to(latex, &opts, &mut sink).unwrap();
+        assert_eq!(expected, sink);
+    }
+}

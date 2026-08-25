@@ -116,8 +116,15 @@ pub fn parse_latex(input: &str) -> Result<MathNode<'_>, ParseError> {
     parse(input, &ParseOptions::default())
 }
 
-/// One-shot LaTeX → MathML conversion (recommended high-level API).
-pub fn convert(input: &str, opts: &ConvertOptions) -> Result<String, ParseError> {
+/// One-shot LaTeX → MathML conversion directly streaming into a [`MathSink`].
+///
+/// This avoids allocating an intermediate [`String`] and allows callers to reuse existing
+/// buffers across multiple formula conversions.
+pub fn convert_to(
+    input: &str,
+    opts: &ConvertOptions,
+    out: &mut dyn MathSink,
+) -> Result<(), ParseError> {
     let ast = parse(input, &opts.parse)?;
     depth::configure_render(opts.parse.max_depth);
 
@@ -125,18 +132,37 @@ pub fn convert(input: &str, opts: &ConvertOptions) -> Result<String, ParseError>
         mathml_core: opts.mathml_core,
         emit_intent: opts.emit_intent,
     };
-    let inner = generate_mathml_with_options(&ast, opts.mode, &render_opts);
 
     if opts.wrap_math {
-        let display_attr = match opts.mode {
-            RenderMode::Display => " display=\"block\"",
-            RenderMode::Inline => "",
-        };
-        Ok(format!(
-            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"{}>{}</math>",
-            display_attr, inner
-        ))
-    } else {
-        Ok(inner)
+        match opts.mode {
+            RenderMode::Display => {
+                out.push_str(
+                    "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\">",
+                )
+                .map_err(|e| ParseError::at_offset(ParseErrorKind::Other, 0, e.to_string()))?;
+            }
+            RenderMode::Inline => {
+                out.push_str("<math xmlns=\"http://www.w3.org/1998/Math/MathML\">")
+                    .map_err(|e| ParseError::at_offset(ParseErrorKind::Other, 0, e.to_string()))?;
+            }
+        }
     }
+
+    render_mathml_to(&ast, opts.mode, &render_opts, out)
+        .map_err(|e| ParseError::at_offset(ParseErrorKind::Other, 0, e.to_string()))?;
+
+    if opts.wrap_math {
+        out.push_str("</math>")
+            .map_err(|e| ParseError::at_offset(ParseErrorKind::Other, 0, e.to_string()))?;
+    }
+
+    Ok(())
+}
+
+/// One-shot LaTeX → MathML conversion (recommended high-level API).
+pub fn convert(input: &str, opts: &ConvertOptions) -> Result<String, ParseError> {
+    let estimated_capacity = input.len().saturating_mul(4).saturating_add(64);
+    let mut buf = String::with_capacity(estimated_capacity);
+    convert_to(input, opts, &mut buf)?;
+    Ok(buf)
 }

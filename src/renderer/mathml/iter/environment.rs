@@ -2,8 +2,9 @@
 
 use super::super::basic::escape_xml;
 use super::super::{MathMLRenderer, RenderCtx};
-use super::Frame;
+use super::{Frame, FrameStack};
 use crate::ast::*;
+use std::borrow::Cow;
 use std::fmt;
 
 impl MathMLRenderer {
@@ -13,7 +14,7 @@ impl MathMLRenderer {
         format: &Option<std::borrow::Cow<'_, str>>,
         rows: &'n [(Vec<MathNode<'s>>, Option<std::borrow::Cow<'s, str>>)],
         ctx: &mut RenderCtx<'_>,
-        stack: &mut Vec<Frame<'n, 's>>,
+        stack: &mut FrameStack<'n, 's>,
     ) -> fmt::Result {
         // Build open/close strings eagerly; push cells as Node frames.
         let mut custom_aligns = Vec::new();
@@ -63,10 +64,7 @@ impl MathMLRenderer {
             stack.push(Frame::Lit("</mrow>"));
         }
         if let Some(f) = close_fence {
-            stack.push(Frame::Owned(format!(
-                "<mo stretchy=\"true\">{}</mo>",
-                escape_xml(f)
-            )));
+            stack.push(Frame::StretchyMo(Cow::Borrowed(f)));
         }
         stack.push(Frame::Lit("</mtable>"));
 
@@ -155,10 +153,7 @@ impl MathMLRenderer {
         stack.push(Frame::Owned(open));
 
         if let Some(f) = open_fence {
-            stack.push(Frame::Owned(format!(
-                "<mo stretchy=\"true\">{}</mo>",
-                escape_xml(f)
-            )));
+            stack.push(Frame::StretchyMo(Cow::Borrowed(f)));
         }
         if wrap {
             stack.push(Frame::Lit("<mrow>"));
