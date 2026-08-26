@@ -65,6 +65,27 @@ fn bench_pipeline(c: &mut Criterion) {
         })
     });
 
+    let dirac = r"\bra{\psi} \hat{H} \ket{\psi} = \mel{\psi}{\hat{H}}{\psi} + \braket{\phi|\psi}";
+    group.bench_function("convert_physics_dirac", |b| {
+        b.iter(|| {
+            let _ = convert(black_box(dirac), &convert_opts).unwrap();
+        })
+    });
+
+    let maxwell = r"\div \mathbf{E} = \frac{\rho}{\epsilon_0}, \quad \curl \mathbf{B} = \mu_0 \mathbf{J} + \mu_0 \epsilon_0 \pdv{\mathbf{E}}{t}";
+    group.bench_function("convert_physics_maxwell", |b| {
+        b.iter(|| {
+            let _ = convert(black_box(maxwell), &convert_opts).unwrap();
+        })
+    });
+
+    let chem = r"\ce{^{238}_{92}U -> ^{234}_{90}Th + \alpha} \quad \ce{2H2 + O2 -> 2H2O}";
+    group.bench_function("convert_chemistry_reaction", |b| {
+        b.iter(|| {
+            let _ = convert(black_box(chem), &convert_opts).unwrap();
+        })
+    });
+
     group.finish();
 }
 

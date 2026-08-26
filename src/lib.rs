@@ -159,9 +159,23 @@ pub fn convert_to(
     Ok(())
 }
 
+#[inline]
+fn estimate_mathml_capacity(input: &str, wrap_math: bool) -> usize {
+    let len = input.len();
+    let bytes = input.as_bytes();
+    let slash_count = memchr::memchr_iter(b'\\', bytes).count();
+    let expansion_factor = if slash_count > len / 10 { 6 } else { 4 };
+    let base = len.saturating_mul(expansion_factor);
+    if wrap_math {
+        base.saturating_add(128)
+    } else {
+        base.saturating_add(64)
+    }
+}
+
 /// One-shot LaTeX → MathML conversion (recommended high-level API).
 pub fn convert(input: &str, opts: &ConvertOptions) -> Result<String, ParseError> {
-    let estimated_capacity = input.len().saturating_mul(4).saturating_add(64);
+    let estimated_capacity = estimate_mathml_capacity(input, opts.wrap_math);
     let mut buf = String::with_capacity(estimated_capacity);
     convert_to(input, opts, &mut buf)?;
     Ok(buf)

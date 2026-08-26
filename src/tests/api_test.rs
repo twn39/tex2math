@@ -93,3 +93,8 @@ fn test_convert_to_matches_convert() {
         assert_eq!(expected, sink);
     }
 }
+
+#[test]
+fn test_mathnode_size() {
+    println!("size_of::<MathNode> = {}", std::mem::size_of::<MathNode>());
+}

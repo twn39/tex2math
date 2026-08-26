@@ -96,29 +96,45 @@ pub fn parse_fallback_char<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>>
 
 /// Parses a string slice enclosed in matching curly braces `{...}`, keeping track of nesting depth and escaping backslashes.
 /// Returns the inner content (excluding the outermost braces) and whether the closing brace was found.
+#[inline]
 pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bool)> {
     let _ = preceded(space0, winnow::token::literal("{")).parse_next(input)?;
 
     let full = *input;
+    let bytes = full.as_bytes();
     let mut depth = 1usize;
+    let mut offset = 0usize;
     let mut len = 0usize;
-    let mut backslash_count = 0usize;
-    for (idx, c) in full.char_indices() {
-        if c == '\\' {
-            backslash_count += 1;
-        } else {
-            if (c == '{' || c == '}') && backslash_count.is_multiple_of(2) {
-                if c == '{' {
-                    depth += 1;
-                } else {
-                    depth -= 1;
-                    if depth == 0 {
-                        len = idx;
-                        break;
-                    }
+
+    while offset < bytes.len() {
+        if let Some(pos) = memchr::memchr3(b'{', b'}', b'\\', &bytes[offset..]) {
+            let found_idx = offset + pos;
+            let byte = bytes[found_idx];
+            if byte == b'\\' {
+                let mut backslashes = 1usize;
+                while found_idx + backslashes < bytes.len()
+                    && bytes[found_idx + backslashes] == b'\\'
+                {
+                    backslashes += 1;
                 }
+                if !backslashes.is_multiple_of(2) {
+                    offset = (found_idx + backslashes + 1).min(bytes.len());
+                } else {
+                    offset = found_idx + backslashes;
+                }
+            } else if byte == b'{' {
+                depth += 1;
+                offset = found_idx + 1;
+            } else if byte == b'}' {
+                depth -= 1;
+                if depth == 0 {
+                    len = found_idx;
+                    break;
+                }
+                offset = found_idx + 1;
             }
-            backslash_count = 0;
+        } else {
+            break;
         }
     }
 
@@ -135,29 +151,45 @@ pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bo
 
 /// Parses a string slice enclosed in matching square brackets `[...]`, keeping track of nesting depth and escaping backslashes.
 /// Returns the inner content (excluding the outermost brackets) and whether the closing bracket was found.
+#[inline]
 pub fn take_balanced_brackets<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bool)> {
     let _ = preceded(space0, winnow::token::literal("[")).parse_next(input)?;
 
     let full = *input;
+    let bytes = full.as_bytes();
     let mut depth = 1usize;
+    let mut offset = 0usize;
     let mut len = 0usize;
-    let mut backslash_count = 0usize;
-    for (idx, c) in full.char_indices() {
-        if c == '\\' {
-            backslash_count += 1;
-        } else {
-            if (c == '[' || c == ']') && backslash_count.is_multiple_of(2) {
-                if c == '[' {
-                    depth += 1;
-                } else {
-                    depth -= 1;
-                    if depth == 0 {
-                        len = idx;
-                        break;
-                    }
+
+    while offset < bytes.len() {
+        if let Some(pos) = memchr::memchr3(b'[', b']', b'\\', &bytes[offset..]) {
+            let found_idx = offset + pos;
+            let byte = bytes[found_idx];
+            if byte == b'\\' {
+                let mut backslashes = 1usize;
+                while found_idx + backslashes < bytes.len()
+                    && bytes[found_idx + backslashes] == b'\\'
+                {
+                    backslashes += 1;
                 }
+                if !backslashes.is_multiple_of(2) {
+                    offset = (found_idx + backslashes + 1).min(bytes.len());
+                } else {
+                    offset = found_idx + backslashes;
+                }
+            } else if byte == b'[' {
+                depth += 1;
+                offset = found_idx + 1;
+            } else if byte == b']' {
+                depth -= 1;
+                if depth == 0 {
+                    len = found_idx;
+                    break;
+                }
+                offset = found_idx + 1;
             }
-            backslash_count = 0;
+        } else {
+            break;
         }
     }
 
