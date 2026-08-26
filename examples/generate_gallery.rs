@@ -161,9 +161,27 @@ fn main() {
             emit_intent: meta.emit_intent,
         };
 
+        let mathml_file = tex_path.with_extension("mathml");
+        if !mathml_file.exists() {
+            let fixture_mode = if meta_path.exists() {
+                meta.mode
+            } else {
+                RenderMode::Inline
+            };
+            let unwrapped_opts = ConvertOptions {
+                parse: ParseOptions::default(),
+                mode: fixture_mode,
+                wrap_math: false,
+                mathml_core: meta.mathml_core,
+                emit_intent: meta.emit_intent,
+            };
+            if let Ok(raw_mathml) = convert(&latex, &unwrapped_opts) {
+                let _ = fs::write(&mathml_file, format!("{}\n", raw_mathml.trim()));
+            }
+        }
+
         let (mathml_rendered, status) = match convert(&latex, &opts) {
             Ok(mathml) => {
-                let mathml_file = tex_path.with_extension("mathml");
                 let mut status_str = "Converted".to_string();
                 if mathml_file.exists() {
                     let expected = fs::read_to_string(&mathml_file).unwrap_or_default();

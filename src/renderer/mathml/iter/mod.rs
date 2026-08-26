@@ -121,7 +121,9 @@ impl MathMLRenderer {
             | MathNode::Error(_)
             | MathNode::SizedDelimiter { .. }
             | MathNode::Middle(_)
-            | MathNode::ChooseMarker => self.expand_token(node, ctx),
+            | MathNode::ChooseMarker
+            | MathNode::OverMarker
+            | MathNode::AtopMarker => self.expand_token(node, ctx),
 
             // Structural containers
             MathNode::Fraction(_, _)

@@ -113,7 +113,7 @@ impl MathMLRenderer {
                 ctx.out.push_str("</mo>")?;
             }
             // Should have been folded away; keep a harmless fallback.
-            MathNode::ChooseMarker => {
+            MathNode::ChooseMarker | MathNode::OverMarker | MathNode::AtopMarker => {
                 ctx.out.push_str("<mo>/</mo>")?;
             }
             _ => unreachable!("expand_token called with non-token node"),

@@ -50,11 +50,14 @@ impl MathMLRenderer {
             "Bmatrix" => (Some("{"), Some("}")),
             "vmatrix" => (Some("|"), Some("|")),
             "Vmatrix" => (Some("‖"), Some("‖")),
-            "cases" => (Some("{"), None),
+            "cases" | "dcases" => (Some("{"), None),
+            "rcases" => (None, Some("}")),
             _ => (None, None),
         };
 
-        let wrap = open_fence.is_some() || close_fence.is_some() || name == "cases";
+        let wrap = open_fence.is_some()
+            || close_fence.is_some()
+            || matches!(name, "cases" | "dcases" | "rcases");
         // Compact script-size tables (KaTeX-style smallmatrix / substack).
         let script_level = matches!(name, "smallmatrix" | "substack");
 
@@ -111,7 +114,7 @@ impl MathMLRenderer {
                     open.push_str(&format!(" columnalign=\"{}\"", aligns.join(" ")));
                 }
             }
-            "cases" => {
+            "cases" | "dcases" | "rcases" => {
                 // Condition column left-aligned; generous gap between value and condition.
                 open.push_str(" columnalign=\"left left\" columnspacing=\"1em\"");
             }

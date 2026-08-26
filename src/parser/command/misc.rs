@@ -121,7 +121,7 @@ pub(super) fn parse_substack_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNod
 
 pub(super) fn parse_middle_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     let delim = parse_fence_delim.parse_next(input)?;
-    Ok(MathNode::Middle(Cow::Owned(delim)))
+    Ok(MathNode::Middle(delim))
 }
 
 /// Equation tags (`\tag{…}`).

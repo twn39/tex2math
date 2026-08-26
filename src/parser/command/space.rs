@@ -50,22 +50,22 @@ pub(super) fn parse_dimension<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
     Ok(dim)
 }
 
-fn normalize_space_dim(cmd: &str, dim: &str) -> String {
+fn normalize_space_dim<'s>(cmd: &str, dim: &'s str) -> Cow<'s, str> {
+    let trimmed = dim.trim();
     if matches!(cmd, "mkern" | "mskip") {
-        let trimmed = dim.trim();
         if let Some(num) = trimmed.strip_suffix("mu") {
             if let Ok(v) = num.trim().parse::<f64>() {
-                return format!("{}em", v / 18.0);
+                return Cow::Owned(format!("{}em", v / 18.0));
             }
         }
     }
-    dim.trim().to_string()
+    Cow::Borrowed(trimmed)
 }
 
 pub(super) fn parse_dim_space_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     let dim = parse_dimension(input)?;
     let width = normalize_space_dim(cmd, dim);
-    Ok(MathNode::Space(Cow::Owned(width)))
+    Ok(MathNode::Space(width))
 }
 
 pub(super) fn parse_sized_delimiter_cmd<'s>(
@@ -77,6 +77,6 @@ pub(super) fn parse_sized_delimiter_cmd<'s>(
     let delim = parse_fence_delim.parse_next(input)?;
     Ok(MathNode::SizedDelimiter {
         size: Cow::Borrowed(size),
-        delim: Cow::Owned(delim),
+        delim,
     })
 }

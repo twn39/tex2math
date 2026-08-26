@@ -266,6 +266,10 @@ pub enum MathNode<'s> {
     Binom(Box<MathNode<'s>>, Box<MathNode<'s>>),
     /// Infix `\choose` marker; folded into [`MathNode::Binom`] by the semantic pass.
     ChooseMarker,
+    /// Infix `\over` marker; folded into [`MathNode::Fraction`] by the semantic pass.
+    OverMarker,
+    /// Infix `\atop` marker; folded into zero-thickness fraction by the semantic pass.
+    AtopMarker,
     /// Stretchy delimiter from `\middle` (inside `\left`…`\right`).
     Middle(Cow<'s, str>),
     Scripts {
@@ -367,6 +371,8 @@ impl<'s> MathNode<'s> {
             Fraction(a, b) => Fraction(Box::new(a.into_owned()), Box::new(b.into_owned())),
             Binom(a, b) => Binom(Box::new(a.into_owned()), Box::new(b.into_owned())),
             ChooseMarker => ChooseMarker,
+            OverMarker => OverMarker,
+            AtopMarker => AtopMarker,
             Middle(s) => Middle(Cow::Owned(s.into_owned())),
             Scripts {
                 base,

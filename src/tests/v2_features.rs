@@ -200,19 +200,39 @@ fn irregular_cmds_snapshot_guardrail() {
     use crate::registry::IRREGULAR_CMDS;
 
     const EXPECTED: &[&str] = &[
+        "atop",
         "boxed",
+        "bra",
+        "braket",
+        "ce",
         "choose",
         "color",
         "colorbox",
+        "curl",
+        "dd",
+        "div",
+        "dv",
+        "ev",
+        "expval",
         "genfrac",
+        "grad",
         "hline",
+        "ket",
+        "ketbra",
+        "laplacian",
+        "matrixel",
+        "mel",
         "middle",
         "not",
         "notag",
         "operatorname",
         "operatorname*",
+        "over",
         "overset",
+        "pdv",
         "prescript",
+        "pu",
+        "rot",
         "sideset",
         "stackrel",
         "substack",
@@ -220,6 +240,7 @@ fn irregular_cmds_snapshot_guardrail() {
         "text",
         "textcolor",
         "underset",
+        "unit",
     ];
     assert_eq!(
         IRREGULAR_CMDS, EXPECTED,
@@ -531,4 +552,139 @@ fn prescript_fold_via_parse() {
             let _ = other;
         }
     }
+}
+
+#[test]
+fn over_and_atop_infix_folds() {
+    // \over should fold to Fraction
+    let over_mml = convert(
+        "{a + 1 \\over b - 1}",
+        &ConvertOptions {
+            wrap_math: false,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let frac_mml = convert(
+        "\\frac{a + 1}{b - 1}",
+        &ConvertOptions {
+            wrap_math: false,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(over_mml, frac_mml);
+
+    // \atop should fold to stacked elements
+    let atop_mml = convert(
+        "{n \\atop k}",
+        &ConvertOptions {
+            wrap_math: false,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(atop_mml.contains("<mfrac>"), "got {atop_mml}");
+}
+
+#[test]
+fn zero_copy_borrowed_leaves() {
+    let input = "x + y = 10";
+    let ast = parse(input, &ParseOptions::default()).unwrap();
+    if let MathNode::Row(nodes) = ast {
+        for node in nodes {
+            match node {
+                MathNode::Identifier(cow) => {
+                    assert!(
+                        matches!(cow, std::borrow::Cow::Borrowed(_)),
+                        "expected borrowed identifier, got {cow:?}"
+                    );
+                }
+                MathNode::Operator(cow) => {
+                    assert!(
+                        matches!(cow, std::borrow::Cow::Borrowed(_)),
+                        "expected borrowed operator, got {cow:?}"
+                    );
+                }
+                MathNode::Number(cow) => {
+                    assert!(
+                        matches!(cow, std::borrow::Cow::Borrowed(_)),
+                        "expected borrowed number, got {cow:?}"
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Fences should also be borrowed
+    let fence_input = "\\left( x \\right)";
+    let fence_ast = parse(fence_input, &ParseOptions::default()).unwrap();
+    if let MathNode::Fenced { open, close, .. } = fence_ast {
+        assert!(
+            matches!(open, std::borrow::Cow::Borrowed(_)),
+            "expected borrowed open delimiter"
+        );
+        assert!(
+            matches!(close, std::borrow::Cow::Borrowed(_)),
+            "expected borrowed close delimiter"
+        );
+    }
+}
+
+#[test]
+fn prime_and_script_permutations() {
+    let opts = ConvertOptions {
+        wrap_math: false,
+        ..Default::default()
+    };
+
+    // f_0' vs f'_0 -> both produce msubsup with subscript 0 and prime
+    let mml1 = convert("f_0'", &opts).unwrap();
+    let mml2 = convert("f'_0", &opts).unwrap();
+    assert_eq!(mml1, "<msubsup><mi>f</mi><mn>0</mn><mi>′</mi></msubsup>");
+    assert_eq!(mml2, "<msubsup><mi>f</mi><mn>0</mn><mi>′</mi></msubsup>");
+
+    // f_0'^2 vs f'^2_0 -> both produce msubsup with subscript 0 and horizontal row [′, 2]
+    let mml3 = convert("f_0'^2", &opts).unwrap();
+    let mml4 = convert("f'^2_0", &opts).unwrap();
+    assert_eq!(
+        mml3,
+        "<msubsup><mi>f</mi><mn>0</mn><mrow><mi>′</mi><mn>2</mn></mrow></msubsup>"
+    );
+    assert_eq!(
+        mml4,
+        "<msubsup><mi>f</mi><mn>0</mn><mrow><mi>′</mi><mn>2</mn></mrow></msubsup>"
+    );
+}
+
+#[test]
+fn ast_folder_custom_pass() {
+    use crate::sema::AstFolder;
+
+    struct DoubleNumbers;
+    impl<'s> AstFolder<'s> for DoubleNumbers {
+        fn fold_node(&mut self, node: MathNode<'s>) -> MathNode<'s> {
+            match node {
+                MathNode::Number(s) => {
+                    if let Ok(n) = s.parse::<i64>() {
+                        MathNode::Number(std::borrow::Cow::Owned((n * 2).to_string()))
+                    } else {
+                        MathNode::Number(s)
+                    }
+                }
+                other => crate::sema::walk_node(self, other),
+            }
+        }
+    }
+
+    let mut folder = DoubleNumbers;
+    let ast = parse("x + 5 = 10", &ParseOptions::default()).unwrap();
+    let folded = folder.fold_node(ast);
+
+    let mml = crate::generate_mathml(&folded, RenderMode::Inline);
+    assert_eq!(
+        mml,
+        "<mrow><mi>x</mi><mo>+</mo><mn>10</mn><mo>=</mo><mn>20</mn></mrow>"
+    );
 }

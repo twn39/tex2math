@@ -27,7 +27,8 @@ pub fn parse_ident<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace(
         "parse_ident",
         winnow::token::one_of(|c: char| c.is_ascii_alphabetic())
-            .map(|c: char| MathNode::Identifier(Cow::Owned(c.to_string()))),
+            .take()
+            .map(|s: &'s str| MathNode::Identifier(Cow::Borrowed(s))),
     )
     .parse_next(input)
 }
@@ -39,7 +40,8 @@ pub fn parse_operator<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         one_of([
             '+', '-', '=', '<', '>', '(', ')', '[', ']', '|', ',', '/', '*', '.', ':',
         ])
-        .map(|c: char| MathNode::Operator(Cow::Owned(c.to_string()))),
+        .take()
+        .map(|s: &'s str| MathNode::Operator(Cow::Borrowed(s))),
     )
     .parse_next(input)
 }
@@ -78,13 +80,14 @@ pub fn parse_fallback_char<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>>
     trace(
         "parse_fallback_char",
         winnow::token::one_of(|c: char| !c.is_ascii_whitespace() && !"\\{}_^&%$#~".contains(c))
-            .map(|c: char| {
+            .with_taken()
+            .map(|(c, s): (char, &'s str)| {
                 if c.is_alphabetic() {
-                    MathNode::Identifier(Cow::Owned(c.to_string()))
+                    MathNode::Identifier(Cow::Borrowed(s))
                 } else if c.is_numeric() {
-                    MathNode::Number(Cow::Owned(c.to_string()))
+                    MathNode::Number(Cow::Borrowed(s))
                 } else {
-                    MathNode::Operator(Cow::Owned(c.to_string()))
+                    MathNode::Operator(Cow::Borrowed(s))
                 }
             }),
     )

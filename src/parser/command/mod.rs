@@ -14,6 +14,7 @@
 
 mod frac;
 mod misc;
+pub mod physics;
 mod scripts;
 mod space;
 mod style;
@@ -30,6 +31,10 @@ use crate::registry::{command_spec, CommandSpec};
 use frac::{parse_binom_cmd, parse_frac_style_cmd, parse_genfrac_cmd};
 use misc::{
     parse_math_class_cmd, parse_middle_cmd, parse_mod_cmd, parse_substack_cmd, parse_tag_cmd,
+};
+use physics::{
+    parse_bra_cmd, parse_braket_cmd, parse_dd_cmd, parse_dv_cmd, parse_expval_cmd, parse_ket_cmd,
+    parse_ketbra_cmd, parse_mel_cmd, parse_pdv_cmd, parse_unit_cmd, parse_vector_op_cmd,
 };
 use scripts::{
     parse_extensible_arrow_cmd, parse_not_modifier_cmd, parse_operatorname_cmd,
@@ -104,14 +109,30 @@ fn parse_irregular_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNo
         "sideset" => parse_sideset_cmd(input),
         "operatorname" | "operatorname*" => parse_operatorname_cmd(cmd, input),
         "not" => parse_not_modifier_cmd(input),
+        "atop" => Ok(MathNode::AtopMarker),
         "choose" => Ok(MathNode::ChooseMarker),
+        "over" => Ok(MathNode::OverMarker),
         "genfrac" => parse_genfrac_cmd(input),
         "hline" => Ok(MathNode::Row(vec![])),
         "substack" => parse_substack_cmd(input),
         "middle" => parse_middle_cmd(input),
         "tag" => parse_tag_cmd(input),
         "notag" => Ok(MathNode::Row(vec![])),
-        _ => unreachable!("irregular pre-filtered via CommandSpec"),
+        // Physics & Dirac notation
+        "bra" => parse_bra_cmd(input),
+        "ket" => parse_ket_cmd(input),
+        "braket" => parse_braket_cmd(input),
+        "ketbra" => parse_ketbra_cmd(input),
+        "mel" | "matrixel" => parse_mel_cmd(input),
+        "ev" | "expval" => parse_expval_cmd(input),
+        "dd" => parse_dd_cmd(input),
+        "dv" => parse_dv_cmd(input),
+        "pdv" => parse_pdv_cmd(input),
+        "grad" | "div" | "curl" | "rot" | "laplacian" => Ok(parse_vector_op_cmd(cmd)),
+        "unit" | "pu" => parse_unit_cmd(input),
+        // Chemistry
+        "ce" => crate::parser::chem::parse_ce_cmd(input),
+        _ => unreachable!("irregular pre-filtered via CommandSpec: {cmd}"),
     }
 }
 

@@ -72,17 +72,17 @@ pub(super) fn parse_genfrac_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode
             frac
         } else {
             MathNode::Fenced {
-                open: Cow::Owned(if left.is_empty() {
-                    ".".into()
+                open: if left.is_empty() {
+                    Cow::Borrowed(".")
                 } else {
-                    left.to_string()
-                }),
+                    Cow::Borrowed(left)
+                },
                 content: Box::new(frac),
-                close: Cow::Owned(if right.is_empty() {
-                    ".".into()
+                close: if right.is_empty() {
+                    Cow::Borrowed(".")
                 } else {
-                    right.to_string()
-                }),
+                    Cow::Borrowed(right)
+                },
             }
         }
     };

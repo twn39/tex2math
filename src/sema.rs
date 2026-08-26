@@ -12,7 +12,7 @@
 //!    prime-only script bodies (`^{\prime\prime}` → ″) before other rewrites.
 //! 2. **Prescript fold** (`fold_prescripts`) — `{}_a^b X` empty-base scripts
 //!    merge into `mmultiscripts` / pre-script fields.
-//! 3. **Choose fold** (`fold_choose`) — infix `\choose` marker → [`MathNode::Binom`].
+//! 3. **Infix fold** (`fold_infix` / `fold_choose`) — infix `\choose`, `\over`, `\atop` → [`MathNode::Binom`] / [`MathNode::Fraction`].
 //! 4. **Tree normalize** — collapse trivial single-child rows; recurse into
 //!    children so nested rows see the same pipeline.
 //!
@@ -32,11 +32,11 @@ pub fn analyze<'s>(node: MathNode<'s>) -> MathNode<'s> {
     normalize_tree(node)
 }
 
-/// Fold a flat list of nodes in fixed order: primes → prescripts → `\choose`.
+/// Fold a flat list of nodes in fixed order: primes → prescripts → infix (`\choose`, `\over`, `\atop`).
 #[inline]
 pub fn fold_row<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
-    // Order: (1) primes (2) prescripts (3) choose — see module docs.
-    fold_choose(flatten_row_nodes(fold_prescripts(
+    // Order: (1) primes (2) prescripts (3) infix — see module docs.
+    fold_infix(flatten_row_nodes(fold_prescripts(
         nodes.into_iter().map(fold_primes_in_node).collect(),
     )))
 }
@@ -62,32 +62,44 @@ fn prime_glyph(count: usize) -> &'static str {
     }
 }
 
-/// Collapse a node that is only primes (or a row of primes) into one prime identifier.
+/// Collapse a node that contains primes into standardized prime glyphs,
+/// merging consecutive primes while preserving non-prime exponents.
 pub fn fold_prime_node<'s>(node: MathNode<'s>) -> MathNode<'s> {
     match node {
         MathNode::Row(nodes) => {
-            let mut total = 0usize;
-            let mut all_primes = !nodes.is_empty();
-            for n in &nodes {
-                match n {
+            let mut new_nodes: Vec<MathNode<'s>> = Vec::with_capacity(nodes.len());
+            let mut current_prime_count = 0usize;
+
+            for n in nodes {
+                let folded_n = fold_prime_node(n);
+                match &folded_n {
                     MathNode::Identifier(s) | MathNode::Operator(s) => {
                         if let Some(w) = prime_weight(s.as_ref()) {
-                            total = total.saturating_add(w);
-                        } else {
-                            all_primes = false;
-                            break;
+                            current_prime_count = current_prime_count.saturating_add(w);
+                            continue;
                         }
                     }
-                    _ => {
-                        all_primes = false;
-                        break;
-                    }
+                    _ => {}
                 }
+                if current_prime_count > 0 {
+                    new_nodes.push(MathNode::Identifier(Cow::Borrowed(prime_glyph(
+                        current_prime_count.min(4),
+                    ))));
+                    current_prime_count = 0;
+                }
+                new_nodes.push(folded_n);
             }
-            if all_primes && total > 0 {
-                MathNode::Identifier(Cow::Borrowed(prime_glyph(total.min(4))))
+
+            if current_prime_count > 0 {
+                new_nodes.push(MathNode::Identifier(Cow::Borrowed(prime_glyph(
+                    current_prime_count.min(4),
+                ))));
+            }
+
+            if new_nodes.len() == 1 {
+                new_nodes.into_iter().next().unwrap()
             } else {
-                MathNode::Row(nodes.into_iter().map(fold_prime_node).collect())
+                MathNode::Row(new_nodes)
             }
         }
         MathNode::Identifier(s) | MathNode::Operator(s) if prime_weight(s.as_ref()).is_some() => {
@@ -95,6 +107,142 @@ pub fn fold_prime_node<'s>(node: MathNode<'s>) -> MathNode<'s> {
             MathNode::Identifier(Cow::Borrowed(prime_glyph(w.min(4))))
         }
         other => other,
+    }
+}
+
+/// A trait for performing structured, single-pass or multi-pass AST transformations.
+///
+/// Implements default recursive walks so passes only need to implement the specific
+/// node kinds they are interested in mutating.
+pub trait AstFolder<'s> {
+    fn fold_node(&mut self, node: MathNode<'s>) -> MathNode<'s> {
+        walk_node(self, node)
+    }
+
+    fn fold_row(&mut self, nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
+        let folded: Vec<_> = nodes.into_iter().map(|n| self.fold_node(n)).collect();
+        fold_row(folded)
+    }
+
+    #[allow(clippy::boxed_local)]
+    fn fold_scripts(
+        &mut self,
+        base: Box<MathNode<'s>>,
+        sub: Option<Box<MathNode<'s>>>,
+        sup: Option<Box<MathNode<'s>>>,
+        pre_sub: Option<Box<MathNode<'s>>>,
+        pre_sup: Option<Box<MathNode<'s>>>,
+        behavior: LimitBehavior,
+    ) -> MathNode<'s> {
+        MathNode::Scripts {
+            base: Box::new(self.fold_node(*base)),
+            sub: sub.map(|n| Box::new(fold_prime_node(self.fold_node(*n)))),
+            sup: sup.map(|n| Box::new(fold_prime_node(self.fold_node(*n)))),
+            pre_sub: pre_sub.map(|n| Box::new(fold_prime_node(self.fold_node(*n)))),
+            pre_sup: pre_sup.map(|n| Box::new(fold_prime_node(self.fold_node(*n)))),
+            behavior,
+        }
+    }
+}
+
+/// Walk an AST node recursively using the supplied [`AstFolder`].
+pub fn walk_node<'s, F: AstFolder<'s> + ?Sized>(
+    folder: &mut F,
+    node: MathNode<'s>,
+) -> MathNode<'s> {
+    match node {
+        MathNode::Row(nodes) => folder.fold_row(nodes),
+        MathNode::Scripts {
+            base,
+            sub,
+            sup,
+            pre_sub,
+            pre_sup,
+            behavior,
+        } => folder.fold_scripts(base, sub, sup, pre_sub, pre_sup, behavior),
+        MathNode::Fraction(a, b) => MathNode::Fraction(
+            Box::new(folder.fold_node(*a)),
+            Box::new(folder.fold_node(*b)),
+        ),
+        MathNode::Binom(a, b) => MathNode::Binom(
+            Box::new(folder.fold_node(*a)),
+            Box::new(folder.fold_node(*b)),
+        ),
+        MathNode::Sqrt(c) => MathNode::Sqrt(Box::new(folder.fold_node(*c))),
+        MathNode::Root { index, content } => MathNode::Root {
+            index: Box::new(folder.fold_node(*index)),
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::Fenced {
+            open,
+            content,
+            close,
+        } => MathNode::Fenced {
+            open,
+            content: Box::new(folder.fold_node(*content)),
+            close,
+        },
+        MathNode::Environment {
+            name,
+            format,
+            rows,
+            row_lines,
+        } => MathNode::Environment {
+            name,
+            format,
+            rows: rows
+                .into_iter()
+                .map(|(cells, sp)| (cells.into_iter().map(|c| folder.fold_node(c)).collect(), sp))
+                .collect(),
+            row_lines,
+        },
+        MathNode::Style { variant, content } => MathNode::Style {
+            variant,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::Accent { mark, content } => MathNode::Accent {
+            mark,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::OperatorName(c) => MathNode::OperatorName(Box::new(folder.fold_node(*c))),
+        MathNode::MathClass { class, content } => MathNode::MathClass {
+            class,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::Color { color, content } => MathNode::Color {
+            color,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::ColorBox { bg_color, content } => MathNode::ColorBox {
+            bg_color,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::Boxed(c) => MathNode::Boxed(Box::new(folder.fold_node(*c))),
+        MathNode::Phantom { kind, content } => MathNode::Phantom {
+            kind,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::Cancel { mode, content } => MathNode::Cancel {
+            mode,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::StretchOp {
+            op,
+            is_over,
+            content,
+        } => MathNode::StretchOp {
+            op,
+            is_over,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        MathNode::StyledMath {
+            displaystyle,
+            content,
+        } => MathNode::StyledMath {
+            displaystyle,
+            content: Box::new(folder.fold_node(*content)),
+        },
+        leaf => leaf,
     }
 }
 
@@ -127,15 +275,18 @@ fn flatten_row_nodes<'s>(node: MathNode<'s>) -> Vec<MathNode<'s>> {
     }
 }
 
-/// Fold `a \choose b` (and multi-token sides) into [`MathNode::Binom`].
-pub fn fold_choose<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
-    if let Some(idx) = nodes
-        .iter()
-        .position(|n| matches!(n, MathNode::ChooseMarker))
-    {
+/// Fold infix markers (`\choose`, `\over`, `\atop`) into [`MathNode::Binom`] or [`MathNode::Fraction`].
+pub fn fold_infix<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
+    if let Some(idx) = nodes.iter().position(|n| {
+        matches!(
+            n,
+            MathNode::ChooseMarker | MathNode::OverMarker | MathNode::AtopMarker
+        )
+    }) {
         let mut left: Vec<MathNode<'s>> = nodes.into_iter().collect();
         let right = left.split_off(idx + 1);
-        left.pop(); // remove ChooseMarker
+        let marker = left.pop().unwrap(); // remove marker
+
         let upper = match left.len() {
             0 => MathNode::Row(vec![]),
             1 => left.into_iter().next().unwrap(),
@@ -146,13 +297,24 @@ pub fn fold_choose<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
             1 => right.into_iter().next().unwrap(),
             _ => MathNode::Row(right),
         };
-        return MathNode::Binom(Box::new(upper), Box::new(lower));
+
+        if matches!(marker, MathNode::ChooseMarker) {
+            return MathNode::Binom(Box::new(upper), Box::new(lower));
+        } else {
+            return MathNode::Fraction(Box::new(upper), Box::new(lower));
+        }
     }
     if nodes.len() == 1 {
         nodes.into_iter().next().unwrap()
     } else {
         MathNode::Row(nodes)
     }
+}
+
+/// Backward compatible alias for [`fold_infix`].
+#[inline]
+pub fn fold_choose<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
+    fold_infix(nodes)
 }
 
 /// Fold adjacent empty-base scripts into tensor / prescript form.
@@ -219,110 +381,14 @@ pub fn fold_prescripts<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
     }
 }
 
+struct TreeNormalizer;
+
+impl<'s> AstFolder<'s> for TreeNormalizer {}
+
 /// Recursively normalize the tree (collapse trivial rows; re-fold row children).
 pub fn normalize_tree<'s>(node: MathNode<'s>) -> MathNode<'s> {
-    match node {
-        MathNode::Row(nodes) => {
-            let mapped: Vec<_> = nodes.into_iter().map(normalize_tree).collect();
-            fold_row(mapped)
-        }
-        MathNode::Fraction(a, b) => {
-            MathNode::Fraction(Box::new(normalize_tree(*a)), Box::new(normalize_tree(*b)))
-        }
-        MathNode::Binom(a, b) => {
-            MathNode::Binom(Box::new(normalize_tree(*a)), Box::new(normalize_tree(*b)))
-        }
-        MathNode::Scripts {
-            base,
-            sub,
-            sup,
-            pre_sub,
-            pre_sup,
-            behavior,
-        } => MathNode::Scripts {
-            base: Box::new(normalize_tree(*base)),
-            sub: sub.map(|n| Box::new(fold_prime_node(normalize_tree(*n)))),
-            sup: sup.map(|n| Box::new(fold_prime_node(normalize_tree(*n)))),
-            pre_sub: pre_sub.map(|n| Box::new(fold_prime_node(normalize_tree(*n)))),
-            pre_sup: pre_sup.map(|n| Box::new(fold_prime_node(normalize_tree(*n)))),
-            behavior,
-        },
-        MathNode::Sqrt(c) => MathNode::Sqrt(Box::new(normalize_tree(*c))),
-        MathNode::Root { index, content } => MathNode::Root {
-            index: Box::new(normalize_tree(*index)),
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::Fenced {
-            open,
-            content,
-            close,
-        } => MathNode::Fenced {
-            open,
-            content: Box::new(normalize_tree(*content)),
-            close,
-        },
-        MathNode::Environment {
-            name,
-            format,
-            rows,
-            row_lines,
-        } => MathNode::Environment {
-            name,
-            format,
-            rows: rows
-                .into_iter()
-                .map(|(cells, sp)| (cells.into_iter().map(normalize_tree).collect(), sp))
-                .collect(),
-            row_lines,
-        },
-        MathNode::Style { variant, content } => MathNode::Style {
-            variant,
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::Accent { mark, content } => MathNode::Accent {
-            mark,
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::OperatorName(c) => MathNode::OperatorName(Box::new(normalize_tree(*c))),
-        MathNode::MathClass { class, content } => MathNode::MathClass {
-            class,
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::Color { color, content } => MathNode::Color {
-            color,
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::ColorBox { bg_color, content } => MathNode::ColorBox {
-            bg_color,
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::Boxed(c) => MathNode::Boxed(Box::new(normalize_tree(*c))),
-        MathNode::Phantom { kind, content } => MathNode::Phantom {
-            kind,
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::Cancel { mode, content } => MathNode::Cancel {
-            mode,
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::StretchOp {
-            op,
-            is_over,
-            content,
-        } => MathNode::StretchOp {
-            op,
-            is_over,
-            content: Box::new(normalize_tree(*content)),
-        },
-        MathNode::StyledMath {
-            displaystyle,
-            content,
-        } => MathNode::StyledMath {
-            displaystyle,
-            content: Box::new(normalize_tree(*content)),
-        },
-        leaf => leaf,
-    }
+    let mut normalizer = TreeNormalizer;
+    normalizer.fold_node(node)
 }
 
 #[cfg(test)]

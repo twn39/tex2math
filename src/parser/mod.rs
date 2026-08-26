@@ -7,10 +7,12 @@ use winnow::token::{literal, one_of};
 use crate::ast::*;
 
 pub mod atoms;
+pub mod chem;
 pub mod command;
 pub mod environment;
 
 pub use atoms::{parse_ident, parse_number, parse_operator};
+pub use chem::parse_ce_cmd;
 pub use command::parse_command;
 pub use environment::parse_environment;
 
@@ -106,47 +108,51 @@ pub fn parse_sqrt<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
 
 // 解析 \left / \right 后跟随的定界符
 // 支持单字符（(, ), [, ], |, .）和命令符号（\langle, \lfloor, \lceil, \lVert 等）
-pub fn parse_fence_delim<'s>(input: &mut &'s str) -> ModalResult<String> {
+pub fn parse_fence_delim<'s>(input: &mut &'s str) -> ModalResult<Cow<'s, str>> {
     preceded(
         space0,
         alt((
             // 隐形定界符
-            literal(".").map(|_: &str| ".".to_string()),
+            literal(".").map(|_: &str| Cow::Borrowed(".")),
             // 转义的单字符定界符：\{, \}, \| 等
-            preceded('\\', one_of(['{', '}', '|', '[', ']'])).map(|c: char| c.to_string()),
+            preceded('\\', one_of(['{', '}', '|', '[', ']'])).map(|c: char| match c {
+                '{' => Cow::Borrowed("{"),
+                '}' => Cow::Borrowed("}"),
+                '|' => Cow::Borrowed("|"),
+                '[' => Cow::Borrowed("["),
+                ']' => Cow::Borrowed("]"),
+                _ => unreachable!(),
+            }),
             // 命令式定界符：\langle, \rangle, \lfloor, \lceil, \lVert 等
-            preceded('\\', alpha1).map(|cmd: &str| {
-                match cmd {
-                    "langle" | "lang" => "\u{27E8}", // ⟨
-                    "rangle" | "rang" => "\u{27E9}", // ⟩
-                    "lfloor" => "\u{230A}",          // ⌊
-                    "rfloor" => "\u{230B}",          // ⌋
-                    "lceil" => "\u{2308}",           // ⌈
-                    "rceil" => "\u{2309}",           // ⌉
-                    "lbrace" => "{",
-                    "rbrace" => "}",
-                    "lbrack" => "[",
-                    "rbrack" => "]",
-                    "vert" | "lvert" | "rvert" => "|",
-                    "Vert" | "lVert" | "rVert" => "∥", // ∥
-                    "uparrow" => "\u{2191}",           // ↑
-                    "downarrow" => "\u{2193}",         // ↓
-                    "Uparrow" => "\u{21D1}",           // ⇑
-                    "Downarrow" => "\u{21D3}",         // ⇓
-                    "updownarrow" => "\u{2195}",       // ↕
-                    "Updownarrow" => "\u{21D5}",       // ⇕
-                    _ => cmd,
-                }
-                .to_string()
+            preceded('\\', alpha1).map(|cmd: &'s str| match cmd {
+                "langle" | "lang" => Cow::Borrowed("\u{27E8}"), // ⟨
+                "rangle" | "rang" => Cow::Borrowed("\u{27E9}"), // ⟩
+                "lfloor" => Cow::Borrowed("\u{230A}"),          // ⌊
+                "rfloor" => Cow::Borrowed("\u{230B}"),          // ⌋
+                "lceil" => Cow::Borrowed("\u{2308}"),           // ⌈
+                "rceil" => Cow::Borrowed("\u{2309}"),           // ⌉
+                "lbrace" => Cow::Borrowed("{"),
+                "rbrace" => Cow::Borrowed("}"),
+                "lbrack" => Cow::Borrowed("["),
+                "rbrack" => Cow::Borrowed("]"),
+                "vert" | "lvert" | "rvert" => Cow::Borrowed("|"),
+                "Vert" | "lVert" | "rVert" => Cow::Borrowed("∥"), // ∥
+                "uparrow" => Cow::Borrowed("\u{2191}"),           // ↑
+                "downarrow" => Cow::Borrowed("\u{2193}"),         // ↓
+                "Uparrow" => Cow::Borrowed("\u{21D1}"),           // ⇑
+                "Downarrow" => Cow::Borrowed("\u{21D3}"),         // ⇓
+                "updownarrow" => Cow::Borrowed("\u{2195}"),       // ↕
+                "Updownarrow" => Cow::Borrowed("\u{21D5}"),       // ⇕
+                _ => Cow::Borrowed(cmd),
             }),
             // 单字符定界符
-            one_of(['(', ')', '[', ']', '{', '}', '|', '<', '>']).map(|c: char| {
-                match c {
-                    '<' => "\u{27E8}".to_string(), // ⟨
-                    '>' => "\u{27E9}".to_string(), // ⟩
-                    _ => c.to_string(),
-                }
-            }),
+            one_of(['(', ')', '[', ']', '{', '}', '|', '<', '>'])
+                .with_taken()
+                .map(|(c, s): (char, &'s str)| match c {
+                    '<' => Cow::Borrowed("\u{27E8}"), // ⟨
+                    '>' => Cow::Borrowed("\u{27E9}"), // ⟩
+                    _ => Cow::Borrowed(s),
+                }),
         )),
     )
     .parse_next(input)
@@ -165,12 +171,12 @@ pub fn parse_left_right<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
         let close = if opt(literal("\\right")).parse_next(input)?.is_some() {
             parse_fence_delim.parse_next(input)?
         } else {
-            ".".to_string() // implicit empty close, same as \left. \right.
+            Cow::Borrowed(".") // implicit empty close, same as \left. \right.
         };
         Ok(MathNode::Fenced {
-            open: Cow::Owned(open),
+            open,
             content: Box::new(content),
-            close: Cow::Owned(close),
+            close,
         })
     })
     .parse_next(input)
@@ -232,34 +238,32 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             LimitBehavior::Default
         };
 
-        let mut sub = None;
-        let mut sup = None;
-
-        // == 新增：撇号（prime）支持 ==
-        // x' 和 x^{\prime} 等价；x'' 对应 x^{\prime\prime}（即双撇线 ″）
-        let mut prime_count = 0usize;
-        while opt(one_of('\'')).parse_next(input)?.is_some() {
-            prime_count += 1;
-        }
-        if prime_count > 0 {
-            let prime_char = match prime_count {
-                1 => "\u{2032}", // ′
-                2 => "\u{2033}", // ″
-                3 => "\u{2034}", // ‴
-                _ => "\u{2057}", // ⁗ (4重撇及以上)
-            };
-            sup = Some(MathNode::Identifier(Cow::Borrowed(prime_char)));
-        }
+        let mut primes: Vec<MathNode<'s>> = Vec::new();
+        let mut sups: Vec<MathNode<'s>> = Vec::new();
+        let mut sub: Option<MathNode<'s>> = None;
 
         loop {
-            if sup.is_none() {
-                if let Some(s) =
-                    opt(preceded((space0, '^', space0), parse_atom)).parse_next(input)?
-                {
-                    sup = Some(s);
-                    continue;
-                }
+            // == 撇号（prime）支持 ==
+            let mut prime_count = 0usize;
+            while opt(one_of('\'')).parse_next(input)?.is_some() {
+                prime_count += 1;
             }
+            if prime_count > 0 {
+                let prime_char = match prime_count {
+                    1 => "\u{2032}", // ′
+                    2 => "\u{2033}", // ″
+                    3 => "\u{2034}", // ‴
+                    _ => "\u{2057}", // ⁗
+                };
+                primes.push(MathNode::Identifier(Cow::Borrowed(prime_char)));
+                continue;
+            }
+
+            if let Some(s) = opt(preceded((space0, '^', space0), parse_atom)).parse_next(input)? {
+                sups.push(s);
+                continue;
+            }
+
             if sub.is_none() {
                 if let Some(s) =
                     opt(preceded((space0, '_', space0), parse_atom)).parse_next(input)?
@@ -268,8 +272,32 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
                     continue;
                 }
             }
+
             break;
         }
+
+        let sup = match (primes.is_empty(), sups.is_empty()) {
+            (true, true) => None,
+            (false, true) => {
+                if primes.len() == 1 {
+                    Some(primes.pop().unwrap())
+                } else {
+                    Some(MathNode::Row(primes))
+                }
+            }
+            (true, false) => {
+                if sups.len() == 1 {
+                    Some(sups.pop().unwrap())
+                } else {
+                    Some(MathNode::Row(sups))
+                }
+            }
+            (false, false) => {
+                let mut combined = primes;
+                combined.extend(sups);
+                Some(MathNode::Row(combined))
+            }
+        };
 
         // 判断 base 是否是要求使用 limits 渲染的大运算符或极限函数
 
