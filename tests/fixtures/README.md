@@ -56,3 +56,13 @@ emit_intent=false
 ## Runner
 
 `tests/fixtures_runner.rs` walks all `*.tex` under this directory.
+
+## Visual Gallery
+
+An interactive visual snapshot gallery is available online and locally:
+
+- **Online Gallery**: [GitHub Pages Fixtures Gallery](https://twn39.github.io/tex2math/gallery.html)
+- **Local Preview**:
+  ```bash
+  cargo run --example generate_gallery -- --open
+  ```

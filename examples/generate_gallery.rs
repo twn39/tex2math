@@ -321,6 +321,34 @@ fn main() {
       gap: 0.5rem;
     }}
     h1 span {{ color: var(--text); font-weight: 300; }}
+    .header-actions {{
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }}
+    .nav-links {{
+      display: flex;
+      gap: 0.5rem;
+    }}
+    .nav-link {{
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      padding: 0.35rem 0.75rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }}
+    .nav-link:hover {{
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--code-bg);
+    }}
     .stats {{
       color: var(--text-muted);
       font-size: 0.95rem;
@@ -521,7 +549,13 @@ fn main() {
   <div class="header">
     <div class="header-top">
       <h1>tex2math <span>Visual Gallery</span></h1>
-      <div class="stats">Showing <span id="count">{total}</span> of {total} fixtures</div>
+      <div class="header-actions">
+        <div class="stats">Showing <span id="count">{total}</span> of {total} fixtures</div>
+        <div class="nav-links">
+          <a href="./tex2math/index.html" class="nav-link" title="Rust API Documentation">📚 Docs</a>
+          <a href="https://github.com/twn39/tex2math" class="nav-link" target="_blank" rel="noopener" title="GitHub Repository">🐙 GitHub</a>
+        </div>
+      </div>
     </div>
     <div class="controls">
       <input type="text" id="search" class="search-input" placeholder="🔍 Search fixtures by name, suite, or LaTeX formula...">

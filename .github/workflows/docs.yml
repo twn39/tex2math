@@ -34,6 +34,12 @@ jobs:
         # --document-private-items 可以在内部开发时生成完整文档，可选
         run: cargo doc --no-deps --release
 
+      - name: Build visual fixtures gallery
+        run: |
+          cargo run --example generate_gallery
+          cp fixtures_gallery.html target/doc/gallery.html
+          cp fixtures_gallery.html target/doc/fixtures_gallery.html
+
       - name: Redirect index
         # 默认情况下 cargo doc 会生成在 target/doc/<包名> 下
         # 我们写一个极简的 index.html 在文档根目录，让访问者打开主页就能跳转到 tex2math 文档

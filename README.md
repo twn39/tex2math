@@ -5,6 +5,7 @@
 [![CI](https://github.com/twn39/tex2math/actions/workflows/ci.yml/badge.svg)](https://github.com/twn39/tex2math/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/tex2math.svg)](https://crates.io/crates/tex2math)
 [![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://twn39.github.io/tex2math/)
+[![Gallery](https://img.shields.io/badge/gallery-Visual_Fixtures-8a2be2)](https://twn39.github.io/tex2math/gallery.html)
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)
 ![License](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)
 
@@ -147,7 +148,8 @@ cargo test --all-features
 cargo bench --bench math_parser_bench   # criterion (parse / convert / deep trees)
 ```
 
-Add coverage by dropping `name.tex` + `name.mathml` (and optional `.contains` / `.meta`) under `tests/fixtures/` — see [tests/fixtures/README.md](tests/fixtures/README.md).
+- **Interactive Visual Gallery**: View the [Online Fixtures Gallery](https://twn39.github.io/tex2math/gallery.html) or run locally via `cargo run --example generate_gallery -- --open`.
+- **Add coverage**: Drop `name.tex` + `name.mathml` (and optional `.contains` / `.meta`) under `tests/fixtures/` — see [tests/fixtures/README.md](tests/fixtures/README.md).
 
 Performance tips: [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
