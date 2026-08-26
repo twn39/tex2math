@@ -32,10 +32,11 @@ Most lightweight Markdown parsers use fragile regular expressions for math and f
 ## ✨ Key Features
 
 - ⚡️ **Slice-based parsing** — walks input as `&str` slices; AST leaves are `Cow<'s, str>` (borrow input or static tables). Call `into_owned()` when the tree must outlive the source.
-- 🎓 **Academic-grade layout** — display vs inline limits, multi-column `align` / `array`, stretchy `\left`…`\right`.
+- 🎓 **Academic-grade layout** — display vs inline limits, multi-column `align` / `array`, `\hline` horizontal divider lines, stretchy `\left`…`\right`.
 - 📚 **Large symbol table** — 450+ symbols, Greek, relations, arrows (KaTeX-oriented).
 - 🛡️ **Tolerant recovery** — missing `}` / unclosed environments emit `<merror>` and salvage the rest when possible.
-- 🎨 **Styles & accents** — `\text`, `\mathbf`, `\color`, accents, stretch ops, cancel, tensor-style prescripts via a post-parse semantic pass.
+- 🎨 **Styles & accents** — `\text`, `\mathbf`, `\color`, accents, stretch ops, cancel, tensor-style prescripts (`\prescript`) via a post-parse semantic pass.
+- 🚀 **Instant visual preview** — `--preview` (`-p`) launches a dark-themed HTML preview directly in your browser; `--html` exports standalone HTML documents.
 - 🔌 **Pluggable emission** — `MathRenderer` + `MathSink` (stream into any `fmt::Write`); MathML is the default backend.
 - 🧩 **Data-driven commands** — fonts, accents, arrows, stretch ops live in `registry` (single source of names).
 
@@ -64,6 +65,8 @@ cargo install tex2math --features cli
 
 ```bash
 tex2math "\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"
+tex2math -p "\int_{-\infty}^\infty e^{-x^2} \, dx = \sqrt{\pi}"   # Open instant browser preview
+tex2math --html "\sum_{n=1}^\infty \frac{1}{n^2} = \frac{\pi^2}{6}" > formula.html
 tex2math --display "\sum_{i=1}^n x_i"
 echo "\int_0^\infty f(x) \, dx" | tex2math
 tex2math --no-wrap --unknown-error '\foo{x}'
@@ -73,6 +76,8 @@ tex2math --no-mathml-core '\boxed{x}'
 
 | Flag | Effect |
 |------|--------|
+| `-p, --preview` | Generate an HTML preview and open it directly in the default browser |
+| `--html` | Output a standalone HTML document with MathML preview and badge info |
 | `--display` | Display mode (`display="block"`, large-op limits) |
 | `--no-wrap` | Omit outer `<math>` wrapper |
 | `--max-depth N` | Parse nesting cap (default 64) |
@@ -114,6 +119,20 @@ fn main() {
 ```
 
 `ConvertOptions` defaults: wrap in `<math>`, **MathML Core–friendly** emission (`mathml_core: true`), no experimental `intent` attributes. See [docs/RENDER_OPTIONS.md](docs/RENDER_OPTIONS.md).
+
+### WebAssembly (WASM)
+
+```bash
+# Build for wasm32
+wasm-pack build -- --features wasm
+```
+
+```javascript
+import { convert_to_mathml, convert_to_mathml_with_options } from "tex2math";
+
+const mathml = convert_to_mathml(r"\frac{1}{2}");
+console.log(mathml); // <math xmlns="http://www.w3.org/1998/Math/MathML">...</math>
+```
 
 ---
 
