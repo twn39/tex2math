@@ -103,9 +103,9 @@ impl WasmConvertOptions {
 
 /// Convert a LaTeX string to MathML for use in JavaScript via WebAssembly.
 #[wasm_bindgen]
-pub fn convert_to_mathml(latex_input: &str, display_mode: bool) -> Result<String, JsValue> {
+pub fn convert_to_mathml(latex_input: &str, display_mode: Option<bool>) -> Result<String, JsValue> {
     let opts = ConvertOptions {
-        mode: if display_mode {
+        mode: if display_mode.unwrap_or(false) {
             RenderMode::Display
         } else {
             RenderMode::Inline
@@ -133,13 +133,14 @@ pub fn convert_to_mathml(latex_input: &str, display_mode: bool) -> Result<String
 #[wasm_bindgen]
 pub fn convert_to_mathml_with_options(
     latex_input: &str,
-    options_js: &JsValue,
+    options_js: Option<JsValue>,
 ) -> Result<String, JsValue> {
-    let wopts: WasmConvertOptions = if options_js.is_null() || options_js.is_undefined() {
-        WasmConvertOptions::default()
-    } else {
-        serde_wasm_bindgen::from_value(options_js.clone())
-            .map_err(|e| JsValue::from_str(&format!("Invalid convert options: {e}")))?
+    let wopts: WasmConvertOptions = match options_js {
+        Some(val) if !val.is_null() && !val.is_undefined() => {
+            serde_wasm_bindgen::from_value(val)
+                .map_err(|e| JsValue::from_str(&format!("Invalid convert options: {e}")))?
+        }
+        _ => WasmConvertOptions::default(),
     };
     convert(latex_input, &wopts.into_convert_options()).map_err(err_to_js)
 }
@@ -154,6 +155,7 @@ pub fn wasm_supports_command(cmd: &str) -> bool {
 #[derive(serde::Deserialize)]
 pub struct WasmBatchInput {
     pub latex: String,
+    #[serde(default)]
     pub display: bool,
 }
 
@@ -217,4 +219,36 @@ pub fn convert_batch(inputs_js: &JsValue) -> Result<JsValue, JsValue> {
 #[allow(dead_code)]
 fn _kind_export() -> ParseErrorKind {
     ParseErrorKind::Other
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wasm_parse_error_maps_fields() {
+        let err = ParseError::new(ParseErrorKind::UnexpectedTrailing, 2..7, "bad trailing");
+        let w = WasmParseError::from(err);
+        assert_eq!(w.kind, "unexpected_trailing");
+        assert_eq!(w.span_start, 2);
+        assert_eq!(w.span_end, 7);
+        assert_eq!(w.message, "bad trailing");
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn wasm_convert_options_defaults_and_overrides() {
+        let opts = WasmConvertOptions {
+            display: Some(true),
+            wrap_math: Some(false),
+            unknown_error: Some(true),
+            allow_trailing: Some(true),
+            ..Default::default()
+        }
+        .into_convert_options();
+        assert_eq!(opts.mode, RenderMode::Display);
+        assert!(!opts.wrap_math);
+        assert_eq!(opts.parse.unknown_command, UnknownCommandPolicy::Error);
+        assert_eq!(opts.parse.trailing, TrailingPolicy::Ignore);
+    }
 }

@@ -1,0 +1,61 @@
+name: Publish npm Package (GitHub Packages)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-github-packages:
+    name: Build & Publish @twn39/tex2math
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Node.js for GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@twn39"
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+
+      - name: Build universal WASM package (Web + Node.js)
+        run: ./scripts/build-wasm.sh --github
+
+      - name: Smoke test Node.js CJS & ESM exports
+        run: |
+          node -e '
+            const assert = require("assert");
+            const m = require("./pkg");
+            assert.ok(m.convert_to_mathml("\\frac{1}{2}").includes("<mfrac>"));
+          '
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import init, { convert_to_mathml } from "./pkg/nodejs/index.mjs";
+            await init();
+            assert.ok(convert_to_mathml("\\ce{H2O}").includes("<msub>"));
+          '
+
+      - name: Publish to GitHub Packages
+        working-directory: pkg
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

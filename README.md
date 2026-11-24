@@ -120,18 +120,28 @@ fn main() {
 
 `ConvertOptions` defaults: wrap in `<math>`, **MathML Core–friendly** emission (`mathml_core: true`), no experimental `intent` attributes. See [docs/RENDER_OPTIONS.md](docs/RENDER_OPTIONS.md).
 
-### WebAssembly (WASM)
+### WebAssembly / npm (Browser & Node.js)
 
 ```bash
-# Build for wasm32
-wasm-pack build -- --features wasm
+# Build universal npm package (Web ESM + Node.js CJS/ESM) into pkg/
+./scripts/build-wasm.sh
+```
+
+> **GitHub Packages (`@twn39/tex2math`)**: automated releases publish `@twn39/tex2math` to `https://npm.pkg.github.com`. Consumers need `@twn39:registry=https://npm.pkg.github.com` and a GitHub `read:packages` token in `.npmrc`.
+
+```javascript
+// Browser / Bundler / Isomorphic ESM (also works in Node.js)
+import init, { convert_to_mathml, convert_to_mathml_with_options } from "tex2math";
+
+await init(); // No-op in Node.js, fetches/instantiates .wasm in browsers
+const mathml = convert_to_mathml("\\frac{1}{2}");
+console.log(mathml); // <math xmlns="http://www.w3.org/1998/Math/MathML">...</math>
 ```
 
 ```javascript
-import { convert_to_mathml, convert_to_mathml_with_options } from "tex2math";
-
-const mathml = convert_to_mathml(r"\frac{1}{2}");
-console.log(mathml); // <math xmlns="http://www.w3.org/1998/Math/MathML">...</math>
+// Node.js CommonJS (no async init required)
+const { convert_to_mathml } = require("tex2math");
+console.log(convert_to_mathml("\\frac{1}{2}", true));
 ```
 
 ---
