@@ -127,6 +127,7 @@ impl MathMLRenderer {
 
             // Structural containers
             MathNode::Fraction(_, _)
+            | MathNode::Atop(_, _)
             | MathNode::Binom(_, _)
             | MathNode::Sqrt(_)
             | MathNode::Root { .. }

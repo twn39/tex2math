@@ -262,6 +262,8 @@ pub enum MathNode<'s> {
     Identifier(Cow<'s, str>),
     Operator(Cow<'s, str>),
     Fraction(Box<MathNode<'s>>, Box<MathNode<'s>>),
+    /// Stacked numerator/denominator without fraction rule (`{n \atop k}`) → `<mfrac linethickness="0">`.
+    Atop(Box<MathNode<'s>>, Box<MathNode<'s>>),
     /// Binomial coefficient `\binom{n}{k}` → parenthesized fraction with zero rule.
     Binom(Box<MathNode<'s>>, Box<MathNode<'s>>),
     /// Infix `\choose` marker; folded into [`MathNode::Binom`] by the semantic pass.
@@ -369,6 +371,7 @@ impl<'s> MathNode<'s> {
             Identifier(s) => Identifier(Cow::Owned(s.into_owned())),
             Operator(s) => Operator(Cow::Owned(s.into_owned())),
             Fraction(a, b) => Fraction(Box::new(a.into_owned()), Box::new(b.into_owned())),
+            Atop(a, b) => Atop(Box::new(a.into_owned()), Box::new(b.into_owned())),
             Binom(a, b) => Binom(Box::new(a.into_owned()), Box::new(b.into_owned())),
             ChooseMarker => ChooseMarker,
             OverMarker => OverMarker,

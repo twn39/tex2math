@@ -43,11 +43,11 @@ fn thickness_is_zero(thick: &str) -> bool {
     if t.is_empty() || t == "0" {
         return true;
     }
-    let num: String = t
-        .chars()
-        .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '+' || *c == '-')
-        .collect();
-    num.parse::<f64>().map(|v| v == 0.0).unwrap_or(false)
+    let end = t
+        .bytes()
+        .take_while(|b| b.is_ascii_digit() || matches!(b, b'.' | b'+' | b'-'))
+        .count();
+    t[..end].parse::<f64>().map(|v| v == 0.0).unwrap_or(false)
 }
 
 pub(super) fn parse_genfrac_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {

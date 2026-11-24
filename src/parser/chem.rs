@@ -9,8 +9,8 @@ use winnow::combinator::opt;
 use winnow::prelude::*;
 
 use crate::ast::*;
-use crate::parser::atoms::{take_balanced_braces, take_balanced_brackets};
-use crate::parser::parse_math;
+use crate::parser::atoms::{take_balanced_braces, take_balanced_brackets, take_balanced_delims};
+use crate::parser::parse_math_inner;
 
 /// Parses `\ce{...}` command.
 pub fn parse_ce_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
@@ -22,6 +22,15 @@ pub fn parse_ce_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
 
 /// Parses the entire contents of a chemical formula.
 pub fn parse_chem_formula<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+    let _depth_guard = match crate::depth::DepthGuard::enter_parse() {
+        Ok(g) => g,
+        Err(()) => {
+            return Err(winnow::error::ErrMode::Cut(
+                winnow::error::ContextError::new(),
+            ));
+        }
+    };
+
     let mut nodes = Vec::new();
 
     while !input.is_empty() {
@@ -36,7 +45,7 @@ pub fn parse_chem_formula<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> 
             if let Some(end_idx) = input.find('$') {
                 let mut math_str = &input[..end_idx];
                 *input = &input[end_idx + 1..];
-                let math_node = parse_math.parse_next(&mut math_str)?;
+                let math_node = parse_math_inner.parse_next(&mut math_str)?;
                 nodes.push(math_node);
                 continue;
             }
@@ -44,7 +53,7 @@ pub fn parse_chem_formula<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> 
 
         // 2. Embedded LaTeX command: e.g. `\text{...}`, `\alpha`, `\Delta`
         if input.starts_with('\\') {
-            let math_node = parse_math.parse_next(input)?;
+            let math_node = parse_math_inner.parse_next(input)?;
             nodes.push(math_node);
             continue;
         }
@@ -106,28 +115,13 @@ pub fn parse_chem_formula<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> 
         // 10. Parentheses: (OH)2 or [Fe(CN)6]3-
         if input.starts_with('(') || input.starts_with('[') {
             let is_bracket = input.starts_with('[');
-            let open_char = if is_bracket { '[' } else { '(' };
-            let close_char = if is_bracket { ']' } else { ')' };
-            *input = &input[1..];
-
-            // Find matching close
-            let mut depth = 1usize;
-            let mut end_idx = None;
-            for (idx, c) in input.char_indices() {
-                if c == open_char {
-                    depth += 1;
-                } else if c == close_char {
-                    depth -= 1;
-                    if depth == 0 {
-                        end_idx = Some(idx);
-                        break;
-                    }
-                }
-            }
-
-            if let Some(idx) = end_idx {
-                let mut inner_str = &input[..idx];
-                *input = &input[idx + 1..];
+            let (open_byte, close_byte) = if is_bracket {
+                (b'[', b']')
+            } else {
+                (b'(', b')')
+            };
+            let checkpoint = *input;
+            if let Ok((mut inner_str, true)) = take_balanced_delims(input, open_byte, close_byte) {
                 let inner_node = parse_chem_formula(&mut inner_str)?;
                 let fenced = MathNode::Fenced {
                     open: Cow::Borrowed(if is_bracket { "[" } else { "(" }),
@@ -151,6 +145,7 @@ pub fn parse_chem_formula<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> 
                 }
                 continue;
             }
+            *input = checkpoint;
         }
 
         // 11. Chemical Elements (e.g. `H`, `He`, `Ca`, `Fe`, `Na`, `Cl`, `O`)
@@ -477,43 +472,35 @@ fn parse_chem_scripts<'s>(
             let (inner, _) = take_balanced_braces(input)?;
             let mut c = inner;
             sup = Some(Box::new(parse_chem_charge_or_sup(&mut c)?));
-        } else {
-            let mut charge_str = "";
-            for len in (1..=3).rev() {
-                if input.len() >= len {
-                    let candidate = &input[..len];
-                    if is_valid_charge(candidate) {
-                        charge_str = candidate;
-                        break;
-                    }
-                }
-            }
-            if !charge_str.is_empty() {
-                *input = &input[charge_str.len()..];
-                sup = Some(Box::new(format_charge_node(charge_str)));
-            } else if let Some(c) = input.chars().next() {
-                let c_len = c.len_utf8();
-                let s = &input[..c_len];
-                *input = &input[c_len..];
-                sup = Some(Box::new(MathNode::Identifier(Cow::Borrowed(s))));
-            }
+        } else if let Some(charge_str) = match_charge_prefix(input) {
+            *input = &input[charge_str.len()..];
+            sup = Some(Box::new(format_charge_node(charge_str)));
+        } else if let Some(c) = input.chars().next() {
+            let c_len = c.len_utf8();
+            let s = &input[..c_len];
+            *input = &input[c_len..];
+            sup = Some(Box::new(MathNode::Identifier(Cow::Borrowed(s))));
         }
     } else {
         // Look for immediate charges like `+`, `-`, `2+`, `3-`
         // Only if followed by space, end, or delimiter
-        for len in (1..=3).rev() {
-            if input.len() >= len {
-                let candidate = &input[..len];
-                if is_valid_charge(candidate) && is_delim_or_space(input, len) {
-                    *input = &input[len..];
-                    sup = Some(Box::new(format_charge_node(candidate)));
-                    break;
-                }
+        if let Some(candidate) = match_charge_prefix(input) {
+            if is_delim_or_space(input, candidate.len()) {
+                *input = &input[candidate.len()..];
+                sup = Some(Box::new(format_charge_node(candidate)));
             }
         }
     }
 
     Ok((sub, sup))
+}
+
+/// UTF-8 safe prefix matcher for valid ion charges (longest match first).
+fn match_charge_prefix(s: &str) -> Option<&'static str> {
+    const CHARGES: &[&str] = &[
+        "2+", "3+", "4+", "2-", "3-", "4-", "+2", "+3", "-2", "-3", "+", "-",
+    ];
+    CHARGES.iter().copied().find(|&c| s.starts_with(c))
 }
 
 fn is_valid_charge(s: &str) -> bool {

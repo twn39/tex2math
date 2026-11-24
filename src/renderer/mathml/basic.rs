@@ -80,6 +80,52 @@ pub(super) fn write_escaped_xml(input: &str, out: &mut dyn MathSink) -> std::fmt
     Ok(())
 }
 
+/// Streams `<mtext>` content for MathML Core: escapes XML and converts leading,
+/// trailing, and repeated ASCII spaces to NBSP (`U+00A0`) so browsers preserve
+/// text spacing natively without CSS `white-space: pre` box-clipping issues.
+pub(super) fn write_escaped_mtext_core(input: &str, out: &mut dyn MathSink) -> std::fmt::Result {
+    let bytes = input.as_bytes();
+    let len = bytes.len();
+    let lead_spaces = bytes.iter().take_while(|&&b| b == b' ').count();
+    for _ in 0..lead_spaces {
+        out.push_str("\u{00A0}")?;
+    }
+    if lead_spaces == len {
+        return Ok(());
+    }
+
+    let trail_spaces = bytes[lead_spaces..]
+        .iter()
+        .rev()
+        .take_while(|&&b| b == b' ')
+        .count();
+    let mid = &input[lead_spaces..len - trail_spaces];
+    let mid_bytes = mid.as_bytes();
+
+    let mut start = 0;
+    let mut i = 0;
+    while i < mid_bytes.len() {
+        if mid_bytes[i] == b' ' && i > 0 && mid_bytes[i - 1] == b' ' {
+            if i > start {
+                write_escaped_xml(&mid[start..i], out)?;
+            }
+            out.push_str("\u{00A0}")?;
+            i += 1;
+            start = i;
+        } else {
+            i += 1;
+        }
+    }
+    if start < mid.len() {
+        write_escaped_xml(&mid[start..], out)?;
+    }
+
+    for _ in 0..trail_spaces {
+        out.push_str("\u{00A0}")?;
+    }
+    Ok(())
+}
+
 pub(super) fn try_extract_operator_text<'a>(
     node: &'a MathNode<'_>,
 ) -> Option<std::borrow::Cow<'a, str>> {

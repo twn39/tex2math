@@ -32,10 +32,7 @@ use frac::{parse_binom_cmd, parse_frac_style_cmd, parse_genfrac_cmd};
 use misc::{
     parse_math_class_cmd, parse_middle_cmd, parse_mod_cmd, parse_substack_cmd, parse_tag_cmd,
 };
-use physics::{
-    parse_bra_cmd, parse_braket_cmd, parse_dd_cmd, parse_dv_cmd, parse_expval_cmd, parse_ket_cmd,
-    parse_ketbra_cmd, parse_mel_cmd, parse_pdv_cmd, parse_unit_cmd, parse_vector_op_cmd,
-};
+use physics::parse_physics_cmd;
 use scripts::{
     parse_extensible_arrow_cmd, parse_not_modifier_cmd, parse_operatorname_cmd,
     parse_over_under_set_cmd, parse_prescript_cmd, parse_sideset_cmd, parse_stretch_modifier_cmd,
@@ -118,21 +115,13 @@ fn parse_irregular_cmd<'s>(cmd: &str, input: &mut &'s str) -> ModalResult<MathNo
         "middle" => parse_middle_cmd(input),
         "tag" => parse_tag_cmd(input),
         "notag" => Ok(MathNode::Row(vec![])),
-        // Physics & Dirac notation
-        "bra" => parse_bra_cmd(input),
-        "ket" => parse_ket_cmd(input),
-        "braket" => parse_braket_cmd(input),
-        "ketbra" => parse_ketbra_cmd(input),
-        "mel" | "matrixel" => parse_mel_cmd(input),
-        "ev" | "expval" => parse_expval_cmd(input),
-        "dd" => parse_dd_cmd(input),
-        "dv" => parse_dv_cmd(input),
-        "pdv" => parse_pdv_cmd(input),
-        "grad" | "div" | "curl" | "rot" | "laplacian" => Ok(parse_vector_op_cmd(cmd)),
-        "unit" | "pu" => parse_unit_cmd(input),
         // Chemistry
         "ce" => crate::parser::chem::parse_ce_cmd(input),
-        _ => unreachable!("irregular pre-filtered via CommandSpec: {cmd}"),
+        // Physics & Dirac notation
+        other => match parse_physics_cmd(other, input) {
+            Some(res) => res,
+            None => unreachable!("irregular pre-filtered via CommandSpec: {cmd}"),
+        },
     }
 }
 

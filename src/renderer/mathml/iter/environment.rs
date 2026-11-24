@@ -5,7 +5,7 @@ use super::super::{MathMLRenderer, RenderCtx};
 use super::{Frame, FrameStack};
 use crate::ast::*;
 use std::borrow::Cow;
-use std::fmt;
+use std::fmt::{self, Write as _};
 
 impl MathMLRenderer {
     pub(super) fn expand_environment<'n, 's>(
@@ -144,10 +144,17 @@ impl MathMLRenderer {
             }
         }
         if use_rowspacing_attr && !rowspacings.is_empty() {
-            open.push_str(&format!(" rowspacing=\"{}\"", rowspacings.join(" ")));
+            open.push_str(" rowspacing=\"");
+            for (i, sp) in rowspacings.iter().enumerate() {
+                if i > 0 {
+                    open.push(' ');
+                }
+                let _ = write!(open, "{}", escape_xml(sp));
+            }
+            open.push('"');
         }
         if let Some(r_lines) = row_lines {
-            open.push_str(&format!(" rowlines=\"{}\"", r_lines.as_ref()));
+            let _ = write!(open, " rowlines=\"{}\"", escape_xml(r_lines.as_ref()));
         }
         if ctx.options.emit_intent {
             if crate::registry::is_known_environment(name) {

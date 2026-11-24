@@ -23,6 +23,16 @@ impl MathMLRenderer {
                     stack.push(Frame::Lit("<mfrac>"));
                 }
             }
+            MathNode::Atop(upper, lower) => {
+                stack.push(Frame::Lit("</mfrac>"));
+                stack.push(Frame::Node(lower));
+                stack.push(Frame::Node(upper));
+                if ctx.options.emit_intent {
+                    stack.push(Frame::Lit("<mfrac linethickness=\"0\" intent=\"atop\">"));
+                } else {
+                    stack.push(Frame::Lit("<mfrac linethickness=\"0\">"));
+                }
+            }
             MathNode::Binom(upper, lower) => {
                 // ( n ⁄ k ) with zero rule thickness
                 stack.push(Frame::Lit("</mrow>"));
@@ -95,9 +105,14 @@ impl MathMLRenderer {
                     stack.push(Frame::Node(content));
                     if ctx.options.emit_intent {
                         match mode.as_ref() {
-                            "cancel" => stack.push(Frame::Lit("<mrow intent=\"cancel:cancel\">")),
-                            "bcancel" => stack.push(Frame::Lit("<mrow intent=\"cancel:bcancel\">")),
-                            "xcancel" => stack.push(Frame::Lit("<mrow intent=\"cancel:xcancel\">")),
+                            "updiagonalstrike" => {
+                                stack.push(Frame::Lit("<mrow intent=\"cancel:updiagonalstrike\">"))
+                            }
+                            "downdiagonalstrike" => stack
+                                .push(Frame::Lit("<mrow intent=\"cancel:downdiagonalstrike\">")),
+                            "updiagonalstrike downdiagonalstrike" => stack.push(Frame::Lit(
+                                "<mrow intent=\"cancel:updiagonalstrike downdiagonalstrike\">",
+                            )),
                             _ => stack.push(Frame::OpenTagWithAttr {
                                 tag: "mrow",
                                 attr: "intent",

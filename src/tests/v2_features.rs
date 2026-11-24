@@ -575,7 +575,12 @@ fn over_and_atop_infix_folds() {
     .unwrap();
     assert_eq!(over_mml, frac_mml);
 
-    // \atop should fold to stacked elements
+    // \atop should fold to MathNode::Atop and render as zero-thickness fraction (no rule)
+    let atop_ast = parse("{n \\atop k}", &ParseOptions::default()).unwrap();
+    assert!(
+        matches!(atop_ast, MathNode::Atop(_, _)),
+        "expected MathNode::Atop, got {atop_ast:?}"
+    );
     let atop_mml = convert(
         "{n \\atop k}",
         &ConvertOptions {
@@ -584,7 +589,10 @@ fn over_and_atop_infix_folds() {
         },
     )
     .unwrap();
-    assert!(atop_mml.contains("<mfrac>"), "got {atop_mml}");
+    assert_eq!(
+        atop_mml,
+        "<mfrac linethickness=\"0\"><mi>n</mi><mi>k</mi></mfrac>"
+    );
 }
 
 #[test]
@@ -686,5 +694,227 @@ fn ast_folder_custom_pass() {
     assert_eq!(
         mml,
         "<mrow><mi>x</mi><mo>+</mo><mn>10</mn><mo>=</mo><mn>20</mn></mrow>"
+    );
+}
+
+#[test]
+fn command_spec_parity_with_const_tables() {
+    use crate::registry::{
+        ACCENTS, BINOM_STYLES, CANCEL_MODES, DIM_SPACE_CMDS, EXTENSIBLE_ARROWS, FONT_STYLES,
+        FRAC_STYLES, IRREGULAR_CMDS, MATH_CLASS_CMDS, MOD_CMDS, PHANTOM_KINDS, SIZED_DELIMS,
+        STRETCH_OPS, STRUCTURAL_CMDS, STYLE_SWITCH_CMDS,
+    };
+
+    for &k in STRUCTURAL_CMDS {
+        assert_eq!(command_spec(k), Some(CommandSpec::Structural), "{k}");
+    }
+    for &(k, _) in FONT_STYLES {
+        assert_eq!(command_spec(k), Some(CommandSpec::FontStyle), "{k}");
+    }
+    for &(k, _) in FRAC_STYLES {
+        assert_eq!(command_spec(k), Some(CommandSpec::FracStyle), "{k}");
+    }
+    for &(k, _) in BINOM_STYLES {
+        assert_eq!(command_spec(k), Some(CommandSpec::Binom), "{k}");
+    }
+    for &(k, _) in EXTENSIBLE_ARROWS {
+        assert_eq!(command_spec(k), Some(CommandSpec::ExtensibleArrow), "{k}");
+    }
+    for &(k, _, _) in STRETCH_OPS {
+        assert_eq!(command_spec(k), Some(CommandSpec::StretchOp), "{k}");
+    }
+    for &(k, _) in ACCENTS {
+        assert_eq!(command_spec(k), Some(CommandSpec::Accent), "{k}");
+    }
+    for &(k, _) in CANCEL_MODES {
+        assert_eq!(command_spec(k), Some(CommandSpec::Cancel), "{k}");
+    }
+    for &k in PHANTOM_KINDS {
+        assert_eq!(command_spec(k), Some(CommandSpec::Phantom), "{k}");
+    }
+    for &(k, _) in SIZED_DELIMS {
+        assert_eq!(command_spec(k), Some(CommandSpec::SizedDelim), "{k}");
+    }
+    for &k in MOD_CMDS {
+        assert_eq!(command_spec(k), Some(CommandSpec::Mod), "{k}");
+    }
+    for &k in MATH_CLASS_CMDS {
+        assert_eq!(command_spec(k), Some(CommandSpec::MathClass), "{k}");
+    }
+    for &(k, _) in STYLE_SWITCH_CMDS {
+        assert_eq!(command_spec(k), Some(CommandSpec::StyleSwitch), "{k}");
+    }
+    for &k in DIM_SPACE_CMDS {
+        assert_eq!(command_spec(k), Some(CommandSpec::DimSpace), "{k}");
+    }
+    for &k in IRREGULAR_CMDS {
+        assert_eq!(command_spec(k), Some(CommandSpec::Irregular), "{k}");
+    }
+}
+
+#[test]
+fn chem_utf8_multibyte_does_not_panic() {
+    let opts = ConvertOptions {
+        wrap_math: false,
+        ..Default::default()
+    };
+    for expr in [
+        r"\ce{Hα}",
+        r"\ce{Fe·H2O}",
+        r"\ce{H₂O}",
+        r"\ce{Na⁺ + Cl⁻ -> NaCl}",
+        r"\ce{H^α}",
+        r"\ce{CO2 气体}",
+    ] {
+        let out = convert(expr, &opts).unwrap();
+        assert!(!out.is_empty(), "empty output for {expr}");
+    }
+}
+
+#[test]
+fn chem_deep_nesting_respects_max_depth() {
+    let opts = ParseOptions {
+        max_depth: 16,
+        ..Default::default()
+    };
+    let deep_parens = format!(r"\ce{{{}H{}}}", "(".repeat(40), ")".repeat(40));
+    let err = parse(&deep_parens, &opts).unwrap_err();
+    assert_eq!(err.kind, ParseErrorKind::NestingLimit);
+
+    let deep_arrows = format!(r"\ce{{{}H{}}}", "->[".repeat(40), "]".repeat(40));
+    let err = parse(&deep_arrows, &opts).unwrap_err();
+    assert_eq!(err.kind, ParseErrorKind::NestingLimit);
+}
+
+#[test]
+fn mtable_rowspacing_escapes_xml_injection() {
+    let opts = ConvertOptions {
+        wrap_math: false,
+        ..Default::default()
+    };
+    let out = convert(r#"a \\[" onload="alert(1)] b"#, &opts).unwrap();
+    assert!(
+        !out.contains(r#"onload="alert(1)""#),
+        "raw attribute injection leaked: {out}"
+    );
+    assert!(out.contains("&quot;"), "expected escaped quote: {out}");
+}
+
+#[test]
+fn starred_environments_parse_and_render() {
+    let opts = ConvertOptions {
+        wrap_math: false,
+        ..Default::default()
+    };
+    for env in ["align*", "equation*", "gather*", "multline*", "eqnarray*"] {
+        let tex = format!(r"\begin{{{env}}} x &= 1 \\ y &= 2 \end{{{env}}}");
+        let out = convert(&tex, &opts).unwrap();
+        assert!(out.contains("<mtable"), "expected mtable for {env}: {out}");
+        assert!(
+            !out.contains("<merror"),
+            "unexpected merror for known starred env {env}: {out}"
+        );
+    }
+}
+
+#[test]
+fn operatorname_starred_uses_limits() {
+    let opts = ConvertOptions {
+        wrap_math: false,
+        ..Default::default()
+    };
+    let out = convert(r"\operatorname*{argmax}_{x} f(x)", &opts).unwrap();
+    assert!(
+        out.contains("<munder><mi mathvariant=\"normal\">argmax</mi><mi>x</mi></munder>"),
+        "expected <munder> for \\operatorname*, got: {out}"
+    );
+
+    let nolim = convert(r"\operatorname*{argmax}\nolimits_{x}", &opts).unwrap();
+    assert!(
+        nolim.contains("<msub><mi mathvariant=\"normal\">argmax</mi><mi>x</mi></msub>"),
+        "expected \\nolimits override to emit <msub>, got: {nolim}"
+    );
+}
+
+#[test]
+fn cancel_core_intent_matches_actual_modes() {
+    let opts = ConvertOptions {
+        mathml_core: true,
+        emit_intent: true,
+        wrap_math: false,
+        ..Default::default()
+    };
+    assert_eq!(
+        convert(r"\cancel{x}", &opts).unwrap(),
+        "<mrow intent=\"cancel:updiagonalstrike\"><mi intent=\"identifier\">x</mi></mrow>"
+    );
+    assert_eq!(
+        convert(r"\bcancel{x}", &opts).unwrap(),
+        "<mrow intent=\"cancel:downdiagonalstrike\"><mi intent=\"identifier\">x</mi></mrow>"
+    );
+    assert_eq!(
+        convert(r"\xcancel{x}", &opts).unwrap(),
+        "<mrow intent=\"cancel:updiagonalstrike downdiagonalstrike\"><mi intent=\"identifier\">x</mi></mrow>"
+    );
+}
+
+#[test]
+fn resilience_adversarial_corpus_never_panics() {
+    let opts = ConvertOptions {
+        wrap_math: false,
+        emit_intent: true,
+        ..Default::default()
+    };
+    let inputs = [
+        r"\ce{(OH",
+        r"\ce{[Fe(CN",
+        r"\ce{^{238}_{92}",
+        r"\ce{$x",
+        r"\ce{H^}",
+        r"\begin{align*} a & b",
+        r"\operatorname*{",
+        r"\genfrac{}{}{0pt}{0}{a}{b}",
+        r"\bra{α|β} \dv[2]{f}{x} \pdv{f}{x}{y}",
+        r"{a \atop b \over c}",
+        r"\begin{array}{c} a \\[<script>] b \end{array}",
+    ];
+    for input in inputs {
+        let _ = convert(input, &opts);
+    }
+}
+
+#[test]
+fn mathml_core_mtext_preserves_boundary_spaces_with_nbsp() {
+    let core = ConvertOptions {
+        mathml_core: true,
+        wrap_math: false,
+        ..Default::default()
+    };
+    assert_eq!(
+        convert(r"\text{ terms}", &core).unwrap(),
+        "<mtext>\u{00A0}terms</mtext>"
+    );
+    assert_eq!(
+        convert(r"\text{ if }", &core).unwrap(),
+        "<mtext>\u{00A0}if\u{00A0}</mtext>"
+    );
+    assert_eq!(
+        convert(r"\text{a b  c}", &core).unwrap(),
+        "<mtext>a b \u{00A0}c</mtext>"
+    );
+    assert_eq!(
+        convert(r"\text{   }", &core).unwrap(),
+        "<mtext>\u{00A0}\u{00A0}\u{00A0}</mtext>"
+    );
+
+    // Legacy (mathml_core: false) preserves raw ASCII spaces.
+    let legacy = ConvertOptions {
+        mathml_core: false,
+        wrap_math: false,
+        ..Default::default()
+    };
+    assert_eq!(
+        convert(r"\text{ terms}", &legacy).unwrap(),
+        "<mtext> terms</mtext>"
     );
 }

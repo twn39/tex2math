@@ -229,13 +229,25 @@ pub fn parse_script<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             }
         };
 
+        let (base, inherited_behavior) = match base {
+            MathNode::Scripts {
+                base: inner,
+                sub: None,
+                sup: None,
+                pre_sub: None,
+                pre_sup: None,
+                behavior: base_behavior,
+            } => (*inner, base_behavior),
+            other => (other, LimitBehavior::Default),
+        };
+
         // 探测 base 之后是否紧跟 \limits 或 \nolimits (这些通常用于覆盖默认的上下标排版)
         let behavior = if opt(literal("\\limits")).parse_next(input)?.is_some() {
             LimitBehavior::Limits
         } else if opt(literal("\\nolimits")).parse_next(input)?.is_some() {
             LimitBehavior::NoLimits
         } else {
-            LimitBehavior::Default
+            inherited_behavior
         };
 
         let mut primes: Vec<MathNode<'s>> = Vec::new();
@@ -352,7 +364,7 @@ pub fn parse_math<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     result
 }
 
-fn parse_math_inner<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
+pub(crate) fn parse_math_inner<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     let mut rows: Vec<(Vec<MathNode<'s>>, Option<Cow<'s, str>>)> = Vec::new();
 
     loop {

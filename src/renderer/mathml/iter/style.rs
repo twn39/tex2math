@@ -15,30 +15,18 @@ impl MathMLRenderer {
     ) -> fmt::Result {
         match node {
             MathNode::Style { variant, content } => {
-                if variant.as_ref() == "vphantom" {
-                    stack.push(Frame::Lit("</mphantom></mpadded>"));
-                    stack.push(Frame::Node(content));
-                    stack.push(Frame::Lit("<mpadded width=\"0px\"><mphantom>"));
-                } else if variant.as_ref() == "hphantom" {
-                    stack.push(Frame::Lit("</mphantom></mpadded>"));
-                    stack.push(Frame::Node(content));
-                    stack.push(Frame::Lit(
-                        "<mpadded height=\"0px\" depth=\"0px\"><mphantom>",
-                    ));
-                } else {
-                    stack.push(Frame::Lit("</mstyle>"));
-                    stack.push(Frame::Node(content));
-                    stack.push(Frame::OpenTagWithAttr {
-                        tag: "mstyle",
-                        attr: "mathvariant",
-                        val: variant.clone(),
-                        intent: if ctx.options.emit_intent {
-                            Some("style")
-                        } else {
-                            None
-                        },
-                    });
-                }
+                stack.push(Frame::Lit("</mstyle>"));
+                stack.push(Frame::Node(content));
+                stack.push(Frame::OpenTagWithAttr {
+                    tag: "mstyle",
+                    attr: "mathvariant",
+                    val: variant.clone(),
+                    intent: if ctx.options.emit_intent {
+                        Some("style")
+                    } else {
+                        None
+                    },
+                });
             }
             MathNode::Accent { mark, content } => {
                 stack.push(Frame::AccentClose(mark.clone()));
@@ -81,19 +69,24 @@ impl MathMLRenderer {
                 let (lspace, rspace) = class.default_spaces();
                 // Prefer a single spaced <mo> when the body is a simple operator/token.
                 if let Some(text) = try_extract_operator_text(content) {
-                    let intent = if ctx.options.emit_intent {
-                        format!(" intent=\"math-class:{}\"", class.as_str())
+                    if ctx.options.emit_intent {
+                        write!(
+                            ctx.out,
+                            "<mo lspace=\"{}\" rspace=\"{}\" intent=\"math-class:{}\">{}</mo>",
+                            lspace,
+                            rspace,
+                            class.as_str(),
+                            escape_xml(text.as_ref())
+                        )?;
                     } else {
-                        String::new()
-                    };
-                    write!(
-                        ctx.out,
-                        "<mo lspace=\"{}\" rspace=\"{}\"{}>{}</mo>",
-                        lspace,
-                        rspace,
-                        intent,
-                        escape_xml(text.as_ref())
-                    )?;
+                        write!(
+                            ctx.out,
+                            "<mo lspace=\"{}\" rspace=\"{}\">{}</mo>",
+                            lspace,
+                            rspace,
+                            escape_xml(text.as_ref())
+                        )?;
+                    }
                 } else {
                     stack.push(Frame::Lit("</mrow>"));
                     stack.push(Frame::Node(content));

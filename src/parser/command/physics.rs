@@ -6,7 +6,28 @@ use winnow::prelude::*;
 
 use crate::ast::*;
 use crate::parser::atoms::{take_balanced_braces, take_balanced_brackets};
-use crate::parser::parse_math;
+use crate::parser::parse_math_inner as parse_math;
+
+/// Dispatches physics & unit irregular macros to keep `command/mod.rs` lean.
+pub(super) fn parse_physics_cmd<'s>(
+    cmd: &str,
+    input: &mut &'s str,
+) -> Option<ModalResult<MathNode<'s>>> {
+    Some(match cmd {
+        "bra" => parse_bra_cmd(input),
+        "ket" => parse_ket_cmd(input),
+        "braket" => parse_braket_cmd(input),
+        "ketbra" => parse_ketbra_cmd(input),
+        "mel" | "matrixel" => parse_mel_cmd(input),
+        "ev" | "expval" => parse_expval_cmd(input),
+        "dd" => parse_dd_cmd(input),
+        "dv" => parse_dv_cmd(input),
+        "pdv" => parse_pdv_cmd(input),
+        "grad" | "div" | "curl" | "rot" | "laplacian" => Ok(parse_vector_op_cmd(cmd)),
+        "unit" | "pu" => parse_unit_cmd(input),
+        _ => return None,
+    })
+}
 
 /// Parses Dirac Bra notation: `\bra{ψ}` -> `⟨ ψ |`
 pub fn parse_bra_cmd<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {

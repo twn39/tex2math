@@ -1,6 +1,6 @@
 //! Leaf token emission (numbers, identifiers, operators, text, space, errors).
 
-use super::super::basic::{escape_xml, write_escaped_xml};
+use super::super::basic::{escape_xml, write_escaped_mtext_core, write_escaped_xml};
 use super::super::{MathMLRenderer, RenderCtx};
 use crate::ast::*;
 use std::fmt;
@@ -48,7 +48,11 @@ impl MathMLRenderer {
                 } else {
                     ctx.out.push_str("<mtext>")?;
                 }
-                write_escaped_xml(t.as_ref(), ctx.out)?;
+                if ctx.options.mathml_core {
+                    write_escaped_mtext_core(t.as_ref(), ctx.out)?;
+                } else {
+                    write_escaped_xml(t.as_ref(), ctx.out)?;
+                }
                 ctx.out.push_str("</mtext>")?;
             }
             MathNode::Space(width) => {

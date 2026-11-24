@@ -126,7 +126,6 @@ pub fn convert_to(
     out: &mut dyn MathSink,
 ) -> Result<(), ParseError> {
     let ast = parse(input, &opts.parse)?;
-    depth::configure_render(opts.parse.max_depth);
 
     let render_opts = RenderOptions {
         mathml_core: opts.mathml_core,

@@ -142,8 +142,9 @@ pub(super) fn parse_operatorname_cmd<'s>(
     cmd: &str,
     input: &mut &'s str,
 ) -> ModalResult<MathNode<'s>> {
+    let starred = cmd == "operatorname*" || opt(preceded(space0, '*')).parse_next(input)?.is_some();
     let content = delimited((space0, '{'), parse_row, (space0, '}')).parse_next(input)?;
-    if cmd == "operatorname*" {
+    if starred {
         Ok(MathNode::Scripts {
             base: Box::new(MathNode::OperatorName(Box::new(content))),
             sub: None,

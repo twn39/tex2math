@@ -164,6 +164,10 @@ pub fn walk_node<'s, F: AstFolder<'s> + ?Sized>(
             Box::new(folder.fold_node(*a)),
             Box::new(folder.fold_node(*b)),
         ),
+        MathNode::Atop(a, b) => MathNode::Atop(
+            Box::new(folder.fold_node(*a)),
+            Box::new(folder.fold_node(*b)),
+        ),
         MathNode::Binom(a, b) => MathNode::Binom(
             Box::new(folder.fold_node(*a)),
             Box::new(folder.fold_node(*b)),
@@ -298,10 +302,10 @@ pub fn fold_infix<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
             _ => MathNode::Row(right),
         };
 
-        if matches!(marker, MathNode::ChooseMarker) {
-            return MathNode::Binom(Box::new(upper), Box::new(lower));
-        } else {
-            return MathNode::Fraction(Box::new(upper), Box::new(lower));
+        match marker {
+            MathNode::ChooseMarker => return MathNode::Binom(Box::new(upper), Box::new(lower)),
+            MathNode::AtopMarker => return MathNode::Atop(Box::new(upper), Box::new(lower)),
+            _ => return MathNode::Fraction(Box::new(upper), Box::new(lower)),
         }
     }
     if nodes.len() == 1 {
@@ -317,61 +321,58 @@ pub fn fold_choose<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
     fold_infix(nodes)
 }
 
-/// Fold adjacent empty-base scripts into tensor / prescript form.
+/// Fold adjacent empty-base scripts into tensor / prescript form (zero-clone move).
 ///
 /// Used while assembling rows (`parse_row`) and as part of full-tree normalize.
 pub fn fold_prescripts<'s>(nodes: Vec<MathNode<'s>>) -> MathNode<'s> {
     let mut folded: Vec<MathNode<'s>> = Vec::with_capacity(nodes.len());
-    let mut i = 0;
+    let mut iter = nodes.into_iter().peekable();
 
-    while i < nodes.len() {
-        if i + 1 < nodes.len() {
-            if let MathNode::Scripts {
+    while let Some(node) = iter.next() {
+        let is_empty_base_scripts = matches!(
+            &node,
+            MathNode::Scripts {
                 base,
-                sub,
-                sup,
                 pre_sub: None,
                 pre_sup: None,
                 behavior: LimitBehavior::Default,
                 ..
-            } = &nodes[i]
-            {
-                if let MathNode::Row(inner) = &**base {
-                    if inner.is_empty() {
-                        let next_node = nodes[i + 1].clone();
-                        let merged = match next_node {
-                            MathNode::Scripts {
-                                base: next_base,
-                                sub: next_sub,
-                                sup: next_sup,
-                                behavior,
-                                ..
-                            } => MathNode::Scripts {
-                                base: next_base,
-                                sub: next_sub,
-                                sup: next_sup,
-                                pre_sub: sub.clone(),
-                                pre_sup: sup.clone(),
-                                behavior,
-                            },
-                            other => MathNode::Scripts {
-                                base: Box::new(other),
-                                sub: None,
-                                sup: None,
-                                pre_sub: sub.clone(),
-                                pre_sup: sup.clone(),
-                                behavior: LimitBehavior::Default,
-                            },
-                        };
-                        folded.push(merged);
-                        i += 2;
-                        continue;
-                    }
-                }
-            }
+            } if matches!(base.as_ref(), MathNode::Row(inner) if inner.is_empty())
+        );
+
+        if is_empty_base_scripts && iter.peek().is_some() {
+            let MathNode::Scripts { sub, sup, .. } = node else {
+                unreachable!()
+            };
+            let next_node = iter.next().unwrap();
+            let merged = match next_node {
+                MathNode::Scripts {
+                    base: next_base,
+                    sub: next_sub,
+                    sup: next_sup,
+                    behavior,
+                    ..
+                } => MathNode::Scripts {
+                    base: next_base,
+                    sub: next_sub,
+                    sup: next_sup,
+                    pre_sub: sub,
+                    pre_sup: sup,
+                    behavior,
+                },
+                other => MathNode::Scripts {
+                    base: Box::new(other),
+                    sub: None,
+                    sup: None,
+                    pre_sub: sub,
+                    pre_sup: sup,
+                    behavior: LimitBehavior::Default,
+                },
+            };
+            folded.push(merged);
+        } else {
+            folded.push(node);
         }
-        folded.push(nodes[i].clone());
-        i += 1;
     }
 
     if folded.len() == 1 {

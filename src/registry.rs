@@ -368,56 +368,70 @@ pub enum CommandSpec {
 
 /// Classify a bare command name (no leading `\`) for dispatch.
 ///
+/// Uses a direct `match` (compiled to a length-switched jump table by LLVM)
+/// instead of scanning 15 tables sequentially. Parity with the `pub const`
+/// metadata tables is enforced by unit tests.
+///
 /// Returns `None` when the name is not a registry command (caller may try
 /// [`crate::symbols::lookup_symbol`] or unknown-command policy).
 #[inline]
 pub fn command_spec(cmd: &str) -> Option<CommandSpec> {
-    if contains_key(STRUCTURAL_CMDS, cmd) {
-        return Some(CommandSpec::Structural);
-    }
-    if lookup(FONT_STYLES, cmd).is_some() {
-        return Some(CommandSpec::FontStyle);
-    }
-    if lookup_bool(FRAC_STYLES, cmd).is_some() {
-        return Some(CommandSpec::FracStyle);
-    }
-    if lookup_opt_bool(BINOM_STYLES, cmd).is_some() {
-        return Some(CommandSpec::Binom);
-    }
-    if lookup(EXTENSIBLE_ARROWS, cmd).is_some() {
-        return Some(CommandSpec::ExtensibleArrow);
-    }
-    if lookup_stretch(cmd).is_some() {
-        return Some(CommandSpec::StretchOp);
-    }
-    if lookup(ACCENTS, cmd).is_some() {
-        return Some(CommandSpec::Accent);
-    }
-    if lookup(CANCEL_MODES, cmd).is_some() {
-        return Some(CommandSpec::Cancel);
-    }
-    if contains_key(PHANTOM_KINDS, cmd) {
-        return Some(CommandSpec::Phantom);
-    }
-    if lookup(SIZED_DELIMS, cmd).is_some() {
-        return Some(CommandSpec::SizedDelim);
-    }
-    if contains_key(MOD_CMDS, cmd) {
-        return Some(CommandSpec::Mod);
-    }
-    if contains_key(MATH_CLASS_CMDS, cmd) {
-        return Some(CommandSpec::MathClass);
-    }
-    if lookup_bool(STYLE_SWITCH_CMDS, cmd).is_some() {
-        return Some(CommandSpec::StyleSwitch);
-    }
-    if contains_key(DIM_SPACE_CMDS, cmd) {
-        return Some(CommandSpec::DimSpace);
-    }
-    if contains_key(IRREGULAR_CMDS, cmd) {
-        return Some(CommandSpec::Irregular);
-    }
-    None
+    Some(match cmd {
+        // STRUCTURAL_CMDS
+        "frac" | "left" | "right" | "sqrt" => CommandSpec::Structural,
+        // FONT_STYLES
+        "boldsymbol" | "mathbb" | "mathbf" | "mathcal" | "mathfrak" | "mathit" | "mathrm"
+        | "mathsf" | "mathtt" | "mathup" | "mit" | "rm" => CommandSpec::FontStyle,
+        // FRAC_STYLES
+        "cfrac" | "dfrac" | "tfrac" => CommandSpec::FracStyle,
+        // BINOM_STYLES
+        "binom" | "dbinom" | "tbinom" => CommandSpec::Binom,
+        // EXTENSIBLE_ARROWS
+        "xLeftarrow" | "xLeftrightarrow" | "xRightarrow" | "xhookleftarrow" | "xhookrightarrow"
+        | "xleftarrow" | "xleftrightarrow" | "xlongequal" | "xmapsto" | "xrightarrow"
+        | "xtwoheadleftarrow" | "xtwoheadrightarrow" => CommandSpec::ExtensibleArrow,
+        // STRETCH_OPS
+        "overbrace"
+        | "overleftarrow"
+        | "overleftrightarrow"
+        | "overline"
+        | "overrightarrow"
+        | "underbrace"
+        | "underleftarrow"
+        | "underleftrightarrow"
+        | "underline"
+        | "underrightarrow" => CommandSpec::StretchOp,
+        // ACCENTS
+        "bar" | "breve" | "check" | "ddddot" | "ddot" | "dot" | "hat" | "tilde" | "vec"
+        | "widehat" | "widetilde" => CommandSpec::Accent,
+        // CANCEL_MODES
+        "bcancel" | "cancel" | "xcancel" => CommandSpec::Cancel,
+        // PHANTOM_KINDS
+        "hphantom" | "phantom" | "vphantom" => CommandSpec::Phantom,
+        // SIZED_DELIMS
+        "Big" | "Bigg" | "Biggl" | "Biggm" | "Biggr" | "Bigl" | "Bigm" | "Bigr" | "big"
+        | "bigg" | "biggl" | "biggm" | "biggr" | "bigl" | "bigm" | "bigr" => {
+            CommandSpec::SizedDelim
+        }
+        // MOD_CMDS
+        "bmod" | "mod" | "pmod" | "pod" => CommandSpec::Mod,
+        // MATH_CLASS_CMDS
+        "mathbin" | "mathclose" | "mathop" | "mathopen" | "mathord" | "mathpunct" | "mathrel" => {
+            CommandSpec::MathClass
+        }
+        // STYLE_SWITCH_CMDS
+        "displaystyle" | "textstyle" => CommandSpec::StyleSwitch,
+        // DIM_SPACE_CMDS
+        "hskip" | "hspace" | "kern" | "mkern" | "mskip" => CommandSpec::DimSpace,
+        // IRREGULAR_CMDS
+        "atop" | "boxed" | "bra" | "braket" | "ce" | "choose" | "color" | "colorbox" | "curl"
+        | "dd" | "div" | "dv" | "ev" | "expval" | "genfrac" | "grad" | "hline" | "ket"
+        | "ketbra" | "laplacian" | "matrixel" | "mel" | "middle" | "not" | "notag"
+        | "operatorname" | "operatorname*" | "over" | "overset" | "pdv" | "prescript" | "pu"
+        | "rot" | "sideset" | "stackrel" | "substack" | "tag" | "text" | "textcolor"
+        | "underset" | "unit" => CommandSpec::Irregular,
+        _ => return None,
+    })
 }
 
 /// Binary-search a sorted `(&str, &str)` table.

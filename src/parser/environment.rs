@@ -27,9 +27,26 @@ pub fn parse_newline_opt<'s>(input: &mut &'s str) -> ModalResult<Option<&'s str>
     .parse_next(input)
 }
 
+/// Finds the next occurrence of `{prefix}{name}}` (e.g. `\begin{align*}`) without allocating.
+fn find_env_tag(haystack: &str, prefix: &str, name: &str) -> Option<usize> {
+    let mut offset = 0;
+    while let Some(pos) = haystack[offset..].find(prefix) {
+        let idx = offset + pos;
+        let after_prefix = &haystack[idx + prefix.len()..];
+        if let Some(after_name) = after_prefix.strip_prefix(name) {
+            if after_name.starts_with('}') {
+                return Some(idx);
+            }
+        }
+        offset = idx + prefix.len();
+    }
+    None
+}
+
 pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
     trace("parse_environment", |input: &mut &'s str| {
-        let begin_tag = preceded((literal("\\begin"), space0, '{'), alpha1).parse_next(input)?;
+        let begin_tag = preceded((literal("\\begin"), space0, '{'), (alpha1, opt('*')).take())
+            .parse_next(input)?;
         let name: Cow<'s, str> = Cow::Borrowed(begin_tag);
         let _ = literal("}").parse_next(input)?;
 
@@ -41,10 +58,10 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             }
         }
 
-        let begin_pattern = format!("\\begin{{{}}}", name);
-        let end_pattern = format!("\\end{{{}}}", name);
+        let begin_len = "\\begin{".len() + begin_tag.len() + 1;
+        let end_len = "\\end{".len() + begin_tag.len() + 1;
 
-        // Fix 1 (root cause): nesting-aware body extraction.
+        // Fix 1 (root cause): nesting-aware body extraction (zero heap allocation).
         let (mut inner_str, is_closed) = {
             let full = *input;
             let mut depth = 1usize;
@@ -53,8 +70,8 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
             let mut matched_end_pos: Option<usize> = None;
 
             'scan: loop {
-                let next_begin = remaining.find(begin_pattern.as_str());
-                let next_end = remaining.find(end_pattern.as_str());
+                let next_begin = find_env_tag(remaining, "\\begin{", begin_tag);
+                let next_end = find_env_tag(remaining, "\\end{", begin_tag);
 
                 match (next_begin, next_end) {
                     (_, None) => {
@@ -64,7 +81,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
                     (Some(b), Some(e)) if b < e => {
                         // A nested \begin{name} appears before the next \end{name}: push depth
                         depth += 1;
-                        let skip = b + begin_pattern.len();
+                        let skip = b + begin_len;
                         scanned += skip;
                         remaining = &remaining[skip..];
                     }
@@ -76,7 +93,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
                             matched_end_pos = Some(scanned + e);
                             break 'scan;
                         }
-                        let skip = e + end_pattern.len();
+                        let skip = e + end_len;
                         scanned += skip;
                         remaining = &remaining[skip..];
                     }
@@ -85,7 +102,7 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
 
             if let Some(end_pos) = matched_end_pos {
                 let inner = &full[..end_pos];
-                *input = &full[end_pos + end_pattern.len()..];
+                *input = &full[end_pos + end_len..];
                 (inner, true)
             } else {
                 // Unclosed: consume all remaining input
@@ -93,23 +110,6 @@ pub fn parse_environment<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>> {
                 *input = &full[full.len()..];
                 (inner, false)
             }
-        };
-
-        let mut parse_cells_in_row = |row_input: &mut &'s str| -> ModalResult<Vec<MathNode<'s>>> {
-            separated(
-                0..,
-                delimited(space0, parse_row, space0),
-                (space0, '&', space0),
-            )
-            .parse_next(row_input)
-        };
-
-        let mut parse_newline_opt = |input: &mut &'s str| -> ModalResult<Option<&str>> {
-            preceded(
-                literal("\\\\"),
-                opt(take_balanced_brackets.map(|(content, _)| content)),
-            )
-            .parse_next(input)
         };
 
         let mut rows: Vec<(Vec<MathNode<'s>>, Option<Cow<'s, str>>)> = Vec::new();

@@ -94,11 +94,16 @@ pub fn parse_fallback_char<'s>(input: &mut &'s str) -> ModalResult<MathNode<'s>>
     .parse_next(input)
 }
 
-/// Parses a string slice enclosed in matching curly braces `{...}`, keeping track of nesting depth and escaping backslashes.
-/// Returns the inner content (excluding the outermost braces) and whether the closing brace was found.
+/// Scans a balanced delimiter pair (`open`..`close`, e.g. `{}` / `[]` / `()`),
+/// honoring backslash escapes via `memchr3`.
+/// Returns `(inner_slice, found_closing_delimiter)`.
 #[inline]
-pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bool)> {
-    let _ = preceded(space0, winnow::token::literal("{")).parse_next(input)?;
+pub(crate) fn take_balanced_delims<'s>(
+    input: &mut &'s str,
+    open: u8,
+    close: u8,
+) -> ModalResult<(&'s str, bool)> {
+    let _ = preceded(space0, winnow::token::one_of(open as char)).parse_next(input)?;
 
     let full = *input;
     let bytes = full.as_bytes();
@@ -107,7 +112,7 @@ pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bo
     let mut len = 0usize;
 
     while offset < bytes.len() {
-        if let Some(pos) = memchr::memchr3(b'{', b'}', b'\\', &bytes[offset..]) {
+        if let Some(pos) = memchr::memchr3(open, close, b'\\', &bytes[offset..]) {
             let found_idx = offset + pos;
             let byte = bytes[found_idx];
             if byte == b'\\' {
@@ -122,10 +127,10 @@ pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bo
                 } else {
                     offset = found_idx + backslashes;
                 }
-            } else if byte == b'{' {
+            } else if byte == open {
                 depth += 1;
                 offset = found_idx + 1;
-            } else if byte == b'}' {
+            } else if byte == close {
                 depth -= 1;
                 if depth == 0 {
                     len = found_idx;
@@ -140,7 +145,7 @@ pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bo
 
     if depth == 0 {
         let content = &full[..len];
-        *input = &full[len + 1..]; // Skip matching '}'
+        *input = &full[len + 1..];
         Ok((content, true))
     } else {
         let content = full;
@@ -149,57 +154,16 @@ pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bo
     }
 }
 
+/// Parses a string slice enclosed in matching curly braces `{...}`, keeping track of nesting depth and escaping backslashes.
+/// Returns the inner content (excluding the outermost braces) and whether the closing brace was found.
+#[inline]
+pub fn take_balanced_braces<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bool)> {
+    take_balanced_delims(input, b'{', b'}')
+}
+
 /// Parses a string slice enclosed in matching square brackets `[...]`, keeping track of nesting depth and escaping backslashes.
 /// Returns the inner content (excluding the outermost brackets) and whether the closing bracket was found.
 #[inline]
 pub fn take_balanced_brackets<'s>(input: &mut &'s str) -> ModalResult<(&'s str, bool)> {
-    let _ = preceded(space0, winnow::token::literal("[")).parse_next(input)?;
-
-    let full = *input;
-    let bytes = full.as_bytes();
-    let mut depth = 1usize;
-    let mut offset = 0usize;
-    let mut len = 0usize;
-
-    while offset < bytes.len() {
-        if let Some(pos) = memchr::memchr3(b'[', b']', b'\\', &bytes[offset..]) {
-            let found_idx = offset + pos;
-            let byte = bytes[found_idx];
-            if byte == b'\\' {
-                let mut backslashes = 1usize;
-                while found_idx + backslashes < bytes.len()
-                    && bytes[found_idx + backslashes] == b'\\'
-                {
-                    backslashes += 1;
-                }
-                if !backslashes.is_multiple_of(2) {
-                    offset = (found_idx + backslashes + 1).min(bytes.len());
-                } else {
-                    offset = found_idx + backslashes;
-                }
-            } else if byte == b'[' {
-                depth += 1;
-                offset = found_idx + 1;
-            } else if byte == b']' {
-                depth -= 1;
-                if depth == 0 {
-                    len = found_idx;
-                    break;
-                }
-                offset = found_idx + 1;
-            }
-        } else {
-            break;
-        }
-    }
-
-    if depth == 0 {
-        let content = &full[..len];
-        *input = &full[len + 1..]; // Skip matching ']'
-        Ok((content, true))
-    } else {
-        let content = full;
-        *input = &full[full.len()..];
-        Ok((content, false))
-    }
+    take_balanced_delims(input, b'[', b']')
 }

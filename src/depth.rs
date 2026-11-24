@@ -125,10 +125,6 @@ pub fn unknown_command_policy() -> UnknownCommandPolicy {
     UNKNOWN_COMMAND.with(Cell::get)
 }
 
-/// No-op retained for call sites that previously configured render depth.
-/// MathML emission is heap-iterative and does not use a native stack budget.
-pub fn configure_render(_max_depth: u32) {}
-
 /// RAII parse-depth guard.
 pub struct DepthGuard;
 
